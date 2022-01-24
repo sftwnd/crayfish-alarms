@@ -1,2 +1,3 @@
-# crayfish-timerange
-Library for event scheduling and processing of triggered one
+# CrayFish Alarms
+
+The library contains primitives that allow you to control the installation of tasks for processing on a schedule
