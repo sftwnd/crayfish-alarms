@@ -13,12 +13,44 @@
 
     <modules>
         <module>crayfish-alarms-timerange</module>
+        <module>crayfish-alarms-akka</module>
     </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <crayfish-common-expectation.version>1.0.0</crayfish-common-expectation.version>
+        <scala.binary.version>2.13</scala.binary.version>
+        <scala.version>${scala.binary.version}.7</scala.version>
+        <akka-actor.version>2.6.18</akka-actor.version>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
@@ -101,9 +133,25 @@
                 <version>${crayfish-common-expectation.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+                <artifactId>crayfish-alarms-timerange</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.typesafe.akka</groupId>
+                <artifactId>akka-actor-typed_${scala.binary.version}</artifactId>
+                <version>${akka-actor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.typesafe.akka</groupId>
+                <artifactId>akka-slf4j_${scala.binary.version}</artifactId>
+                <version>${akka-actor.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>1.18.22</version>
+                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>com.google.code.findbugs</groupId>
@@ -127,6 +175,18 @@
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-core</artifactId>
                 <version>4.2.0</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-nop</artifactId>
+                <version>1.7.33</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.typesafe.akka</groupId>
+                <artifactId>akka-actor-testkit-typed_${scala.binary.version}</artifactId>
+                <version>${akka-actor.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
