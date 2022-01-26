@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -58,7 +59,7 @@ class TimeRangeTest {
         ExpectedPackage<String, Instant> elmA = ExpectedPackage.pack("A", now);
         ExpectedPackage<String, Instant> elmB = ExpectedPackage.pack("B", now.minus(1, ChronoUnit.MINUTES));
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, List.of(elmA, elmB));
-        assertDoesNotThrow(completableFuture::join, "TimeRange hasn't got to throw on AddElements call");
+        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements call");
         Collection<String> rejected = completableFuture.get().stream().map(ExpectedPackage::getElement).collect(Collectors.toList());
         assertEquals(List.of(elmB.getElement()), rejected, "element 'B' has to be rejected");
         assertTrue(countDownLatch.await(750, TimeUnit.MILLISECONDS), "collectionConsumer has to be called");
@@ -94,7 +95,7 @@ class TimeRangeTest {
 
     @SneakyThrows
     @Nonnull <R> R throwOnResult() {
-        throw new Throwable();
+        throw new Exception();
     }
 
     @Test
@@ -107,23 +108,23 @@ class TimeRangeTest {
             ExpectedPackage<String, Instant> elmX = ExpectedPackage.supply("X", this::throwOnResult);
             CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = new CompletableFuture<>();
             TimeRange.addElements(timeRangeActor, List.of(elmX), completableFuture::complete, completableFuture::completeExceptionally);
-            assertThrows(Throwable.class, completableFuture::join, "After throw on TimeRange::addElements onThrow consumer has to be fired");
+            assertThrows(Throwable.class, () -> completableFuture.get(500, TimeUnit.MILLISECONDS), "After throw on TimeRange::addElements onThrow consumer has to be fired");
         } finally {
             testProbe.stop();
         }
     }
 
     @Test
-    void addEmptyElements() {
+    void addEmptyElements() throws ExecutionException, InterruptedException, TimeoutException {
         Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"addEmptyElements");
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, Collections.emptyList());
-        assertDoesNotThrow(completableFuture::join, "TimeRange hasn't got to throw on AddElements with empty list call");
-        assertEquals(Collections.emptySet(), completableFuture.join(), "AddElements has return empty list for the empty request");
+        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements with empty list call");
+        assertEquals(Collections.emptySet(), completableFuture.get(500, TimeUnit.MILLISECONDS), "AddElements has return empty list for the empty request");
     }
 
     @Test
-    void testAddOnExpired() {
+    void testAddOnExpired() throws ExecutionException, InterruptedException, TimeoutException {
         now = Instant.now().minus(1, ChronoUnit.MINUTES);
         timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
         Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
@@ -134,8 +135,8 @@ class TimeRangeTest {
         assertTrue(timeRangeConfig.isExpired(), "TimeRange period has to be expired");
         Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, elements);
-        assertDoesNotThrow(completableFuture::join, "TimeRange has to process addElements without throws");
-        assertEquals(elements, completableFuture.join(), "Elements has to be rejected by addElements to expired range");
+        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange has to process addElements without throws");
+        assertEquals(elements, completableFuture.get(500, TimeUnit.MILLISECONDS), "Elements has to be rejected by addElements to expired range");
     }
 
     @BeforeEach

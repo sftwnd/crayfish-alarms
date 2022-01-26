@@ -31,10 +31,18 @@ import static java.util.Optional.ofNullable;
  */
 public interface TimeRange {
 
+    /*
+        Used Sonar warnings:
+            java:S116 Field names should comply with a naming convention
+            java:S1170 Public constants and fields initialized at declaration should be "static final" rather than merely "final"
+            java:S2326 Unused type parameters should be removed
+     */
+
     /**
      * Базовый интерфейс для описания типа входящих сообщений
      * @param <X> generic для описания содержимого команды
      */
+    @SuppressWarnings("java:S2326")
     interface Command<X> {}
 
     /**
@@ -46,10 +54,11 @@ public interface TimeRange {
     class TimeRangeProcessor<M,R> {
 
         // Это кратчайшее описание приведения, по этой причине выбрано именно оно
-        @SuppressWarnings(value = {"unchecked", "rawtypes"})
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
-        @SuppressWarnings(value = {"unchecked", "rawtypes"})
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
+        @SuppressWarnings("java:S116")
         private final Command<M> TIMEOUT = new Command<>() {};
 
         private final TimerScheduler<Command<M>> timers;
@@ -99,7 +108,7 @@ public interface TimeRange {
                 command.getCompletableFuture().complete(
                         timeRange.isExpired(checkInstant()) ? command.getData() : timeRange.addElements(command.getData())
                 );
-            } catch (Throwable throwable) {
+            } catch (Exception throwable) {
                 command.getCompletableFuture().completeExceptionally(throwable);
             }
             return nextBehavior();
