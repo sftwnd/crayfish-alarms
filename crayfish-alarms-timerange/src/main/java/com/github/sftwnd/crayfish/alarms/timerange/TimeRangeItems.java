@@ -45,25 +45,16 @@ import static java.util.Optional.ofNullable;
  */
 public class TimeRangeItems<M,R> {
 
-    // Начало периода действия региона
-    @Getter private final Instant startInstant;
-    // Верхняя граница интервала (exclude...)
-    @Getter private final Instant lastInstant;
-    // Размер внутреннего chunk-а деления интервала
-    @Getter private final Duration interval;
-    // Минимальная задержка опроса в ACTIVE статусе. Позволяет разгрузить процессор, но уменьшить точность срабатывания
-    // event-а приблизительно (в среднем) до величины задержки.
-    // P.S.> Для отрицательных ставится Duration.ZERO, не может быть больше размера внутреннего chunk-а: interval
-    @Getter private final Duration delay;
-    // Таймаут на доставку задержавшихся сообщений.
-    // С момента наступления lastInstant выдерживается timeout на приход сообщений в обработку
-    @Getter private final Duration completeTimeout;
-    // Получение даты из регистрируемого сообщения
-    private final Expectation<M,? extends TemporalAccessor> expectation;
+    /*
+        Used sonar warnings:
+            java:S107 Methods should not have too many parameters
+            java:S3358 Ternary operators should not be nested
+            java:S3864 "Stream.peek" should be used with caution
+     */
+    // Основные настроечные параметры
+    private final Config<M,R> config;
     // Сравнение двух зарегистрированных объектов
     private final Comparator<? super M> comparator;
-    // Получение результирующего элемента из зарегистрированного
-    private final RequiredFunction<M,R> extractor;
     // Момент ближайшего элемента. В случае отсутствия - null
     @Setter(value = AccessLevel.PRIVATE)
     private Instant nearestInstant = null;
@@ -86,6 +77,7 @@ public class TimeRangeItems<M,R> {
      * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
      * @param extractor Метод преобразования входящего элемента в результирующий
      */
+    @SuppressWarnings("java:S107")
     public TimeRangeItems(
             @NonNull  Instant  instant,
             @NonNull  Duration duration,
@@ -105,16 +97,16 @@ public class TimeRangeItems<M,R> {
      * @param config Конфигурация для параметров конструктора
      */
     public TimeRangeItems(@NonNull TimeRangeItems.Config<M,R> config) {
-        this.startInstant = config.getStartInstant();
-        this.lastInstant = config.getLastInstant();
-        this.interval = config.getInterval();
-        this.delay = config.getDelay();
-        this.completeTimeout = config.getCompleteTimeout();
-        this.expectation = config.expectation;
+        this.config = config;
         this.comparator = ofNullable(config.comparator).orElse(this::compareObjects);
-        this.extractor = config.extractor;
-        this.lastDelayedInstant = this.lastInstant.minus(this.delay);
+        this.lastDelayedInstant = config.lastInstant.minus(config.delay);
     }
+
+    @Nonnull public Instant getStartInstant() { return config.startInstant; }
+    @Nonnull public Instant getLastInstant() { return config.lastInstant; }
+    @Nonnull public Duration getInterval() { return config.interval; }
+    @Nonnull public Duration getDelay() { return config.delay; }
+    @Nonnull public Duration getCompleteTimeout() { return config.completeTimeout; }
 
     /**
      * Временной интервал с учётом completeTimeout исчерпаны на текущий момент
@@ -131,7 +123,7 @@ public class TimeRangeItems<M,R> {
      */
     public boolean isExpired(@Nullable Instant instant) {
         return !ofNullable(instant).orElseGet(Instant::now)
-                .isBefore(this.lastInstant.plus(this.completeTimeout));
+                .isBefore(config.lastInstant.plus(config.completeTimeout));
     }
 
     /**
@@ -166,7 +158,7 @@ public class TimeRangeItems<M,R> {
                 .filter(element -> checkRange(element) || !excludes.add(element))
                 // Если элемент самый ранний, то отмечаем его Instant
                 // P.S.> Ввиду наличия терминального оператора peek сработает для каждого элемента, прошедшего через него.
-                .peek(elm -> Optional.of(instant(elm))
+                .peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
                         .filter(inst -> inst.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX)))
                         .ifPresent(this::setNearestInstant))
                 // Группируем по диапазонам instantKey
@@ -241,7 +233,7 @@ public class TimeRangeItems<M,R> {
     }
 
     private Stream<M> processComplete(Set<M> elements, Set<R> result) {
-        elements.stream().map(this.extractor).forEach(result::add);
+        elements.stream().map(config.extractor).forEach(result::add);
         return Stream.empty();
     }
 
@@ -268,13 +260,13 @@ public class TimeRangeItems<M,R> {
      */
     public Duration duration(@NonNull Instant now) {
         // Если время указано до начала диапазона
-        if (now.isBefore(this.startInstant)) {
+        if (now.isBefore(config.startInstant)) {
             return durationToStart(now);
         // Если время начала диапазона прошло и нет элементов
         } else if (this.expectedMap.isEmpty()) {
             return durationToStop(now);
         // Если есть элементы и время попадает в диапазон
-        } else if (now.isBefore(this.lastInstant)) {
+        } else if (now.isBefore(config.lastInstant)) {
             return durationToExpect(now);
         } else {
             return Duration.ZERO;
@@ -295,7 +287,7 @@ public class TimeRangeItems<M,R> {
     // Это время дается AKKA System на доставку до нас сообщение с заказом на обработку. Дело в том, что не предполагается
     // получение заданий в обработку после момента их наступления. Данный актор принимает только сообщения на будущее
     private @Nonnull Duration durationToStop(Instant now) {
-        return durationTo(this.lastInstant.plus(this.completeTimeout), now);
+        return durationTo(config.lastInstant.plus(config.completeTimeout), now);
     }
 
     // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до завершения диапазона текущего ключа
@@ -306,20 +298,20 @@ public class TimeRangeItems<M,R> {
         //        Если будет повторяться - надо посмотреть в направлении оптимизации durationToExpect
         return Optional.of(durationTo( // Берём Delay до ближайшего элемента, а если его нет, то до конца chunk-а
                         ofNullable(this.nearestInstant)
-                                .orElse(this.lastInstant),
+                                .orElse(config.lastInstant),
                         now))
                 // Проверяем, что он превышает delay
-                .filter(d -> d.compareTo(this.delay) >= 0)
+                .filter(d -> d.compareTo(config.delay) >= 0)
                 // Если не превышает, то при попадании до lastDelayedInstant возвращаем delay, иначе - оставшееся время to lastInstant
-                .orElseGet(() -> now.isAfter(this.lastInstant) ? Duration.ZERO
-                        : now.isBefore(this.lastDelayedInstant) ? this.delay
-                        : Duration.between(now, this.lastInstant));
+                .orElseGet(() -> now.isAfter(config.lastInstant) ? Duration.ZERO
+                        : now.isBefore(this.lastDelayedInstant) ? config.delay // NOSONAR java:S3358 Ternary operators should not be nested
+                        : Duration.between(now, config.lastInstant));
     }
 
     // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до начала активации диапазона
     private @Nonnull Duration durationToStart(@Nonnull Instant now) {
         return durationTo(
-                ofNullable(this.nearestInstant).orElse(this.startInstant),
+                ofNullable(this.nearestInstant).orElse(config.startInstant),
                 now);
     }
 
@@ -335,8 +327,8 @@ public class TimeRangeItems<M,R> {
     private boolean checkRange(@Nonnull M element) {
         return Optional.of(element)
                 .map(this::instant)
-                .filter(Predicate.not(this.startInstant::isAfter))
-                .filter(this.lastInstant::isAfter)
+                .filter(Predicate.not(config.startInstant::isAfter))
+                .filter(config.lastInstant::isAfter)
                 .isPresent();
     }
 
@@ -346,7 +338,7 @@ public class TimeRangeItems<M,R> {
      * @return момент, описывающий диапазон периода опроса
      */
     private Instant getInstantKey(@Nonnull Instant instant) {
-        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % this.interval.toMillis());
+        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % config.interval.toMillis());
     }
 
     private Instant getTemporalKey(@Nullable TemporalAccessor temporalAccessor) {
@@ -375,20 +367,32 @@ public class TimeRangeItems<M,R> {
     }
 
     private @Nonnull Instant instant(@Nonnull M element) {
-        return Instant.from(expectation.apply(element));
+        return Instant.from(config.expectation.apply(element));
     }
 
     public static class Config<M,R> {
 
+        // Начало периода действия региона
         @Getter private final Instant startInstant;
+        // Верхняя граница интервала (exclude...)
         @Getter private final Instant lastInstant;
+        // Размер внутреннего chunk-а деления интервала
         @Getter private final Duration interval;
+        // Минимальная задержка опроса в ACTIVE статусе. Позволяет разгрузить процессор, но уменьшить точность срабатывания
+        // event-а приблизительно (в среднем) до величины задержки.
+        // P.S.> Для отрицательных ставится Duration.ZERO, не может быть больше размера внутреннего chunk-а: interval
         @Getter private final Duration delay;
+        // Таймаут на доставку задержавшихся сообщений.
+        // С момента наступления lastInstant выдерживается timeout на приход сообщений в обработку
         @Getter private final Duration completeTimeout;
+        // Получение даты из регистрируемого сообщения
         private final Expectation<M,? extends TemporalAccessor> expectation;
+        // Сравнение двух зарегистрированных объектов
         private final Comparator<? super M> comparator;
+        // Получение результирующего элемента из зарегистрированного
         private final RequiredFunction<M,R> extractor;
 
+        @SuppressWarnings("java:S107")
         public Config(
                 @NonNull  Instant  instant,
                 @NonNull  Duration duration,
@@ -399,7 +403,7 @@ public class TimeRangeItems<M,R> {
                 @Nullable Comparator<? super M> comparator,
                 @NonNull  RequiredFunction<M,R> extractor
         ) {
-            assert !Duration.ZERO.equals(duration);
+            if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("Config::new - Invalid duration: " + duration);
             this.startInstant = Optional.of(duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
             this.lastInstant = Optional.of(duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
             this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
