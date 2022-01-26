@@ -46,9 +46,9 @@ public interface TimeRange {
     class TimeRangeProcessor<M,R> {
 
         // Это кратчайшее описание приведения, по этой причине выбрано именно оно
-        @SuppressWarnings({"uncheched", "rawtype"})
+        @SuppressWarnings(value = {"unchecked", "rawtypes"})
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
-        @SuppressWarnings({"uncheched", "rawtype"})
+        @SuppressWarnings(value = {"unchecked", "rawtypes"})
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
         private final Command<M> TIMEOUT = new Command<>() {};
 
