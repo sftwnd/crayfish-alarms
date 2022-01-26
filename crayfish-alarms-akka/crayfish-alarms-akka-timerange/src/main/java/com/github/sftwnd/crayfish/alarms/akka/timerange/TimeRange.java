@@ -59,13 +59,13 @@ public interface TimeRange {
 
         private TimeRangeProcessor(
                 @NonNull  TimerScheduler<Command<M>> timers,
-                @NonNull  TimeRangeItems<M,R> timeRangeItems,
+                @NonNull  TimeRangeItems.Config<M,R> timeRangeConfig,
                 @NonNull  Consumer<Collection<R>> firedConsumer,
                 // В пределах TimeRangeItems::interval можно задать значение насколько раньше считать запись сработавшей...
                 @Nullable Duration withCheckDelay
         ) {
             this.timers = timers;
-            this.timeRange = timeRangeItems;
+            this.timeRange = timeRangeConfig.timeRange();
             this.firedConsumer = firedConsumer;
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
         }
@@ -135,7 +135,7 @@ public interface TimeRange {
     /**
      * Создание поведения актора при котором в случае срабатывания будильника будет вызван триггер-метод: firedConsumer,
      * куда будут переданы сработавшие будильники
-     * @param timeRangeItems - структура, содержащая будильники с расписанием их срабатывания на заданный период
+     * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
      * @param firedConsumer - триггер-метод обработки сработавших будильников
      * @param withCheckDuration - временной интервал на который от текущего момента изменяется момент опроса timeRangeItems
      *                          (может быть как вперед, так и назад во времени)
@@ -144,15 +144,15 @@ public interface TimeRange {
      * @return Поведение для актора-процессора временного периода с будильниками
      */
     static <M,R> Behavior<Command<M>> create(
-            @NonNull TimeRangeItems<M,R> timeRangeItems,
+            @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
             @NonNull Consumer<Collection<R>> firedConsumer,
             @Nullable Duration withCheckDuration) {
-        return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, timeRangeItems, firedConsumer, withCheckDuration).initial());
+        return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
      * Создание поведения актора при котором в случае срабатывания будильника будет отправлено сообщения на actor-приёмник по обработке будильников
-     * @param timeRangeItems - структура, содержащая будильники с расписанием их срабатывания на заданный период
+     * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
      * @param firedActor - актор-приёмник сообщения со сработавшими будильниками
      * @param responseSupplier - функция построения из списка сработавших будильников сообщение актору - подписчику
      * @param withCheckDuration - временной интервал на который от текущего момента изменяется момент опроса timeRangeItems
@@ -163,12 +163,12 @@ public interface TimeRange {
      * @return Поведение для актора-процессора временного периода с будильниками
      */
     static <M,R,X> Behavior<Command<M>> create(
-            @NonNull TimeRangeItems<M,R> timeRangeItems,
+            @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
             @NonNull ActorRef<X> firedActor,
             @NonNull Function<Collection<R>,X> responseSupplier,
             @Nullable Duration withCheckDuration) {
         return create(
-                timeRangeItems,
+                timeRangeConfig,
                 firedElements -> ofNullable(firedElements)
                         .filter(Predicate.not(Collection::isEmpty))
                         .map(responseSupplier)

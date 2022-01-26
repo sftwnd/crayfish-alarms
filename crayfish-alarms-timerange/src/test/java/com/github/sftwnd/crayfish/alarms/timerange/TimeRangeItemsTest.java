@@ -2,6 +2,7 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
+import com.github.sftwnd.crayfish.common.required.RequiredFunction;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.junit.jupiter.api.AfterEach;
@@ -49,14 +50,16 @@ class TimeRangeItemsTest {
 
     @Test
     void isNotExpiredCompleteNowTest() {
-        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = TimeRangeItems.constructExpected(now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null);
+        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = new TimeRangeItems<>(
+                now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
+                Expected::getTick, null, RequiredFunction.identity());
         assertFalse(timeRange.isExpired(), "TimeRangeItems hasn't got to be expired on Instant.now()");
         assertFalse(timeRange.isComplete(), "TimeRangeItems hasn't got to be expired on Instant.now()");
     }
 
     @Test
     void isExpiredNowCompleteTest() {
-        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = TimeRangeItems.constructExpected(now.minus(1,ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null);
+        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = new TimeRangeItems<>(TimeRangeItems.Config.expected(now.minus(1,ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null));
         assertTrue(timeRange.isExpired(), "TimeRangeItems has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRangeItems has got to be expired on Instant.now()");
     }
@@ -228,7 +231,8 @@ class TimeRangeItemsTest {
     void constructPackableTest() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        TimeRangeItems<ExpectedPackage<String,Instant>,String> timeRangeItems = TimeRangeItems.constructPackable(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, String::compareTo);
+        TimeRangeItems.Config<ExpectedPackage<String,Instant>,String> timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, String::compareTo);
+        TimeRangeItems<ExpectedPackage<String,Instant>,String> timeRangeItems = timeRangeConfig.timeRange();
         String strA="A";
         String strB="B";
         String strC="C";
@@ -254,7 +258,7 @@ class TimeRangeItemsTest {
     void startUp() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        this.timeRange = TimeRangeItems.constructExpected(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, null);
+        this.timeRange = new TimeRangeItems<>(TimeRangeItems.Config.expected(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, null));
         this.elementA = expected(now.minusSeconds(40));
         this.elementB = expected(now.minusSeconds(5));
         this.elementC = expected(now.minusSeconds(4));

@@ -49,7 +49,6 @@ public class TimeRangeItems<M,R> {
     @Getter private final Instant startInstant;
     // Верхняя граница интервала (exclude...)
     @Getter private final Instant lastInstant;
-    private final Instant lastDelayedInstant;
     // Размер внутреннего chunk-а деления интервала
     @Getter private final Duration interval;
     // Минимальная задержка опроса в ACTIVE статусе. Позволяет разгрузить процессор, но уменьшить точность срабатывания
@@ -73,10 +72,10 @@ public class TimeRangeItems<M,R> {
     // Внутренние элементы содержатся в TreeSet, что тоже гарантирует порядок
     // Здесь мы указываем не интерфейс, а реализацию сознательно!!!
     private final TreeMap<Instant, TreeSet<M>> expectedMap = new TreeMap<>();
+    private final Instant lastDelayedInstant;
 
     /**
-     *
-     * Объект, содержащий M объекты на диапазон для поиска сработавших
+     * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
      *
      * @param instant Момент, ограничивающий период обработки региона
      * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа).
@@ -97,22 +96,24 @@ public class TimeRangeItems<M,R> {
             @Nullable Comparator<? super M> comparator,
             @NonNull  RequiredFunction<M,R> extractor
     ) {
-        assert !Duration.ZERO.equals(duration);
-        // ### Instant/Duration
-        this.startInstant = Optional.of(duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-        this.lastInstant = Optional.of(duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
-        this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
-        this.delay = ofNullable(delay)
-                .filter(Predicate.not(Duration::isNegative))
-                .map(d -> d.compareTo(this.interval) > 0 ? this.interval : d)
-                .orElse(Duration.ZERO);
+        this(new Config<>(instant, duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+    }
+
+    /**
+     * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
+     *
+     * @param config Конфигурация для параметров конструктора
+     */
+    public TimeRangeItems(@NonNull TimeRangeItems.Config<M,R> config) {
+        this.startInstant = config.getStartInstant();
+        this.lastInstant = config.getLastInstant();
+        this.interval = config.getInterval();
+        this.delay = config.getDelay();
+        this.completeTimeout = config.getCompleteTimeout();
+        this.expectation = config.expectation;
+        this.comparator = ofNullable(config.comparator).orElse(this::compareObjects);
+        this.extractor = config.extractor;
         this.lastDelayedInstant = this.lastInstant.minus(this.delay);
-        this.completeTimeout = completeTimeout.abs();
-        // ### Comparison
-        this.expectation = expectation;
-        this.comparator = comparator != null ? comparator : this::compareObjects;
-        // ### Transformation
-        this.extractor = extractor;
     }
 
     /**
@@ -377,69 +378,131 @@ public class TimeRangeItems<M,R> {
         return Instant.from(expectation.apply(element));
     }
 
-    /**
-     * Создание TimeRangeItems с ExpectedPackage как тип регистрируемых элементов
-     *
-     * @param instant Момент, ограничивающий период обработки региона
-     * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
-     * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
-     * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
-     * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
-     * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
-     * @param <M> тип выдаваемого элемента
-     * @param <C> тип входящего элемента
-     * @return экземпляр TimeRangeItems
-     */
-    public static <M, C extends ExpectedPackage<M,? extends TemporalAccessor>> TimeRangeItems<C,M> constructPackable(
-            @NonNull  Instant  instant,
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
-            @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @Nullable Comparator<? super M> comparator
-    ) {
-        return new TimeRangeItems<>(
-                instant,
-                duration,
-                interval,
-                delay,
-                completeTimeout,
-                ExpectedPackage::getTick,
-                comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
-                ExpectedPackage::getElement
-        );
-    }
+    public static class Config<M,R> {
 
-    /**
-     * Создание TimeRangeItems с Expected как тип регистрируемых элементов
-     *
-     * @param instant Момент, ограничивающий период обработки региона
-     * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
-     * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
-     * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
-     * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
-     * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
-     * @param <M> тип регистрируемого выдаваемого элемента
-     * @return экземпляр TimeRangeItems
-     */
-    public static <M extends Expected<? extends TemporalAccessor>> TimeRangeItems<M,M> constructExpected(
-            @NonNull  Instant  instant,
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
-            @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @Nullable Comparator<? super M> comparator
-    ) {
-        return new TimeRangeItems<>(
-                instant,
-                duration,
-                interval,
-                delay,
-                completeTimeout,
-                Expected::getTick,
-                comparator,
-                RequiredFunction.identity()
-        );
+        @Getter private final Instant startInstant;
+        @Getter private final Instant lastInstant;
+        @Getter private final Duration interval;
+        @Getter private final Duration delay;
+        @Getter private final Duration completeTimeout;
+        private final Expectation<M,? extends TemporalAccessor> expectation;
+        private final Comparator<? super M> comparator;
+        private final RequiredFunction<M,R> extractor;
+
+        public Config(
+                @NonNull  Instant  instant,
+                @NonNull  Duration duration,
+                @NonNull  Duration interval,
+                @Nullable Duration delay,
+                @NonNull  Duration completeTimeout,
+                @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+                @Nullable Comparator<? super M> comparator,
+                @NonNull  RequiredFunction<M,R> extractor
+        ) {
+            assert !Duration.ZERO.equals(duration);
+            this.startInstant = Optional.of(duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
+            this.lastInstant = Optional.of(duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+            this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
+            this.delay = ofNullable(delay)
+                    .filter(Predicate.not(Duration::isNegative))
+                    .map(d -> d.compareTo(this.interval) > 0 ? this.interval : d)
+                    .orElse(Duration.ZERO);
+            this.completeTimeout = completeTimeout.abs();
+            this.expectation = expectation;
+            this.comparator = comparator;
+            this.extractor = extractor;
+        }
+
+        /**
+         * Временной интервал с учётом completeTimeout исчерпаны на текущий момент
+         * @return true если исчерпан или false в противном случае
+         */
+        public boolean isExpired() {
+            return isExpired(Instant.now());
+        }
+
+        /**
+         * Временной интервал с учётом completeTimeout исчерпаны на переданный момент
+         * @param instant момент времени на который производится проверка
+         * @return true если исчерпан или false в противном случае
+         */
+        public boolean isExpired(@Nullable Instant instant) {
+            return !ofNullable(instant).orElseGet(Instant::now)
+                    .isBefore(this.lastInstant.plus(this.completeTimeout));
+        }
+
+        /**
+         * Создание TimeRangeItems на основе текущей конфигурации
+         * @return объект TimeRangeItems
+         */
+        public TimeRangeItems<M,R> timeRange() {
+            return new TimeRangeItems<>(this);
+        }
+
+        /**
+         * Создание TimeRangeItems.Config с ExpectedPackage как тип регистрируемых элементов
+         *
+         * @param instant Момент, ограничивающий период обработки региона
+         * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
+         * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
+         * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
+         * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
+         * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
+         * @param <M> тип входящего элемента
+         * @param <R> тип выдаваемого элемента
+         * @return экземпляр TimeRangeItems.Config
+         */
+        public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> Config<M,R> packable(
+                @NonNull  Instant  instant,
+                @NonNull  Duration duration,
+                @NonNull  Duration interval,
+                @Nullable Duration delay,
+                @NonNull  Duration completeTimeout,
+                @Nullable Comparator<? super R> comparator
+        ) {
+            return new Config<>(
+                    instant,
+                    duration,
+                    interval,
+                    delay,
+                    completeTimeout,
+                    ExpectedPackage::getTick,
+                    comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
+                    ExpectedPackage::getElement
+            );
+        }
+
+        /**
+         * Создание TimeRangeItems.Config с Expected как тип регистрируемых элементов
+         *
+         * @param instant Момент, ограничивающий период обработки региона
+         * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
+         * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
+         * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
+         * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
+         * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
+         * @param <M> тип регистрируемого выдаваемого элемента
+         * @return экземпляр TimeRangeItems.Config
+         */
+        public static <M extends Expected<? extends TemporalAccessor>> Config<M,M> expected(
+                @NonNull  Instant  instant,
+                @NonNull  Duration duration,
+                @NonNull  Duration interval,
+                @Nullable Duration delay,
+                @NonNull  Duration completeTimeout,
+                @Nullable Comparator<? super M> comparator
+        ) {
+            return new Config<>(
+                    instant,
+                    duration,
+                    interval,
+                    delay,
+                    completeTimeout,
+                    Expected::getTick,
+                    comparator,
+                    RequiredFunction.identity()
+            );
+        }
     }
 
 }

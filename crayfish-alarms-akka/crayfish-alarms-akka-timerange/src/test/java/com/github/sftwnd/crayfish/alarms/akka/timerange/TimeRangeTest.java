@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -41,7 +42,7 @@ class TimeRangeTest {
 
     static ActorTestKit testKit;
     Instant now;
-    TimeRangeItems<ExpectedPackage<String, Instant>, String> timeRangeItems;
+    TimeRangeItems.Config<ExpectedPackage<String, Instant>, String> timeRangeConfig;
 
     @Test
     void createWithFiredConsumerAndAddElementsTest() throws ExecutionException, InterruptedException {
@@ -52,7 +53,7 @@ class TimeRangeTest {
                 countDownLatch.countDown();
             }
         });
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeItems, collectionConsumer, null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, collectionConsumer, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"createWithFiredConsumerAndAddElementsTest");
         ExpectedPackage<String, Instant> elmA = ExpectedPackage.pack("A", now);
         ExpectedPackage<String, Instant> elmB = ExpectedPackage.pack("B", now.minus(1, ChronoUnit.MINUTES));
@@ -72,7 +73,7 @@ class TimeRangeTest {
         TestProbe<String> testProbe = testKit.createTestProbe(String.class);
         try {
             ActorRef<String> actorRef = testProbe.getRef();
-            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeItems, actorRef, str -> "OK:" + str, null);
+            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, actorRef, str -> "OK:" + str, null);
             ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior, "createWithFiredActorAndAddElementsTest");
             ExpectedPackage<String, Instant> elmC = ExpectedPackage.pack("C", now);
             ExpectedPackage<String, Instant> elmD = ExpectedPackage.pack("D", now.minus(1, ChronoUnit.MINUTES));
@@ -92,7 +93,7 @@ class TimeRangeTest {
     }
 
     @SneakyThrows
-    <R> R throwOnResult() {
+    @Nonnull <R> R throwOnResult() {
         throw new Throwable();
     }
 
@@ -101,12 +102,9 @@ class TimeRangeTest {
         TestProbe<String> testProbe = testKit.createTestProbe(String.class);
         try {
             ActorRef<String> actorRef = testProbe.getRef();
-            @SuppressWarnings("unchecked")
-            TimeRangeItems<ExpectedPackage<String, Instant>, String> timeRangeItems = Mockito.mock(TimeRangeItems.class);
-            Mockito.when(timeRangeItems.addElements(Mockito.any())).thenAnswer(elements -> throwOnResult());
-            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeItems, actorRef, str -> "OK:" + str, null);
+            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, actorRef, str -> "OK:" + str, null);
             ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior, "createThrowsOnAddElementsTest");
-            ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", now);
+            ExpectedPackage<String, Instant> elmX = ExpectedPackage.supply("X", this::throwOnResult);
             CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = new CompletableFuture<>();
             TimeRange.addElements(timeRangeActor, List.of(elmX), completableFuture::complete, completableFuture::completeExceptionally);
             assertThrows(Throwable.class, completableFuture::join, "After throw on TimeRange::addElements onThrow consumer has to be fired");
@@ -117,7 +115,7 @@ class TimeRangeTest {
 
     @Test
     void addEmptyElements() {
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeItems, elements -> {}, null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"addEmptyElements");
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, Collections.emptyList());
         assertDoesNotThrow(completableFuture::join, "TimeRange hasn't got to throw on AddElements with empty list call");
@@ -127,26 +125,29 @@ class TimeRangeTest {
     @Test
     void testAddOnExpired() {
         now = Instant.now().minus(1, ChronoUnit.MINUTES);
-        timeRangeItems = TimeRangeItems.constructPackable(now, Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeItems, elements -> {}, null);
+        timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"testAddOnCompleted");
         ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", now.minus(30, ChronoUnit.SECONDS));
-        assertTrue(elmX.happened(timeRangeItems.getLastInstant().minusMillis(1)), "elmX hasn't got to be happend near the end of timeRange");
-        assertFalse(elmX.happened(timeRangeItems.getStartInstant()), "elmX has to be happend on the end of timeRange");
-        assertTrue(timeRangeItems.isExpired(), "TimeRange period has to be expired");
-        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, List.of(elmX));
+        assertTrue(elmX.happened(timeRangeConfig.getLastInstant().minusMillis(1)), "elmX hasn't got to be happend near the end of timeRange");
+        assertFalse(elmX.happened(timeRangeConfig.getStartInstant()), "elmX has to be happend on the end of timeRange");
+        assertTrue(timeRangeConfig.isExpired(), "TimeRange period has to be expired");
+        Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
+        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, elements);
+        assertDoesNotThrow(completableFuture::join, "TimeRange has to process addElements without throws");
+        assertEquals(elements, completableFuture.join(), "Elements has to be rejected by addElements to expired range");
     }
 
     @BeforeEach
     void timeRangeItems() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
-        timeRangeItems = TimeRangeItems.constructPackable(now, Duration.ofSeconds(60), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
+        timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofSeconds(60), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
     }
 
     @BeforeEach
     void clean() {
         this.now = null;
-        timeRangeItems = null;
+        this.timeRangeConfig = null;
     }
 
     @BeforeAll
