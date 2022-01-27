@@ -113,7 +113,7 @@ public class TimeRangeItems<M,R> {
      * @return true если исчерпан или false в противном случае
      */
     public boolean isExpired() {
-        return isExpired(Instant.now());
+        return config.isExpired();
     }
 
     /**
@@ -122,8 +122,7 @@ public class TimeRangeItems<M,R> {
      * @return true если исчерпан или false в противном случае
      */
     public boolean isExpired(@Nullable Instant instant) {
-        return !ofNullable(instant).orElseGet(Instant::now)
-                .isBefore(config.lastInstant.plus(config.completeTimeout));
+        return config.isExpired(instant);
     }
 
     /**
@@ -393,7 +392,7 @@ public class TimeRangeItems<M,R> {
         private final RequiredFunction<M,R> extractor;
 
         @SuppressWarnings("java:S107")
-        public Config(
+        private Config(
                 @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
@@ -444,6 +443,34 @@ public class TimeRangeItems<M,R> {
         }
 
         /**
+         * Создание TimeRangeItems.Config как тип регистрируемых элементов
+         *
+         * @param instant Момент, ограничивающий период обработки региона
+         * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
+         * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
+         * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
+         * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
+         * @param expectation Получение временной метки из поступившего элемента
+         * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
+         * @param extractor Метод преобразования входящего элемента в результирующий
+         * @param <M> тип входящего элемента
+         * @param <R> тип выдаваемого элемента
+         * @return экземпляр TimeRangeItems.Config
+         */
+        @SuppressWarnings("java:S107")
+        public static <M,R> Config<M,R> create(
+                @NonNull  Instant  instant,
+                @NonNull  Duration duration,
+                @NonNull  Duration interval,
+                @Nullable Duration delay,
+                @NonNull  Duration completeTimeout,
+                @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+                @Nullable Comparator<? super M> comparator,
+                @NonNull  RequiredFunction<M,R> extractor
+        ) {
+            return new Config<>(instant, duration, interval, delay, completeTimeout, expectation, comparator, extractor);
+        }
+        /**
          * Создание TimeRangeItems.Config с ExpectedPackage как тип регистрируемых элементов
          *
          * @param instant Момент, ограничивающий период обработки региона
@@ -464,16 +491,9 @@ public class TimeRangeItems<M,R> {
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super R> comparator
         ) {
-            return new Config<>(
-                    instant,
-                    duration,
-                    interval,
-                    delay,
-                    completeTimeout,
-                    ExpectedPackage::getTick,
+            return create(instant, duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
                     comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
-                    ExpectedPackage::getElement
-            );
+                    ExpectedPackage::getElement);
         }
 
         /**
@@ -496,16 +516,7 @@ public class TimeRangeItems<M,R> {
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super M> comparator
         ) {
-            return new Config<>(
-                    instant,
-                    duration,
-                    interval,
-                    delay,
-                    completeTimeout,
-                    Expected::getTick,
-                    comparator,
-                    RequiredFunction.identity()
-            );
+            return create(instant, duration, interval, delay, completeTimeout, Expected::getTick, comparator, RequiredFunction.identity());
         }
     }
 

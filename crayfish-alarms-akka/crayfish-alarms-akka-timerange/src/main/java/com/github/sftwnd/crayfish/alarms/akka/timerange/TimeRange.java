@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -77,6 +78,7 @@ public interface TimeRange {
             this.timeRange = timeRangeConfig.timeRange();
             this.firedConsumer = firedConsumer;
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
+            schedule();
         }
 
         private Instant nearestInstant() {
@@ -119,9 +121,12 @@ public interface TimeRange {
                 if (timers.isTimerActive(this.timeRange)) timers.cancel(this.timeRange);
                 return true;
             }
-            Duration duration = timeRange.duration(nearestInstant());
-            timers.startSingleTimer(this.timeRange, TIMEOUT, duration);
+            schedule();
             return false;
+        }
+
+        private void schedule() {
+            timers.startSingleTimer(this.timeRange, TIMEOUT, timeRange.duration(nearestInstant()));
         }
 
         private Behavior<Command<M>> nextBehavior() {
@@ -132,11 +137,12 @@ public interface TimeRange {
             private final Collection<X> data;
             private final CompletableFuture<Collection<X>> completableFuture;
             public AddCommand(@NonNull Collection<X> data, @NonNull CompletableFuture<Collection<X>> completableFuture) {
-                this.data = data;
+                this.data = List.copyOf(data);
                 this.completableFuture = completableFuture;
             }
             public @Nonnull Collection<X> getData() { return this.data; }
             public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
+            public void unhandled() { this.completableFuture.complete(this.data); }
         }
 
     }
