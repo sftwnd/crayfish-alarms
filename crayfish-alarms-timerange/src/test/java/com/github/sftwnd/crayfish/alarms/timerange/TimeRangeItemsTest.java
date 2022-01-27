@@ -59,7 +59,7 @@ class TimeRangeItemsTest {
 
     @Test
     void isExpiredNowCompleteTest() {
-        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = new TimeRangeItems<>(TimeRangeItems.Config.expected(now.minus(1,ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null));
+        TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = new TimeRangeItems<>(now.minus(1,ChronoUnit.HOURS), TimeRangeItems.Config.expected(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null));
         assertTrue(timeRange.isExpired(), "TimeRangeItems has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRangeItems has got to be expired on Instant.now()");
     }
@@ -231,8 +231,8 @@ class TimeRangeItemsTest {
     void constructPackableTest() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        TimeRangeItems.Config<ExpectedPackage<String,Instant>,String> timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, String::compareTo);
-        TimeRangeItems<ExpectedPackage<String,Instant>,String> timeRangeItems = timeRangeConfig.timeRange();
+        TimeRangeItems.Config<ExpectedPackage<String,Instant>,String> timeRangeConfig = TimeRangeItems.Config.packable(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, String::compareTo);
+        TimeRangeItems<ExpectedPackage<String,Instant>,String> timeRangeItems = timeRangeConfig.timeRange(now);
         String strA="A";
         String strB="B";
         String strC="C";
@@ -258,7 +258,7 @@ class TimeRangeItemsTest {
     void startUp() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        this.timeRange = new TimeRangeItems<>(TimeRangeItems.Config.expected(now, Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, null));
+        this.timeRange = new TimeRangeItems<>(now, TimeRangeItems.Config.expected(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, null));
         this.elementA = expected(now.minusSeconds(40));
         this.elementB = expected(now.minusSeconds(5));
         this.elementC = expected(now.minusSeconds(4));

@@ -60,7 +60,7 @@ class TimeRangeTest {
                 countDownLatch.countDown();
             }
         });
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, collectionConsumer, null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, collectionConsumer, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"createWithFiredConsumerAndAddElementsTest");
         ExpectedPackage<String, Instant> elmA = ExpectedPackage.pack("A", now);
         ExpectedPackage<String, Instant> elmB = ExpectedPackage.pack("B", now.minus(1, ChronoUnit.MINUTES));
@@ -80,7 +80,7 @@ class TimeRangeTest {
         TestProbe<String> testProbe = testKit.createTestProbe(String.class);
         try {
             ActorRef<String> actorRef = testProbe.getRef();
-            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, actorRef, str -> "OK:" + str, null);
+            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, actorRef, str -> "OK:" + str, null);
             ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior, "createWithFiredActorAndAddElementsTest");
             ExpectedPackage<String, Instant> elmC = ExpectedPackage.pack("C", now);
             ExpectedPackage<String, Instant> elmD = ExpectedPackage.pack("D", now.minus(1, ChronoUnit.MINUTES));
@@ -109,7 +109,7 @@ class TimeRangeTest {
         TestProbe<String> testProbe = testKit.createTestProbe(String.class);
         try {
             ActorRef<String> actorRef = testProbe.getRef();
-            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, actorRef, str -> "OK:" + str, null);
+            Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, actorRef, str -> "OK:" + str, null);
             ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior, "createThrowsOnAddElementsTest");
             ExpectedPackage<String, Instant> elmX = ExpectedPackage.supply("X", this::throwOnResult);
             CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = new CompletableFuture<>();
@@ -122,7 +122,7 @@ class TimeRangeTest {
 
     @Test
     void addEmptyElements() throws ExecutionException, InterruptedException, TimeoutException {
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"addEmptyElements");
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, Collections.emptyList());
         assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements with empty list call");
@@ -132,16 +132,16 @@ class TimeRangeTest {
     @Test
     void testAddOnExpired() throws ExecutionException, InterruptedException, TimeoutException {
         now = Instant.now().minus(1, ChronoUnit.MINUTES);
-        timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(timeRangeConfig, elements -> {}, null);
+        timeRangeConfig = TimeRangeItems.Config.packable(Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"testAddOnExpired");
         CountDownLatch latch = new CountDownLatch(1);
         ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, timeRangeActor, latch)));
         latch.await();
         ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", now.minus(30, ChronoUnit.SECONDS));
-        assertTrue(elmX.happened(timeRangeConfig.getLastInstant().minusMillis(1)), "elmX hasn't got to be happend near the end of timeRange");
-        assertFalse(elmX.happened(timeRangeConfig.getStartInstant()), "elmX has to be happend on the end of timeRange");
-        assertTrue(timeRangeConfig.isExpired(), "TimeRange period has to be expired");
+        assertTrue(elmX.happened(now.minusMillis(1)), "elmX hasn't got to be happend near the end of timeRange");
+        assertFalse(elmX.happened(now.plus(timeRangeConfig.getDuration())), "elmX has to be happend on the end of timeRange");
+        assertTrue(now.plus(timeRangeConfig.getDuration()).plus(timeRangeConfig.getCompleteTimeout()).isBefore(Instant.now()), "TimeRange period has to be expired");
         Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
         CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, elements);
         assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange has to process addElements without throws");
@@ -152,8 +152,8 @@ class TimeRangeTest {
     @Test
     void testDeadAllSubscriber() throws ExecutionException, InterruptedException, TimeoutException {
         now = Instant.now().minus(1, ChronoUnit.MINUTES);
-        timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
-        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(TimeRange.create(timeRangeConfig, elements -> {}, null),"testDeadSubscriber");
+        timeRangeConfig = TimeRangeItems.Config.packable(Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
+        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(TimeRange.create(now, timeRangeConfig, elements -> {}, null),"testDeadSubscriber");
         CountDownLatch latch = new CountDownLatch(1);
         ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, latch)));
         latch.await();
@@ -168,7 +168,7 @@ class TimeRangeTest {
     @BeforeEach
     void timeRangeItems() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
-        timeRangeConfig = TimeRangeItems.Config.packable(now, Duration.ofSeconds(60), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
+        timeRangeConfig = TimeRangeItems.Config.packable(Duration.ofSeconds(60), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
     }
 
     @BeforeEach

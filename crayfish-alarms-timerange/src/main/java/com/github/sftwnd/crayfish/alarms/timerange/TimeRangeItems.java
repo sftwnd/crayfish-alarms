@@ -47,12 +47,16 @@ public class TimeRangeItems<M,R> {
 
     /*
         Used sonar warnings:
-            java:S107 Methods should not have too many parameters
+            java:S107 Methods should not have too many params
             java:S3358 Ternary operators should not be nested
             java:S3864 "Stream.peek" should be used with caution
      */
     // Основные настроечные параметры
     private final Config<M,R> config;
+    // Начало периода действия региона
+    private final Instant startInstant;
+    // Верхняя граница интервала (exclude...)
+    private final Instant lastInstant;
     // Сравнение двух зарегистрированных объектов
     private final Comparator<? super M> comparator;
     // Момент ближайшего элемента. В случае отсутствия - null
@@ -68,7 +72,7 @@ public class TimeRangeItems<M,R> {
     /**
      * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
      *
-     * @param instant Момент, ограничивающий период обработки региона
+     * @param instant Момент, ограничивающий период обработки региона (если duration положительный, то слева, иначе - справа)
      * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа).
      * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
      * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
@@ -88,22 +92,28 @@ public class TimeRangeItems<M,R> {
             @Nullable Comparator<? super M> comparator,
             @NonNull  RequiredFunction<M,R> extractor
     ) {
-        this(new Config<>(instant, duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+        this(instant, new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
 
     /**
      * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
      *
+     * @param instant Момент, ограничивающий период обработки региона (если duration положительный, то слева, иначе - справа)
      * @param config Конфигурация для параметров конструктора
      */
-    public TimeRangeItems(@NonNull TimeRangeItems.Config<M,R> config) {
+    public TimeRangeItems(
+            @NonNull Instant instant,
+            @NonNull TimeRangeItems.Config<M,R> config
+    ) {
         this.config = config;
+        this.startInstant = Optional.of(config.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
+        this.lastInstant = Optional.of(config.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
         this.comparator = ofNullable(config.comparator).orElse(this::compareObjects);
-        this.lastDelayedInstant = config.lastInstant.minus(config.delay);
+        this.lastDelayedInstant = this.lastInstant.minus(config.delay);
     }
 
-    @Nonnull public Instant getStartInstant() { return config.startInstant; }
-    @Nonnull public Instant getLastInstant() { return config.lastInstant; }
+    @Nonnull public Instant getStartInstant() { return this.startInstant; }
+    @Nonnull public Instant getLastInstant() { return this.lastInstant; }
     @Nonnull public Duration getInterval() { return config.interval; }
     @Nonnull public Duration getDelay() { return config.delay; }
     @Nonnull public Duration getCompleteTimeout() { return config.completeTimeout; }
@@ -113,7 +123,7 @@ public class TimeRangeItems<M,R> {
      * @return true если исчерпан или false в противном случае
      */
     public boolean isExpired() {
-        return config.isExpired();
+        return isExpired(Instant.now());
     }
 
     /**
@@ -122,7 +132,8 @@ public class TimeRangeItems<M,R> {
      * @return true если исчерпан или false в противном случае
      */
     public boolean isExpired(@Nullable Instant instant) {
-        return config.isExpired(instant);
+        return !ofNullable(instant).orElseGet(Instant::now)
+                .isBefore(this.lastInstant.plus(config.completeTimeout));
     }
 
     /**
@@ -259,13 +270,13 @@ public class TimeRangeItems<M,R> {
      */
     public Duration duration(@NonNull Instant now) {
         // Если время указано до начала диапазона
-        if (now.isBefore(config.startInstant)) {
+        if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
         // Если время начала диапазона прошло и нет элементов
         } else if (this.expectedMap.isEmpty()) {
             return durationToStop(now);
         // Если есть элементы и время попадает в диапазон
-        } else if (now.isBefore(config.lastInstant)) {
+        } else if (now.isBefore(this.lastInstant)) {
             return durationToExpect(now);
         } else {
             return Duration.ZERO;
@@ -286,7 +297,7 @@ public class TimeRangeItems<M,R> {
     // Это время дается AKKA System на доставку до нас сообщение с заказом на обработку. Дело в том, что не предполагается
     // получение заданий в обработку после момента их наступления. Данный актор принимает только сообщения на будущее
     private @Nonnull Duration durationToStop(Instant now) {
-        return durationTo(config.lastInstant.plus(config.completeTimeout), now);
+        return durationTo(this.lastInstant.plus(config.completeTimeout), now);
     }
 
     // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до завершения диапазона текущего ключа
@@ -297,20 +308,20 @@ public class TimeRangeItems<M,R> {
         //        Если будет повторяться - надо посмотреть в направлении оптимизации durationToExpect
         return Optional.of(durationTo( // Берём Delay до ближайшего элемента, а если его нет, то до конца chunk-а
                         ofNullable(this.nearestInstant)
-                                .orElse(config.lastInstant),
+                                .orElse(this.lastInstant),
                         now))
                 // Проверяем, что он превышает delay
                 .filter(d -> d.compareTo(config.delay) >= 0)
                 // Если не превышает, то при попадании до lastDelayedInstant возвращаем delay, иначе - оставшееся время to lastInstant
-                .orElseGet(() -> now.isAfter(config.lastInstant) ? Duration.ZERO
+                .orElseGet(() -> now.isAfter(this.lastInstant) ? Duration.ZERO
                         : now.isBefore(this.lastDelayedInstant) ? config.delay // NOSONAR java:S3358 Ternary operators should not be nested
-                        : Duration.between(now, config.lastInstant));
+                        : Duration.between(now, this.lastInstant));
     }
 
     // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до начала активации диапазона
     private @Nonnull Duration durationToStart(@Nonnull Instant now) {
         return durationTo(
-                ofNullable(this.nearestInstant).orElse(config.startInstant),
+                ofNullable(this.nearestInstant).orElse(this.startInstant),
                 now);
     }
 
@@ -326,8 +337,8 @@ public class TimeRangeItems<M,R> {
     private boolean checkRange(@Nonnull M element) {
         return Optional.of(element)
                 .map(this::instant)
-                .filter(Predicate.not(config.startInstant::isAfter))
-                .filter(config.lastInstant::isAfter)
+                .filter(Predicate.not(this.startInstant::isAfter))
+                .filter(this.lastInstant::isAfter)
                 .isPresent();
     }
 
@@ -371,10 +382,8 @@ public class TimeRangeItems<M,R> {
 
     public static class Config<M,R> {
 
-        // Начало периода действия региона
-        @Getter private final Instant startInstant;
-        // Верхняя граница интервала (exclude...)
-        @Getter private final Instant lastInstant;
+        // Длительность описываемого интервала
+        @Getter private final Duration duration;
         // Размер внутреннего chunk-а деления интервала
         @Getter private final Duration interval;
         // Минимальная задержка опроса в ACTIVE статусе. Позволяет разгрузить процессор, но уменьшить точность срабатывания
@@ -393,7 +402,6 @@ public class TimeRangeItems<M,R> {
 
         @SuppressWarnings("java:S107")
         private Config(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
@@ -403,8 +411,7 @@ public class TimeRangeItems<M,R> {
                 @NonNull  RequiredFunction<M,R> extractor
         ) {
             if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("Config::new - Invalid duration: " + duration);
-            this.startInstant = Optional.of(duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-            this.lastInstant = Optional.of(duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+            this.duration = duration;
             this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
             this.delay = ofNullable(delay)
                     .filter(Predicate.not(Duration::isNegative))
@@ -415,37 +422,18 @@ public class TimeRangeItems<M,R> {
             this.comparator = comparator;
             this.extractor = extractor;
         }
-
-        /**
-         * Временной интервал с учётом completeTimeout исчерпаны на текущий момент
-         * @return true если исчерпан или false в противном случае
-         */
-        public boolean isExpired() {
-            return isExpired(Instant.now());
-        }
-
-        /**
-         * Временной интервал с учётом completeTimeout исчерпаны на переданный момент
-         * @param instant момент времени на который производится проверка
-         * @return true если исчерпан или false в противном случае
-         */
-        public boolean isExpired(@Nullable Instant instant) {
-            return !ofNullable(instant).orElseGet(Instant::now)
-                    .isBefore(this.lastInstant.plus(this.completeTimeout));
-        }
-
+        
         /**
          * Создание TimeRangeItems на основе текущей конфигурации
          * @return объект TimeRangeItems
          */
-        public TimeRangeItems<M,R> timeRange() {
-            return new TimeRangeItems<>(this);
+        public TimeRangeItems<M,R> timeRange(Instant instant) {
+            return new TimeRangeItems<>(instant, this);
         }
 
         /**
          * Создание TimeRangeItems.Config как тип регистрируемых элементов
          *
-         * @param instant Момент, ограничивающий период обработки региона
          * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
          * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
          * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
@@ -459,7 +447,6 @@ public class TimeRangeItems<M,R> {
          */
         @SuppressWarnings("java:S107")
         public static <M,R> Config<M,R> create(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
@@ -468,12 +455,11 @@ public class TimeRangeItems<M,R> {
                 @Nullable Comparator<? super M> comparator,
                 @NonNull  RequiredFunction<M,R> extractor
         ) {
-            return new Config<>(instant, duration, interval, delay, completeTimeout, expectation, comparator, extractor);
+            return new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
         }
         /**
          * Создание TimeRangeItems.Config с ExpectedPackage как тип регистрируемых элементов
          *
-         * @param instant Момент, ограничивающий период обработки региона
          * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
          * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
          * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
@@ -484,14 +470,13 @@ public class TimeRangeItems<M,R> {
          * @return экземпляр TimeRangeItems.Config
          */
         public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> Config<M,R> packable(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super R> comparator
         ) {
-            return create(instant, duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
+            return create(duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
                     comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
                     ExpectedPackage::getElement);
         }
@@ -499,7 +484,6 @@ public class TimeRangeItems<M,R> {
         /**
          * Создание TimeRangeItems.Config с Expected как тип регистрируемых элементов
          *
-         * @param instant Момент, ограничивающий период обработки региона
          * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
          * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
          * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
@@ -509,14 +493,13 @@ public class TimeRangeItems<M,R> {
          * @return экземпляр TimeRangeItems.Config
          */
         public static <M extends Expected<? extends TemporalAccessor>> Config<M,M> expected(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super M> comparator
         ) {
-            return create(instant, duration, interval, delay, completeTimeout, Expected::getTick, comparator, RequiredFunction.identity());
+            return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, RequiredFunction.identity());
         }
     }
 

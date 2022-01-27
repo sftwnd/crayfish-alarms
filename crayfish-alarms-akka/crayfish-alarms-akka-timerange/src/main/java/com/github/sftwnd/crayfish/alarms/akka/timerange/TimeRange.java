@@ -74,13 +74,14 @@ public interface TimeRange {
 
         private TimeRangeProcessor(
                 @NonNull  TimerScheduler<Command<M>> timers,
+                @NonNull  Instant instant,
                 @NonNull  TimeRangeItems.Config<M,R> timeRangeConfig,
                 @NonNull  Consumer<Collection<R>> firedConsumer,
                 // В пределах TimeRangeItems::interval можно задать значение насколько раньше считать запись сработавшей...
                 @Nullable Duration withCheckDelay
         ) {
             this.timers = timers;
-            this.timeRange = timeRangeConfig.timeRange();
+            this.timeRange = timeRangeConfig.timeRange(instant);
             this.firedConsumer = firedConsumer;
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
             schedule();
@@ -164,10 +165,11 @@ public interface TimeRange {
      * @return Поведение для актора-процессора временного периода с будильниками
      */
     static <M,R> Behavior<Command<M>> create(
+            @NonNull Instant instant,
             @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
             @NonNull Consumer<Collection<R>> firedConsumer,
             @Nullable Duration withCheckDuration) {
-        return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, timeRangeConfig, firedConsumer, withCheckDuration).initial());
+        return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
@@ -183,11 +185,13 @@ public interface TimeRange {
      * @return Поведение для актора-процессора временного периода с будильниками
      */
     static <M,R,X> Behavior<Command<M>> create(
+            @NonNull Instant instant,
             @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
             @NonNull ActorRef<X> firedActor,
             @NonNull Function<Collection<R>,X> responseSupplier,
             @Nullable Duration withCheckDuration) {
         return create(
+                instant,
                 timeRangeConfig,
                 firedElements -> ofNullable(firedElements)
                         .filter(Predicate.not(Collection::isEmpty))
