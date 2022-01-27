@@ -283,10 +283,6 @@ public interface TimeRange {
 
         private final ActorPath deadActorPath;
 
-        private AddCommandDeadSubscriber() {
-            this(null);
-        }
-
         private AddCommandDeadSubscriber(ActorRef<? extends Command<?>> watchForActor) {
             this.deadActorPath = Optional.ofNullable(watchForActor).map(ActorRef::path).orElse(null);
         }
