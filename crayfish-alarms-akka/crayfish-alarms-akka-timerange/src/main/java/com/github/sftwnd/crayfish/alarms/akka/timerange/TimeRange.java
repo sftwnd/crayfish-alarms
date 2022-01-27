@@ -5,10 +5,15 @@
  */
 package com.github.sftwnd.crayfish.alarms.akka.timerange;
 
+import akka.actor.ActorPath;
+import akka.actor.DeadLetter;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.eventstream.EventStream;
+import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.TimerScheduler;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.TimeRangeProcessor.AddCommand;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems;
 import lombok.NonNull;
 
@@ -133,7 +138,7 @@ public interface TimeRange {
             return this.isComplete() ? Behaviors.stopped() : Behaviors.same();
         }
 
-        private static class AddCommand<X> implements Command<X> {
+        public static class AddCommand<X> implements Command<X> {
             private final Collection<X> data;
             private final CompletableFuture<Collection<X>> completableFuture;
             public AddCommand(@NonNull Collection<X> data, @NonNull CompletableFuture<Collection<X>> completableFuture) {
@@ -142,7 +147,7 @@ public interface TimeRange {
             }
             public @Nonnull Collection<X> getData() { return this.data; }
             public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
-            public void unhandled() { this.completableFuture.complete(this.data); }
+            public void unhandled() { Optional.of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
         }
 
     }
@@ -203,7 +208,7 @@ public interface TimeRange {
     ) {
         Optional.of(elements)
                 .filter(Predicate.not(Collection::isEmpty))
-                .map(data -> new TimeRangeProcessor.AddCommand<>(data, completableFuture))
+                .map(data -> new AddCommand<>(data, completableFuture))
                 .ifPresentOrElse(
                         timeRangeActor::tell,
                         () -> completableFuture.complete(Collections.emptySet())
@@ -251,6 +256,58 @@ public interface TimeRange {
             @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull Consumer<Collection<M>> onCompleteWithReject, @NonNull Consumer<Throwable> onThrow
     ) {
         addElements(timeRangeActor, elements).whenComplete((rejected, throwable) -> ofNullable(throwable).ifPresentOrElse(onThrow, () -> onCompleteWithReject.accept(rejected)));
+    }
+
+    /**
+     * Данный метод создаёт anonymous актор, который обрабатывает потерянные AddCommand сообщения и отмечает их как исполненные с reject по всем элементам
+     * @param context контекст в рамках которого создаётся актор
+     * @param watchForActor фильтр по актору за deadLetters которого следим (если не указан - за всеми в рамках actorSystem контекста)
+     */
+    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context, @Nullable ActorRef<? extends Command<?>> watchForActor) {
+        context.getSystem()
+                .eventStream()
+                .tell(new EventStream.Subscribe<>(
+                        DeadLetter.class,
+                        context.spawnAnonymous(new AddCommandDeadSubscriber(watchForActor).construct())));
+    }
+
+    /**
+     * Данный метод создаёт anonymous актор, который обрабатывает потерянные AddCommand сообщения и отмечает их как исполненные с reject по всем элементам
+     * @param context контекст в рамках которого создаётся актор
+     */
+    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context) {
+        registerDeadCommandSubscriber(context, null);
+    }
+
+    class AddCommandDeadSubscriber {
+
+        private final ActorPath deadActorPath;
+
+        private AddCommandDeadSubscriber() {
+            this(null);
+        }
+
+        private AddCommandDeadSubscriber(ActorRef<? extends Command<?>> watchForActor) {
+            this.deadActorPath = Optional.ofNullable(watchForActor).map(ActorRef::path).orElse(null);
+        }
+
+        private Behavior<DeadLetter> construct() {
+            return Behaviors.receive(DeadLetter.class)
+                    .onMessage(DeadLetter.class, this::onDeadLetter)
+                    .build();
+        }
+
+        @SuppressWarnings("rawtypes")
+        private Behavior<DeadLetter> onDeadLetter(DeadLetter deadLetter) {
+            Optional.of(deadLetter)
+                    .filter(letter -> this.deadActorPath == null || this.deadActorPath.equals(deadLetter.recipient().path()))
+                    .map(DeadLetter::message)
+                    .filter(AddCommand.class::isInstance)
+                    .map(AddCommand.class::cast)
+                    .ifPresent(AddCommand::unhandled);
+            return Behaviors.same();
+        }
+
     }
 
 }
