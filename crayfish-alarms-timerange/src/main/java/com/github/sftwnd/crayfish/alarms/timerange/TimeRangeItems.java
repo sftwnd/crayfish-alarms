@@ -8,7 +8,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
-import com.github.sftwnd.crayfish.common.required.RequiredFunction;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -30,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -44,6 +44,24 @@ import static java.util.Optional.ofNullable;
  * @param <R> Тип элемента при извлечении
  */
 public class TimeRangeItems<M,R> {
+
+    /**
+     * Transformation of nonnull element to nonnull value
+     * @param <TM> source element type
+     * @param <TR> target element type
+     */
+    interface ResultTransformer<TM,TR> extends Function<TM,TR> {
+        /**
+         * Transform element from one type to other
+         *
+         * @param element the source element
+         * @return target element
+         */
+        TR apply(TM element);
+        static <T> ResultTransformer<T, T> identity() {
+            return t -> t;
+        }
+    }
 
     /*
         Used sonar warnings:
@@ -90,7 +108,7 @@ public class TimeRangeItems<M,R> {
             @NonNull  Duration completeTimeout,
             @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull  RequiredFunction<M,R> extractor
+            @NonNull  ResultTransformer<M,R> extractor
     ) {
         this(instant, new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
@@ -394,11 +412,11 @@ public class TimeRangeItems<M,R> {
         // С момента наступления lastInstant выдерживается timeout на приход сообщений в обработку
         @Getter private final Duration completeTimeout;
         // Получение даты из регистрируемого сообщения
-        private final Expectation<M,? extends TemporalAccessor> expectation;
+        @Getter private final Expectation<M,? extends TemporalAccessor> expectation;
         // Сравнение двух зарегистрированных объектов
-        private final Comparator<? super M> comparator;
+        @Getter private final Comparator<? super M> comparator;
         // Получение результирующего элемента из зарегистрированного
-        private final RequiredFunction<M,R> extractor;
+        @Getter private final ResultTransformer<M,R> extractor;
 
         @SuppressWarnings("java:S107")
         private Config(
@@ -408,7 +426,7 @@ public class TimeRangeItems<M,R> {
                 @NonNull  Duration completeTimeout,
                 @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
                 @Nullable Comparator<? super M> comparator,
-                @NonNull  RequiredFunction<M,R> extractor
+                @NonNull  ResultTransformer<M,R> extractor
         ) {
             if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("Config::new - Invalid duration: " + duration);
             this.duration = duration;
@@ -425,6 +443,7 @@ public class TimeRangeItems<M,R> {
         
         /**
          * Создание TimeRangeItems на основе текущей конфигурации
+         * @param instant фактическая граница для построения итогового TimeRangeItems
          * @return объект TimeRangeItems
          */
         public TimeRangeItems<M,R> timeRange(Instant instant) {
@@ -453,7 +472,7 @@ public class TimeRangeItems<M,R> {
                 @NonNull  Duration completeTimeout,
                 @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
                 @Nullable Comparator<? super M> comparator,
-                @NonNull  RequiredFunction<M,R> extractor
+                @NonNull  ResultTransformer<M,R> extractor
         ) {
             return new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
         }
@@ -499,7 +518,7 @@ public class TimeRangeItems<M,R> {
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super M> comparator
         ) {
-            return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, RequiredFunction.identity());
+            return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, ResultTransformer.identity());
         }
     }
 

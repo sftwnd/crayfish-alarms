@@ -10,6 +10,7 @@ import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.Command;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.FiredElementsConsumer;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
 import com.typesafe.config.ConfigFactory;
@@ -36,7 +37,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -54,11 +54,8 @@ class TimeRangeTest {
     @Test
     void createWithFiredConsumerAndAddElementsTest() throws ExecutionException, InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        Consumer<Collection<String>> collectionConsumer = Mockito.spy(new Consumer<Collection<String>>() {
-            @Override
-            public void accept(Collection<String> ignore) {
-                countDownLatch.countDown();
-            }
+        var collectionConsumer = Mockito.spy(new FiredElementsConsumer<String>() {
+            @Override public void accept(@Nonnull Collection<String> t) { countDownLatch.countDown(); }
         });
         Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, collectionConsumer, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"createWithFiredConsumerAndAddElementsTest");
@@ -68,7 +65,7 @@ class TimeRangeTest {
         assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements call");
         Collection<String> rejected = completableFuture.get().stream().map(ExpectedPackage::getElement).collect(Collectors.toList());
         assertEquals(List.of(elmB.getElement()), rejected, "element 'B' has to be rejected");
-        assertTrue(countDownLatch.await(750, TimeUnit.MILLISECONDS), "collectionConsumer has to be called");
+        assertTrue(countDownLatch.await(500, TimeUnit.MILLISECONDS), "collectionConsumer has to be called");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<String>> argumentCaptor = ArgumentCaptor.forClass(Collection.class);
         Mockito.verify(collectionConsumer, Mockito.times(1)).accept(argumentCaptor.capture());

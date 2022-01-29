@@ -2,7 +2,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
-import com.github.sftwnd.crayfish.common.required.RequiredFunction;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.junit.jupiter.api.AfterEach;
@@ -52,7 +51,7 @@ class TimeRangeItemsTest {
     void isNotExpiredCompleteNowTest() {
         TimeRangeItems<ExpectedTest,ExpectedTest> timeRange = new TimeRangeItems<>(
                 now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
-                Expected::getTick, null, RequiredFunction.identity());
+                Expected::getTick, null, TimeRangeItems.ResultTransformer.identity());
         assertFalse(timeRange.isExpired(), "TimeRangeItems hasn't got to be expired on Instant.now()");
         assertFalse(timeRange.isComplete(), "TimeRangeItems hasn't got to be expired on Instant.now()");
     }

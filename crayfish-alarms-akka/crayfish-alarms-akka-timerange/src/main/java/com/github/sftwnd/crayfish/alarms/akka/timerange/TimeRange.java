@@ -24,12 +24,12 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -51,6 +51,21 @@ public interface TimeRange {
     @SuppressWarnings("java:S2326")
     interface Command<X> {}
 
+    final class TimeRangeCommands<M> {
+        // Это кратчайшее описание приведения, по этой причине выбрано именно оно
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
+        private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
+        private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
+        @SuppressWarnings("java:S116")
+        private final Command<M> TIMEOUT = new Command<>() {};
+        private TimeRangeCommands() {}
+    }
+
+    interface FiredElementsConsumer<M> extends Consumer<Collection<M>> {
+        @Override void accept(@Nonnull Collection<M> t);
+    }
+
     /**
      * Процессор, содержащий в себе TimeRangeItems структуру с будильниками. Занимается сохранением входящих будильников и
      * инициализацией реакции на их срабатывание.
@@ -59,24 +74,17 @@ public interface TimeRange {
      */
     class TimeRangeProcessor<M,R> {
 
-        // Это кратчайшее описание приведения, по этой причине выбрано именно оно
-        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
-        private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
-        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
-        private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
-        @SuppressWarnings("java:S116")
-        private final Command<M> TIMEOUT = new Command<>() {};
-
+        private final TimeRangeCommands<M> commands = new TimeRangeCommands<>();
         private final TimerScheduler<Command<M>> timers;
         private final TimeRangeItems<M,R> timeRange;
-        private final Consumer<Collection<R>> firedConsumer;
+        private final FiredElementsConsumer<R> firedConsumer;
         private final Duration checkDelay;
 
         private TimeRangeProcessor(
                 @NonNull  TimerScheduler<Command<M>> timers,
                 @NonNull  Instant instant,
                 @NonNull  TimeRangeItems.Config<M,R> timeRangeConfig,
-                @NonNull  Consumer<Collection<R>> firedConsumer,
+                @NonNull  FiredElementsConsumer<R> firedConsumer,
                 // В пределах TimeRangeItems::interval можно задать значение насколько раньше считать запись сработавшей...
                 @Nullable Duration withCheckDelay
         ) {
@@ -94,18 +102,18 @@ public interface TimeRange {
         // Проверку на expired/complete делаем не ранее, чем Instant.now(), но можем отодвинуть на checkDelay вперёд...
         private Instant checkInstant() {
             Instant now = Instant.now();
-            return Optional.of(nearestInstant()).filter(now::isBefore).orElse(now);
+            return of(nearestInstant()).filter(now::isBefore).orElse(now);
         }
 
         private Behavior<Command<M>> initial() {
-            return Behaviors.receive(COMMAND)
-                    .onMessage(ADD_COMMAND, this::onAddCommand)
-                    .onMessageEquals(TIMEOUT, this::processState)
+            return Behaviors.receive(commands.COMMAND)
+                    .onMessage(commands.ADD_COMMAND, this::onAddCommand)
+                    .onMessageEquals(commands.TIMEOUT, this::processState)
                     .build();
         }
 
         private Behavior<Command<M>> processState() {
-            Optional.of(timeRange.getFiredElements(nearestInstant()))
+            of(timeRange.getFiredElements(nearestInstant()))
                     .filter(Predicate.not(Collection::isEmpty))
                     .ifPresent(firedConsumer);
             return nextBehavior();
@@ -132,7 +140,7 @@ public interface TimeRange {
         }
 
         private void schedule() {
-            timers.startSingleTimer(this.timeRange, TIMEOUT, timeRange.duration(nearestInstant()));
+            timers.startSingleTimer(this.timeRange, commands.TIMEOUT, timeRange.duration(nearestInstant()));
         }
 
         private Behavior<Command<M>> nextBehavior() {
@@ -148,7 +156,7 @@ public interface TimeRange {
             }
             public @Nonnull Collection<X> getData() { return this.data; }
             public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
-            public void unhandled() { Optional.of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
+            public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
         }
 
     }
@@ -156,6 +164,7 @@ public interface TimeRange {
     /**
      * Создание поведения актора при котором в случае срабатывания будильника будет вызван триггер-метод: firedConsumer,
      * куда будут переданы сработавшие будильники
+     * @param instant фактическая граница для построения итогового TimeRangeItems
      * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
      * @param firedConsumer - триггер-метод обработки сработавших будильников
      * @param withCheckDuration - временной интервал на который от текущего момента изменяется момент опроса timeRangeItems
@@ -167,13 +176,14 @@ public interface TimeRange {
     static <M,R> Behavior<Command<M>> create(
             @NonNull Instant instant,
             @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
-            @NonNull Consumer<Collection<R>> firedConsumer,
+            @NonNull FiredElementsConsumer<R> firedConsumer,
             @Nullable Duration withCheckDuration) {
         return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
      * Создание поведения актора при котором в случае срабатывания будильника будет отправлено сообщения на actor-приёмник по обработке будильников
+     * @param instant фактическая граница для построения итогового TimeRangeItems
      * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
      * @param firedActor - актор-приёмник сообщения со сработавшими будильниками
      * @param responseSupplier - функция построения из списка сработавших будильников сообщение актору - подписчику
@@ -193,7 +203,7 @@ public interface TimeRange {
         return create(
                 instant,
                 timeRangeConfig,
-                firedElements -> ofNullable(firedElements)
+                firedElements -> of(firedElements)
                         .filter(Predicate.not(Collection::isEmpty))
                         .map(responseSupplier)
                         .ifPresent(firedActor::tell),
@@ -210,7 +220,7 @@ public interface TimeRange {
     static <M> void addElements(
             @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull CompletableFuture<Collection<M>> completableFuture
     ) {
-        Optional.of(elements)
+        of(elements)
                 .filter(Predicate.not(Collection::isEmpty))
                 .map(data -> new AddCommand<>(data, completableFuture))
                 .ifPresentOrElse(
@@ -288,7 +298,7 @@ public interface TimeRange {
         private final ActorPath deadActorPath;
 
         private AddCommandDeadSubscriber(ActorRef<? extends Command<?>> watchForActor) {
-            this.deadActorPath = Optional.ofNullable(watchForActor).map(ActorRef::path).orElse(null);
+            this.deadActorPath = ofNullable(watchForActor).map(ActorRef::path).orElse(null);
         }
 
         private Behavior<DeadLetter> construct() {
@@ -299,7 +309,7 @@ public interface TimeRange {
 
         @SuppressWarnings("rawtypes")
         private Behavior<DeadLetter> onDeadLetter(DeadLetter deadLetter) {
-            Optional.of(deadLetter)
+            of(deadLetter)
                     .filter(letter -> this.deadActorPath == null || this.deadActorPath.equals(deadLetter.recipient().path()))
                     .map(DeadLetter::message)
                     .filter(AddCommand.class::isInstance)
