@@ -293,11 +293,14 @@ public interface TimeRange {
         registerDeadCommandSubscriber(context, null);
     }
 
+    /**
+     * Подписка на DeadLetter сообщения типа Command
+     */
     class AddCommandDeadSubscriber {
 
         private final ActorPath deadActorPath;
 
-        private AddCommandDeadSubscriber(ActorRef<? extends Command<?>> watchForActor) {
+        private AddCommandDeadSubscriber(@Nullable ActorRef<? extends Command<?>> watchForActor) {
             this.deadActorPath = ofNullable(watchForActor).map(ActorRef::path).orElse(null);
         }
 
@@ -307,10 +310,16 @@ public interface TimeRange {
                     .build();
         }
 
+        private boolean checkPath(@Nonnull ActorPath checkPath) {
+            return deadActorPath == null ||
+                    deadActorPath.equals(checkPath) ||
+                    (!checkPath.equals(checkPath.root()) && checkPath(checkPath.parent()));
+        }
+
         @SuppressWarnings("rawtypes")
         private Behavior<DeadLetter> onDeadLetter(DeadLetter deadLetter) {
             of(deadLetter)
-                    .filter(letter -> this.deadActorPath == null || this.deadActorPath.equals(deadLetter.recipient().path()))
+                    .filter(letter -> checkPath(letter.recipient().path()))
                     .map(DeadLetter::message)
                     .filter(AddCommand.class::isInstance)
                     .map(AddCommand.class::cast)

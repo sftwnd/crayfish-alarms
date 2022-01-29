@@ -133,7 +133,7 @@ class TimeRangeTest {
         Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.create(now, timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"testAddOnExpired");
         CountDownLatch latch = new CountDownLatch(1);
-        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, timeRangeActor, latch)));
+        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, latch)));
         latch.await();
         ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", now.minus(30, ChronoUnit.SECONDS));
         assertTrue(elmX.happened(now.minusMillis(1)), "elmX hasn't got to be happend near the end of timeRange");
@@ -152,7 +152,7 @@ class TimeRangeTest {
         timeRangeConfig = TimeRangeItems.Config.packable(Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(TimeRange.create(now, timeRangeConfig, elements -> {}, null),"testDeadSubscriber");
         CountDownLatch latch = new CountDownLatch(1);
-        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, latch)));
+        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, timeRangeActor, latch)));
         latch.await();
         ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("Z", now.minus(30, ChronoUnit.SECONDS));
         Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
