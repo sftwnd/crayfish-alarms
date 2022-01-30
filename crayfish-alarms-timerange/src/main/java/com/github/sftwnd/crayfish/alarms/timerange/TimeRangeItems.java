@@ -47,17 +47,17 @@ public class TimeRangeItems<M,R> {
 
     /**
      * Transformation of nonnull element to nonnull value
-     * @param <TM> source element type
-     * @param <TR> target element type
+     * @param <M> source element type
+     * @param <R> target element type
      */
-    interface ResultTransformer<TM,TR> extends Function<TM,TR> {
+    public interface ResultTransformer<M,R> extends Function<M,R> {
         /**
          * Transform element from one type to other
          *
          * @param element the source element
          * @return target element
          */
-        TR apply(TM element);
+        R apply(M element);
         static <T> ResultTransformer<T, T> identity() {
             return t -> t;
         }
@@ -451,7 +451,7 @@ public class TimeRangeItems<M,R> {
         }
 
         /**
-         * Создание TimeRangeItems.Config как тип регистрируемых элементов
+         * Создание TimeRangeItems Config как тип регистрируемых элементов
          *
          * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
          * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())

@@ -6,28 +6,42 @@
 package com.github.sftwnd.crayfish.alarms.akka.timerange;
 
 import akka.actor.ActorPath;
+import akka.actor.ActorSystem;
 import akka.actor.DeadLetter;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.Signal;
+import akka.actor.typed.Terminated;
 import akka.actor.typed.eventstream.EventStream;
+import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
+import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.TimeRangeProcessor.AddCommand;
+import akka.dispatch.PriorityGenerator;
+import akka.dispatch.UnboundedStablePriorityMailbox;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems;
+import com.typesafe.config.Config;
 import lombok.NonNull;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -40,7 +54,10 @@ public interface TimeRange {
     /*
         Used Sonar warnings:
             java:S116 Field names should comply with a naming convention
+            java:S127 "for" loop stop conditions should be invariant
             java:S1170 Public constants and fields initialized at declaration should be "static final" rather than merely "final"
+            java:S1172 Unused method parameters should be removed
+            java:S1905 Redundant casts should not be used
             java:S2326 Unused type parameters should be removed
      */
 
@@ -58,7 +75,7 @@ public interface TimeRange {
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
         @SuppressWarnings("java:S116")
-        private final Command<M> TIMEOUT = new Command<>() {};
+        private final Timeout<M> TIMEOUT = new Timeout<>() {};
         private TimeRangeCommands() {}
     }
 
@@ -147,18 +164,20 @@ public interface TimeRange {
             return this.isComplete() ? Behaviors.stopped() : Behaviors.same();
         }
 
-        public static class AddCommand<X> implements Command<X> {
-            private final Collection<X> data;
-            private final CompletableFuture<Collection<X>> completableFuture;
-            public AddCommand(@NonNull Collection<X> data, @NonNull CompletableFuture<Collection<X>> completableFuture) {
-                this.data = List.copyOf(data);
-                this.completableFuture = completableFuture;
-            }
-            public @Nonnull Collection<X> getData() { return this.data; }
-            public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
-            public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
-        }
+    }
 
+    class Timeout<X> implements Command<X> {}
+
+    class AddCommand<X> implements Command<X> {
+        private final Collection<X> data;
+        private final CompletableFuture<Collection<X>> completableFuture;
+        public AddCommand(@NonNull Collection<X> data, @NonNull CompletableFuture<Collection<X>> completableFuture) {
+            this.data = List.copyOf(data);
+            this.completableFuture = completableFuture;
+        }
+        public @Nonnull Collection<X> getData() { return this.data; }
+        public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
+        public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
     }
 
     /**
@@ -276,21 +295,14 @@ public interface TimeRange {
      * Данный метод создаёт anonymous актор, который обрабатывает потерянные AddCommand сообщения и отмечает их как исполненные с reject по всем элементам
      * @param context контекст в рамках которого создаётся актор
      * @param watchForActor фильтр по актору за deadLetters которого следим (если не указан - за всеми в рамках actorSystem контекста)
+     * @param actorName имя актора, который будет reject-ить dead-letter для AddCommand
      */
-    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context, @Nullable ActorRef<? extends Command<?>> watchForActor) {
+    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context, @NonNull ActorRef<? extends Command<?>> watchForActor, @NonNull String actorName) {
         context.getSystem()
                 .eventStream()
                 .tell(new EventStream.Subscribe<>(
                         DeadLetter.class,
-                        context.spawnAnonymous(new AddCommandDeadSubscriber(watchForActor).construct())));
-    }
-
-    /**
-     * Данный метод создаёт anonymous актор, который обрабатывает потерянные AddCommand сообщения и отмечает их как исполненные с reject по всем элементам
-     * @param context контекст в рамках которого создаётся актор
-     */
-    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context) {
-        registerDeadCommandSubscriber(context, null);
+                        context.spawn(new AddCommandDeadSubscriber(watchForActor).construct(), actorName)));
     }
 
     /**
@@ -300,8 +312,8 @@ public interface TimeRange {
 
         private final ActorPath deadActorPath;
 
-        private AddCommandDeadSubscriber(@Nullable ActorRef<? extends Command<?>> watchForActor) {
-            this.deadActorPath = ofNullable(watchForActor).map(ActorRef::path).orElse(null);
+        private AddCommandDeadSubscriber(@NonNull ActorRef<? extends Command<?>> watchForActor) {
+            this.deadActorPath = of(watchForActor).map(ActorRef::path).orElse(null);
         }
 
         private Behavior<DeadLetter> construct() {
@@ -311,9 +323,7 @@ public interface TimeRange {
         }
 
         private boolean checkPath(@Nonnull ActorPath checkPath) {
-            return deadActorPath == null ||
-                    deadActorPath.equals(checkPath) ||
-                    (!checkPath.equals(checkPath.root()) && checkPath(checkPath.parent()));
+            return deadActorPath.equals(checkPath) || (!checkPath.equals(checkPath.root()) && checkPath(checkPath.parent()));
         }
 
         @SuppressWarnings("rawtypes")
@@ -325,6 +335,264 @@ public interface TimeRange {
                     .map(AddCommand.class::cast)
                     .ifPresent(AddCommand::unhandled);
             return Behaviors.same();
+        }
+
+    }
+
+    interface TimeRangeWakedUp extends BiConsumer<Instant, Instant> {
+        @Override void accept(@Nonnull Instant startInstant, @Nonnull Instant endInstant);
+    }
+
+    class TimeRangeAutomaticProcessor<M,R> extends AbstractBehavior<Command<M>> {
+
+        private static final String DEAD_ADD_COMMAND_ACTOR = "dead-command-processor";
+        private static final String TIME_RANGE_NAME_PREFIX = "time-range-0x";
+        private static final String FIRED_RANGE_ID = "fires";
+
+        private final TimeRangeCommands<M> commands = new TimeRangeCommands<>();
+        private final ActorContext<Command<M>> context;
+        private final int rangeDepth;
+        private final Integer nrOfInstances;
+        private final TimeRangeWakedUp timeRangeWakedUp;
+        private final TimeRangeItems.Config<M, R> timeRangeConfig;
+        private final Duration withCheckDuration;
+        private final long timeRangeTicks;
+        private final FiredElementsConsumer<R> firedConsumer;
+        private final Map<String, ActorRef<Command<M>>> timeRangeActors = new HashMap<>();
+
+        /**
+         * Процессор будильников с автоподъёмом TimeRange, распараллеливанием и информированием о создании TimeRange
+         *
+         * @param context AKKA ActorContext
+         * @param timeRangeConfig config для описания параметров региона
+         * @param firedConsumer consumer реализующий реакцию на подъём элементов TimeRange
+         * @param withCheckDuration интервал, позволяющий реагировать на события заранее или с задержкой
+         * @param rangeDepth глубина на которую поднимаются TimeRange на моменты в будущем
+         * @param nrOfInstances количество TimeRegion акторов на один интервал времени
+         * @param timeRangeWakedUp consumer информирующий о подъёме обработки интервала
+         */
+        @SuppressWarnings("java:S116")
+        public TimeRangeAutomaticProcessor(
+                @NonNull ActorContext<Command<M>> context,
+                @NonNull TimeRangeItems.Config<M, R> timeRangeConfig,
+                @NonNull FiredElementsConsumer<R> firedConsumer,
+                @Nullable Duration withCheckDuration,
+                @Nullable Integer rangeDepth,
+                @Nullable Integer nrOfInstances,
+                @NonNull TimeRangeWakedUp timeRangeWakedUp
+        ) {
+            super(context);
+            this.context = context;
+            this.withCheckDuration = withCheckDuration;
+            this.rangeDepth = rangeDepth == null ? 1 : Math.max(0, rangeDepth);
+            this.nrOfInstances = nrOfInstances == null ? 1 : Math.max(1, nrOfInstances);
+            this.timeRangeWakedUp = timeRangeWakedUp;
+            this.timeRangeConfig = timeRangeConfig;
+            this.timeRangeTicks = this.timeRangeConfig.getDuration().abs().toMillis();
+            this.firedConsumer = firedConsumer;
+            startDeadLetterWatching();
+            startRegions();
+        }
+
+        private void startDeadLetterWatching() {
+            TimeRange.registerDeadCommandSubscriber(context, context.getSelf(), DEAD_ADD_COMMAND_ACTOR);
+        }
+
+        @Override
+        public Receive<Command<M>> createReceive() {
+            return newReceiveBuilder()
+                    .onMessage(commands.ADD_COMMAND, this::onAddCommand)
+                    .onSignal(Terminated.class, this::onTerminate)
+                    .build();
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S1170", "java:S1905"})
+        private final CompletableFuture<Collection<M>>[] completableFutureArray = (CompletableFuture<Collection<M>>[]) new CompletableFuture[]{};
+
+        private Behavior<Command<M>> onAddCommand(AddCommand<M> addCommand) {
+            // Делим все добавляемые элементы на группы по timeRangeId. Далее строим вызовы, которые завершают свои CompletableFutures
+            // Если все завершились без ошибки, то аккумулируем результат в одну коллекцию и отправляем в CompletableFuture запроса
+            CompletableFuture<Collection<M>>[] futures = addCommand.getData()
+                    .stream()
+                    .collect(Collectors.groupingBy(this::timeRangeId))
+                    .entrySet().stream()
+                    .map(entry -> sendCommand(entry.getKey(), entry.getValue()))
+                    .collect(Collectors.toList())
+                    .toArray(completableFutureArray);
+            CompletableFuture.allOf(futures).whenComplete((ignore, throwable) ->
+                    ofNullable(throwable)
+                            .ifPresentOrElse(
+                                    addCommand.getCompletableFuture()::completeExceptionally,
+                                    () -> addCommand.getCompletableFuture().complete(
+                                            Arrays.stream(futures)
+                                                    .map(CompletableFuture::join)
+                                                    .flatMap(Collection::stream)
+                                                    .collect(Collectors.toSet())
+                                    )
+                            )
+            );
+            return this;
+        }
+
+        private String timeRangeId(M data) {
+            Instant instant = Instant.from(this.timeRangeConfig.getExpectation().apply(data));
+            if (!Instant.now().plus(this.withCheckDuration).isBefore(instant)) {
+                return FIRED_RANGE_ID;
+            } else {
+                return this.regionTickName(this.timeRangeTick(instant), Math.abs(data.hashCode() % nrOfInstances)+1);
+            }
+        }
+
+        private CompletableFuture<Collection<M>> sendCommand(String regionId, Collection<M> data) {
+            // Для fired элементов вызываем по ним функцию-триггер для сработавших записей
+            return FIRED_RANGE_ID.equals(regionId) ? fireData(data)
+                    // Если для набора есть дочерний актор - отправляем в него элементы и возвращаем CompletableFuture по ним
+                    : ofNullable(timeRangeActors.get(regionId))
+                    .map(timeRangeActor -> TimeRange.addElements(timeRangeActor, data))
+                    .orElseGet(() -> {
+                        // Если актора нет, то отклоняем добавление записей
+                        CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
+                        completableFuture.complete(data);
+                        return completableFuture;
+                    });
+        }
+
+        private CompletableFuture<Collection<M>> fireData(Collection<M> data) {
+            CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
+            try {
+                this.firedConsumer.accept(data.stream().map(this.timeRangeConfig.getExtractor()).collect(Collectors.toSet()));
+                completableFuture.complete(Collections.emptyList());
+            } catch (Exception ex) {
+                completableFuture.completeExceptionally(ex);
+            }
+            return completableFuture;
+        }
+
+        private long timeRangeKeyTick(@Nonnull String key) {
+            return Long.valueOf(Optional.of(key.indexOf('-')).filter(idx -> idx > -1).map(idx -> key.substring(0, idx)).orElse(key), 16);
+        }
+
+        private int startedRegionsCnt() {
+            return (int) this.timeRangeActors.keySet().stream()
+                    .map(this::timeRangeKeyTick)
+                    .distinct().count();
+        }
+
+        private Behavior<Command<M>> onTerminate(Terminated terminated) {
+            ofNullable(this.regionTickName(terminated.getRef().path().name()))
+                    .filter(this.timeRangeActors::containsKey)
+                    .ifPresent(this.timeRangeActors::remove);
+            startRegions();
+            return this;
+        }
+
+        private long timeRangeTick(Instant instant) {
+            long tick = instant.toEpochMilli();
+            return tick - tick % this.timeRangeTicks;
+        }
+
+        // Начало первого имеющегося в timeRangeActors момента региона - от него начинаем отсчёт для подъёма
+        private long initialTick(Instant now) {
+            return this.timeRangeActors.keySet().stream()
+                    .map(key -> key.indexOf('-') == -1 ? key : key.substring(0, key.indexOf('-')))
+                    .distinct()
+                    .map(hex -> Long.valueOf(hex, 16))
+                    .reduce(Long::min)
+                    .orElseGet(() -> timeRangeTick(ofNullable(now).orElseGet(Instant::now)));
+        }
+
+        // instantId values from 1 to nrOfInstances
+        private String regionTickName(long regionTick, int instantId) {
+            return Long.toHexString(regionTick)+(nrOfInstances == 1 ? "" : "-"+instantId);
+        }
+
+        private boolean isTimeRegionStarted(long regionTick) {
+            return IntStream.rangeClosed(1, nrOfInstances)
+                    .mapToObj(id -> regionTickName(regionTick, id))
+                    .anyMatch(this.timeRangeActors::containsKey);
+        }
+
+        @SuppressWarnings("java:S127")
+        private Behavior<Command<M>> startRegions() {
+            int started = startedRegionsCnt();
+            if (started <= this.rangeDepth ) {
+                Instant now = Instant.now();
+                long regionTick = initialTick(now.plus(withCheckDuration));
+                for (int range = 0; range <= this.rangeDepth - started; regionTick += this.timeRangeTicks) {
+                    // Если на timeRegion существует хоть один actor - считаем его работающим.
+                    if ( !isTimeRegionStarted(regionTick) &&
+                         (!Instant.ofEpochMilli(regionTick).isBefore(now.plus(withCheckDuration)) ||
+                          Instant.ofEpochMilli(regionTick + this.timeRangeTicks).isAfter(now.plus(withCheckDuration)))
+                    ) {
+                        startRegion(regionTick);
+                        range += 1;
+                    }
+                }
+            }
+            return this;
+        }
+
+        // Вызывается, когда нет actor-ов на region, но обходит создание при наличии
+        private void startRegion(long regionTick) {
+            IntStream.rangeClosed(1, this.nrOfInstances)
+                    .mapToObj(id -> this.regionTickName(regionTick, id))
+                    .filter(Predicate.not(this.timeRangeActors::containsKey))
+                    .forEach(regionTickName -> startRegionActor(regionTickName, Instant.ofEpochMilli(regionTick)));
+            this.timeRangeWakedUp.accept(Instant.ofEpochMilli(regionTick), Instant.ofEpochMilli(regionTick+this.timeRangeTicks));
+        }
+
+        private void startRegionActor(String regionTickName, Instant instant) {
+            ActorRef<Command<M>> timeRegionActor = context.spawn(
+                    create(this.regionInstant(instant), this.timeRangeConfig, this.firedConsumer, this.withCheckDuration),
+                    regionActorName(regionTickName)
+            );
+            this.timeRangeActors.put(regionTickName, timeRegionActor);
+            context.watch(timeRegionActor);
+        }
+
+        private String regionActorName(String regionTick) {
+            return TIME_RANGE_NAME_PREFIX + regionTick.toUpperCase();
+        }
+
+        private String regionTickName(String regionActorName) {
+            return of(regionActorName)
+                    .filter(name -> name.startsWith(TIME_RANGE_NAME_PREFIX))
+                    .map(name -> name.substring(TIME_RANGE_NAME_PREFIX.length()))
+                    .map(String::toLowerCase)
+                    .orElse(null);
+        }
+
+        // Если у нас duration отрицательный, то регион строим от правой границы
+        private Instant regionInstant(Instant instant) {
+            return of(this.timeRangeConfig.getDuration())
+                    .filter(Duration::isNegative)
+                    .map(instant::minus)
+                    .orElse(instant);
+        }
+
+    }
+
+    class Mailbox extends UnboundedStablePriorityMailbox {
+
+        @SuppressWarnings("java:S1172")
+        public Mailbox(ActorSystem.Settings settings, Config config) {
+            super(new PriorityGenerator() {
+                @Override
+                public int gen(Object msg) {
+                    if (msg instanceof akka.actor.Terminated || msg instanceof akka.actor.typed.Terminated) {
+                        return 1;
+                    } else if (msg instanceof TimeRange.AddCommand) {
+                        return 4;
+                    } else if (msg instanceof TimeRange.Timeout) {
+                        return 3;
+                    } else if (msg instanceof TimeRange.Command) {
+                        return 5;
+                    } else if (msg instanceof Signal) {
+                        return 2;
+                    }
+                    return 0;
+                }
+            });
         }
 
     }
