@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- <include resource="org/springframework/boot/logging/logback/base.xml" /> -->
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- Log SCMessage format -->
+        <withJansi>true</withJansi>
+        <encoder>
+            <pattern>%green(%date{ISO8601}) [%48thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>500</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="STDOUT" />
+    </appender>
+
+    <logger name="akka"                                                                level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="liquibase"                                                           level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="com.zaxxer.hikari.pool.ProxyConnection"                              level="error" additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="com.zaxxer.hikari"                                                   level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="sun"                                                                 level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="java.io"                                                             level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="javax.management"                                                    level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+    <logger name="jdk.event.security"                                                  level="info"  additivity="false"><appender-ref ref="ASYNC"/></logger>
+
+    <!-- root -->
+    <root level="DEBUG">
+        <appender-ref ref="ASYNC"/>
+    </root>
+
+</configuration>
