@@ -13,12 +13,17 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static java.util.Optional.ofNullable;
 
 @Slf4j
 public class Perf {
@@ -46,31 +51,40 @@ public class Perf {
 
         public Application(ActorContext<Object> context) {
             super(context);
+            // Описываем диапазоны
             Config<Instant, Instant>  config = Config.create(
-                    Duration.ofSeconds(10), Duration.ofMillis(500), Duration.ofMillis(125), Duration.ofSeconds(3),
-                    instant -> instant, null, TimeRangeItems.ResultTransformer.identity()
+                    Duration.ofSeconds(10), // Длина диапазона 10 секунд
+                    Duration.ofMillis(500), // Внутри режется на полусекундные chunk-и
+                    Duration.ofMillis(125), // Реакция опроса - не чаще 125 миллисекунд
+                    Duration.ofSeconds(3),  // Timeout на ожидание прихода запоздавших сообщений
+                    instant -> instant, // Временной маркер и есть сам элемент
+                    null, // Используется default comparator сервиса
+                    TimeRangeItems.ResultTransformer.identity() // Входящее сообщение Instant, исходящее - оно же
             );
-            TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer = elements -> {
-                long tick = Instant.now().toEpochMilli();
-                firstTick.compareAndSet(0, Instant.now().toEpochMilli());
-                fired.addAndGet(elements.size());
-                fires.incrementAndGet();
-                long add = elements.stream().map(Instant::toEpochMilli).map(firedTick -> tick - firedTick).reduce(Long::sum).orElse(0L);
-                delay.addAndGet(add);
-            };
-            TimeRange.TimeRangeWakedUp timeRangeWakedUp = (startInstant, endInstant) -> context.getSelf().tell(new Generate(startInstant, endInstant));
+            // Создаём актор сервиса
             timeRangeProcessor = context.spawn(
                     Behaviors.setup(ctx ->
                             new TimeRange.TimeRangeAutomaticProcessor<>(
                                     ctx,
                                     config,
-                                    firedElementsConsumer,
+                                    Application::firedElementsConsumer,
                                     Duration.ZERO,
                                     RANGE_DEPTH,
                                     RANGE_NR_OF_INSTANCES,
-                                    timeRangeWakedUp
+                                    // При появлении диапазона - отправляем себе запрос на генерацию данных
+                                    (startInstant, endInstant) -> context.getSelf().tell(new Generate(startInstant, endInstant))
                             )), "time-ranges"
             );
+        }
+
+        // Реакция на сработавшие сообщения (изменяем счётчики)
+        private static void firedElementsConsumer(@Nonnull Collection<Instant> elements) {
+            long tick = Instant.now().toEpochMilli();
+            firstTick.compareAndSet(0, Instant.now().toEpochMilli());
+            fired.addAndGet(elements.size());
+            fires.incrementAndGet();
+            long add = elements.stream().map(Instant::toEpochMilli).map(firedTick -> tick - firedTick).reduce(Long::sum).orElse(0L);
+            delay.addAndGet(add);
         }
 
         @Override
@@ -90,39 +104,49 @@ public class Perf {
                  instant.isBefore(generate.endInstant);
                  instant = instant.plusNanos(nanosPerRec)) {
                 id.incrementAndGet();
+                // Генерируем элементы
                 elements.add(instant);
+                // Если получили достаточный объем
                 if (elements.size() >= ADD_COMMAND_BULK_SIZE) {
-                    TimeRange.addElements(timeRangeProcessor,elements).whenComplete(
-                            (reject, throwable) -> {
-                                if (throwable != null) {
-                                    logger.error("Unable to add columns for region {} - {}: {}", generate.startInstant, generate.endInstant, throwable.getCause());
-                                } else {
-                                    Application.reject.addAndGet(reject.size());
-                                }
-                            }
-                );
+                    Optional.of(elements).ifPresent(elm ->
+                            // Отправляем в сервис
+                            TimeRange.addElements(timeRangeProcessor,elm)
+                                    // Отмечаем reject-ы
+                                    .whenComplete((rejects, throwable) -> informReject(elm, generate.startInstant, generate.endInstant, rejects, throwable))
+                    );
                     elements = new ArrayList<>();
                 }
             }
+            // Если ещё есть элементы
             if (elements.size() > 0) {
-                TimeRange.addElements(timeRangeProcessor,elements);
+                Optional.of(elements).ifPresent(elm ->
+                        // Отправляем в сервис
+                        TimeRange.addElements(timeRangeProcessor,elm)
+                                // Отмечаем reject-ы
+                                .whenComplete((rejects, throwable) -> informReject(elm, generate.startInstant, generate.endInstant, rejects, throwable))
+                );
             }
             return this;
         }
 
     }
 
-    public static String lemons(long value) {
-        if (value >= 10000) {
-            return Math.round(100.0D*value/1000000)/100.0D+"M";
-        } else {
-            return String.valueOf(value);
-        }
+    private static void informReject(List<Instant> elements, Instant startInstant, Instant endInstant, Collection<Instant> rejects, Throwable throwable) {
+        ofNullable(throwable).ifPresentOrElse(
+                 expt -> logger.error("Unable to add {} elements for region {} - {}. Cause: {}",
+                         elements.size(), startInstant, endInstant, expt.getCause())
+                ,() -> Application.reject.addAndGet(rejects.size())
+        );
     }
 
     public static void main(String[] args) throws InterruptedException {
         logger.info("Main...");
+        // Запускаем приложение
         /*ActorSystem<?> actorSystem =*/ ActorSystem.create(Behaviors.setup(Application::new), "main");
+        logMe();
+    }
+
+    private static void logMe() throws InterruptedException {
         long lastFired=0;
         long lastFires=0;
         long lastTick=0;
@@ -157,6 +181,14 @@ public class Perf {
                 lastDelay = delay;
             }
             Thread.sleep(1000);
+        }
+    }
+
+    public static String lemons(long value) {
+        if (value >= 10000) {
+            return Math.round(100.0D*value/1000000)/100.0D+"M";
+        } else {
+            return String.valueOf(value);
         }
     }
 
