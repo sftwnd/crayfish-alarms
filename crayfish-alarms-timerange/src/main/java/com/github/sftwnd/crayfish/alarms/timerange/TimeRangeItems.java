@@ -8,7 +8,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
-import com.github.sftwnd.crayfish.common.required.RequiredFunction;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -30,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,45 +37,67 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * Временной диапазон с набором элементов, промаркированных time-меткой, попадающей в границы диапазона. По запросу из диапазона
- * можно вытащить набор элементов с меткой до момента, указанного параметром запроса. Возвращаемые запросом элементы не сохраняются
- * в диапазоне.
- * @param <M> Тип элемента при добавлении
- * @param <R> Тип элемента при извлечении
+ * A time range with a set of elements marked with a time stamp that falls within the bounds of the range. On request,
+ * from the range, you can pull out a set of elements with a label up to the moment specified by the query parameter.
+ * The elements returned by the query are not stored in the range.
+ * @param <M> Element type when added
+ * @param <R> Element type when retrieving
  */
 public class TimeRangeItems<M,R> {
 
+    /**
+     * Transformation of nonnull element to nonnull value
+     * @param <M> source element type
+     * @param <R> target element type
+     */
+    public interface ResultTransformer<M,R> extends Function<M,R> {
+        /**
+         * Transform element from one type to other
+         *
+         * @param element the source element
+         * @return target element
+         */
+        R apply(M element);
+        static <T> ResultTransformer<T, T> identity() {
+            return t -> t;
+        }
+    }
+
     /*
         Used sonar warnings:
-            java:S107 Methods should not have too many parameters
+            java:S107 Methods should not have too many params
             java:S3358 Ternary operators should not be nested
             java:S3864 "Stream.peek" should be used with caution
      */
-    // Основные настроечные параметры
+    // Basic settings
     private final Config<M,R> config;
-    // Сравнение двух зарегистрированных объектов
+    // Beginning of the region validity period
+    private final Instant startInstant;
+    // Upper limit of the interval (exclude...)
+    private final Instant lastInstant;
+    // Comparison of two registered objects
     private final Comparator<? super M> comparator;
-    // Момент ближайшего элемента. В случае отсутствия - null
+    // The moment of the nearest element. In case of absence - null
     @Setter(value = AccessLevel.PRIVATE)
     private Instant nearestInstant = null;
-    // Набор элементов, распределённый по диапазонам размера interval
-    // Структура хранения TreeMap, что гарантирует порядок обхода по возрастанию
-    // Внутренние элементы содержатся в TreeSet, что тоже гарантирует порядок
-    // Здесь мы указываем не интерфейс, а реализацию сознательно!!!
+    // A set of elements distributed over ranges of size interval
+    // TreeMap storage structure that guarantees ascending traversal order
+    // The internal elements are contained in a TreeSet, which also guarantees order.
+    // Here we specify not the interface, but the implementation deliberately!!!
     private final TreeMap<Instant, TreeSet<M>> expectedMap = new TreeMap<>();
     private final Instant lastDelayedInstant;
 
     /**
-     * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
+     * An object containing objects marked with a time-marker for the range to search for triggered
      *
-     * @param instant Момент, ограничивающий период обработки региона
-     * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа).
-     * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
-     * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
-     * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
-     * @param expectation Получение временной метки из поступившего элемента
-     * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
-     * @param extractor Метод преобразования входящего элемента в результирующий
+     * @param instant The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
+     * @param duration Duration of the period of the region (if negative, then to the left of instant, otherwise - to the right).
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param delay Intervals for checking for the operation of existing Expected objects
+     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param expectation Getting timestamp from incoming element
+     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param extractor Method for converting an input element into a result element
      */
     @SuppressWarnings("java:S107")
     public TimeRangeItems(
@@ -86,82 +108,88 @@ public class TimeRangeItems<M,R> {
             @NonNull  Duration completeTimeout,
             @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull  RequiredFunction<M,R> extractor
+            @NonNull  ResultTransformer<M,R> extractor
     ) {
-        this(new Config<>(instant, duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+        this(instant, new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
 
     /**
-     * Объект, содержащий помечены time-маркером объекты на диапазон для поиска сработавших
+     * An object containing objects marked with a time-marker for the range to search for triggered
      *
-     * @param config Конфигурация для параметров конструктора
+     * @param instant The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
+     * @param config Configuration for constructor parameters
      */
-    public TimeRangeItems(@NonNull TimeRangeItems.Config<M,R> config) {
+    public TimeRangeItems(
+            @NonNull Instant instant,
+            @NonNull TimeRangeItems.Config<M,R> config
+    ) {
         this.config = config;
+        this.startInstant = Optional.of(config.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
+        this.lastInstant = Optional.of(config.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
         this.comparator = ofNullable(config.comparator).orElse(this::compareObjects);
-        this.lastDelayedInstant = config.lastInstant.minus(config.delay);
+        this.lastDelayedInstant = this.lastInstant.minus(config.delay);
     }
 
-    @Nonnull public Instant getStartInstant() { return config.startInstant; }
-    @Nonnull public Instant getLastInstant() { return config.lastInstant; }
+    @Nonnull public Instant getStartInstant() { return this.startInstant; }
+    @Nonnull public Instant getLastInstant() { return this.lastInstant; }
     @Nonnull public Duration getInterval() { return config.interval; }
     @Nonnull public Duration getDelay() { return config.delay; }
     @Nonnull public Duration getCompleteTimeout() { return config.completeTimeout; }
 
     /**
-     * Временной интервал с учётом completeTimeout исчерпаны на текущий момент
-     * @return true если исчерпан или false в противном случае
+     * The time interval taking into account completeTimeout has been exhausted by the current moment
+     * @return true if exhausted or false otherwise
      */
     public boolean isExpired() {
         return isExpired(Instant.now());
     }
 
     /**
-     * Временной интервал с учётом completeTimeout исчерпаны на переданный момент
-     * @param instant момент времени на который производится проверка
-     * @return true если исчерпан или false в противном случае
+     * The time interval, taking into account completeTimeout, has been exhausted by the transmitted moment
+     * @param instant point in time at which the check is made
+     * @return true if exhausted or false otherwise
      */
     public boolean isExpired(@Nullable Instant instant) {
         return !ofNullable(instant).orElseGet(Instant::now)
-                .isBefore(config.lastInstant.plus(config.completeTimeout));
+                .isBefore(this.lastInstant.plus(config.completeTimeout));
     }
 
     /**
-     * Проверяется, что структура не содержит элементов и интервал с учётом completeTimeout исчерпан на текущий момент времени
-     * @return true если исчерпан или false в противном случае
+     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout, has been exhausted at the current time
+     * @return true if completed or false otherwise
      */
     public boolean isComplete() {
         return isComplete(Instant.now());
     }
 
     /**
-     * Проверяется, что структура не содержит элементов и интервал с учётом completeTimeout исчерпан на переданный момент времени
-     * @param instant момент времени на который производится проверка
-     * @return true если исчерпан или false в противном случае
+     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout, has been exhausted for the passed time point
+     * @param instant point in time at which the check is made
+     * @return true if completed or false otherwise
      */
     public boolean isComplete(@Nullable Instant instant) {
         return this.expectedMap.isEmpty() && isExpired(instant);
     }
 
     /**
-     * Добавляем указанный набор элементов в карту диапазонов
-     * Так же будет установлен атрибут: nearestInstant
-     * Данные, не попадающие в диапазон, игнорируются с выводом сообщения
-     * @param elements коллекция добавляемых элементов
-     * @return список проигнорированных элементов
+     * Add the specified set of elements to the range map
+     * The attribute will also be set: nearestInstant
+     * Out-of-range data is ignored with a message
+     * @param elements collection of added elements
+     * @return list of ignored elements
      */
     public Collection<M> addElements(@Nonnull Collection<M> elements) {
         List<M> excludes = new ArrayList<>();
         //noinspection ConstantConditions
         elements.stream().filter(Objects::nonNull)
-                // Проверяем на попадание в диапазон
+                // Checking for range
                 .filter(element -> checkRange(element) || !excludes.add(element))
-                // Если элемент самый ранний, то отмечаем его Instant
-                // P.S.> Ввиду наличия терминального оператора peek сработает для каждого элемента, прошедшего через него.
+                // If the element is the earliest, then mark it with Instant
+                // P.S.> Due to the presence of the terminal operator, peek will work for every element that has passed through it.
                 .peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
                         .filter(inst -> inst.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX)))
                         .ifPresent(this::setNearestInstant))
-                // Группируем по диапазонам instantKey
+                // Grouping by instantKey ranges
                 .collect(
                         Collectors.groupingBy(
                                 elm -> getTemporalKey(instant(elm)),
@@ -169,17 +197,17 @@ public class TimeRangeItems<M,R> {
                         )
                 ).forEach((key,value) -> ofNullable(this.expectedMap.get(key))
                         .ifPresentOrElse(
-                                // Если присутствует - расширяем
+                                // If present, expand
                                 set -> set.addAll(value)
-                                // Если отсутствует - добавляем
+                                // If missing, add
                                 , () -> this.expectedMap.put(key, value))
                 );
         return excludes;
     }
 
     /**
-     * Извлечение из сохранённых элементов тех, которые согласно временному маркеру считаются сработавшими на текущий момент
-     * @return Список сработавших элементов
+     * Extracting from the saved elements those that, according to the temporary marker, are considered to have worked at the current moment
+     * @return List of triggered elements
      */
     public @Nonnull Set<R> getFiredElements() {
         // Ищем на текущий момент
@@ -187,35 +215,35 @@ public class TimeRangeItems<M,R> {
     }
 
     /**
-     * Извлечение из сохранённых элементов тех, которые согласно временному маркеру считаются сработавшими на момент переданный параметром
-     * @param instant момент времени на который производится проверка
-     * @return Список сработавших элементов
+     * Retrieving from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
+     * @param instant point in time at which the check is made
+     * @return List of triggered elements
      */
     public @Nonnull Set<R> getFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
-        // Ключ, соответствующий текущему моменту
+        // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
         HashSet<R> result = new HashSet<>();
         addCollectionOnProcess(
                 this.expectedMap
                         .entrySet()
                         .stream()
-                        // Так как TreeMap, то порядок идет по возрастанию ключа instantKey и обрабатываем все записи у которых
+                        // Since TreeMap, the order goes in ascending order of the instantKey key, and we process all records that have
                         // instantKey < nextKey
                         .takeWhile(entry -> !entry.getKey().isAfter(nowKey))
-                        // Собираем все ключи в набор (чтобы можно было модифицировать первичный TreeMap
+                        // We collect all the keys in a set (so that you can modify the primary TreeMap
                         .map(Map.Entry::getKey).collect(Collectors.toSet())
-                        // По всем ключам, которые могут содержать сработавшие элементы
+                        // For all keys that may contain triggered elements
                         .stream()
-                        // Вызываем обработку набора, удалённого из первичной Map
+                        // We call the processing of a set removed from the primary Map
                         .flatMap(key -> processKey(this.expectedMap.remove(key), now, key.isBefore(nowKey), result))
-                        // Всё, что вернули обработчики собираем в set и отправляем обратно в Map
+                        // We collect everything that the handlers returned in set and send it back to Map
                         .collect(Collectors.toCollection(() -> new TreeSet<>(this.comparator))));
         return result;
     }
 
     private void addCollectionOnProcess(@Nonnull Collection<M> elements) {
-        // На момент вызова были удалены строки и требуется пересчитать время ближайшего элемента (если существует)
+        // At the time of the call, rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
         addElements(elements);
     }
@@ -250,23 +278,21 @@ public class TimeRangeItems<M,R> {
                 );
     }
 
-    /* >>> [DURATIONS] >>> ========================================================================================== */
-
     /**
-     * Таймаут до момента ближайшего имеющегося Expected, но не менее, чем delay, а в случае отсутствия - до следующей
-     * по времени границы - либо startInstant, либо lastInstant + completeDuration
-     * @param now момент времени для которого считаем значение
-     * @return таймаут до ближайшего события с учётом delay
+     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
+     * either startInstant or lastInstant + completeDuration
+     * @param now point in time for which we calculate the value
+     * @return timeout to the nearest event, taking into account delay
      */
     public Duration duration(@NonNull Instant now) {
-        // Если время указано до начала диапазона
-        if (now.isBefore(config.startInstant)) {
+        // If the time is before the start of the range
+        if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
-        // Если время начала диапазона прошло и нет элементов
+        // If the start time of the range has passed and there are no elements
         } else if (this.expectedMap.isEmpty()) {
             return durationToStop(now);
-        // Если есть элементы и время попадает в диапазон
-        } else if (now.isBefore(config.lastInstant)) {
+        // If there are elements and the time falls within the range
+        } else if (now.isBefore(this.lastInstant)) {
             return durationToExpect(now);
         } else {
             return Duration.ZERO;
@@ -274,68 +300,66 @@ public class TimeRangeItems<M,R> {
     }
 
     /**
-     * Таймаут до момента ближайшего имеющегося Expected, но не менее, чем delay, а в случае отсутствия - до следующей
-     * по времени границы - либо startInstant, либо lastInstant + completeDuration
-     * @return таймаут до ближайшего события с учётом delay от текущего момента
+     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
+     * either startInstant or lastInstant + completeDuration
+     * @return timeout to the nearest event, taking into account the delay from the current moment
      */
     public Duration duration() {
         return duration(Instant.now());
     }
 
-    // Время до момента после lastInstant на completeTimeout duration. Если после этого момента мы находимся в COMPLETE,
-    // то актор завершается.
-    // Это время дается AKKA System на доставку до нас сообщение с заказом на обработку. Дело в том, что не предполагается
-    // получение заданий в обработку после момента их наступления. Данный актор принимает только сообщения на будущее
+    // Time until the moment after lastInstant by completeTimeout duration. If after this point we are in COMPLETE,
+    // then the actor ends.
+    // This time is given by AKKA System to deliver the message with the processing order to us. The fact is that it is not
+    // supposed to receive tasks for processing after the moment of their occurrence. This actor only accepts messages for the future
     private @Nonnull Duration durationToStop(Instant now) {
-        return durationTo(config.lastInstant.plus(config.completeTimeout), now);
+        return durationTo(this.lastInstant.plus(config.completeTimeout), now);
     }
 
-    // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до завершения диапазона текущего ключа
+    // The time from the specified moment until the first element fires, and in case of absence - until the end of the range of the current key
     private @Nonnull Duration durationToExpect(@Nonnull Instant now) {
-        // Если определён ближайший элемент, то ждём до его момента, в противном случае - до завершения времени диапазона
-        // P.S. - возможно надо ждать до следующего ключа... Вроде пока не видится оснований, но был единичный прецедент
-        //        зависания - предварительно связан с использованием BalancingPool, который не поддерживается данным Актором!!!.
-        //        Если будет повторяться - надо посмотреть в направлении оптимизации durationToExpect
-        return Optional.of(durationTo( // Берём Delay до ближайшего элемента, а если его нет, то до конца chunk-а
+        // If the nearest element is defined, then we wait until its moment, otherwise - until the end of the range time
+        // P.S. - maybe you have to wait until the next key... It seems that there are no grounds yet, but there was a single hang-up precedent -
+        //        previously associated with the use of BalancingPool, which is not supported by this Actor !!!.
+        //        If it repeats, you need to look in the direction of optimizing durationToExpect
+        return Optional.of(durationTo( // We take Delay to the nearest element, and if it is not there, then to the end of the chunk
                         ofNullable(this.nearestInstant)
-                                .orElse(config.lastInstant),
+                                .orElse(this.lastInstant),
                         now))
-                // Проверяем, что он превышает delay
+                // Check if it exceeds delay
                 .filter(d -> d.compareTo(config.delay) >= 0)
-                // Если не превышает, то при попадании до lastDelayedInstant возвращаем delay, иначе - оставшееся время to lastInstant
-                .orElseGet(() -> now.isAfter(config.lastInstant) ? Duration.ZERO
+                // If it does not exceed, then when hitting lastDelayedInstant we return delay, otherwise - the remaining time to lastInstant
+                .orElseGet(() -> now.isAfter(this.lastInstant) ? Duration.ZERO
                         : now.isBefore(this.lastDelayedInstant) ? config.delay // NOSONAR java:S3358 Ternary operators should not be nested
-                        : Duration.between(now, config.lastInstant));
+                        : Duration.between(now, this.lastInstant));
     }
 
-    // Время от указанного момента до срабатывания первого элемента, а в случе отсутствия - до начала активации диапазона
+    // The time from the specified moment until the first element is triggered, and in case of absence - until the start of the range activation
     private @Nonnull Duration durationToStart(@Nonnull Instant now) {
         return durationTo(
-                ofNullable(this.nearestInstant).orElse(config.startInstant),
+                ofNullable(this.nearestInstant).orElse(this.startInstant),
                 now);
     }
 
-    // Время до наступления указанного момента от момента параметра now
+    // Time until the specified moment from the moment of the now parameter
     private static @Nonnull Duration durationTo(@Nonnull Instant instant, @Nonnull Instant now) {
         return instant.isAfter(now)
                 ? Duration.between(now, instant)
                 : Duration.ZERO;
     }
 
-    /* ========================================================================================== >>> [DURATIONS] >>> */
-
     private boolean checkRange(@Nonnull M element) {
         return Optional.of(element)
                 .map(this::instant)
-                .filter(Predicate.not(config.startInstant::isAfter))
-                .filter(config.lastInstant::isAfter)
+                .filter(Predicate.not(this.startInstant::isAfter))
+                .filter(this.lastInstant::isAfter)
                 .isPresent();
     }
 
     /**
-     * Округляет переданный instant до начала интервала
-     * @param instant Момент на который необходимо определить ключ периода опроса
-     * @return момент, описывающий диапазон периода опроса
+     * Rounds the given instant to the beginning of the interval
+     * @param instant The moment at which it is necessary to determine the key of the polling period
+     * @return moment describing the range of the polling period
      */
     private Instant getInstantKey(@Nonnull Instant instant) {
         return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % config.interval.toMillis());
@@ -346,9 +370,9 @@ public class TimeRangeItems<M,R> {
     }
 
     /**
-        Данная функция сравнивает два имеющихся объекта. Если их моменты срабатывания не совпадают, то результат сравнения
-        совпадает с результатом сравнения моментов времени срабатывания объектов. В противном случае - порядок берётся по
-        результату сравнения обоих объектов зарегистрированным comparator-ом
+     * This function compares two existing objects. If their trigger times do not match, then the result of the comparison
+     * is the same as the result of comparing the trigger times of the objects.
+     * Otherwise, the order is taken according to the result of comparing both objects by the registered comparator
      */
     private int compare(@Nonnull M first, @Nonnull M second) {
         return first == second ? 0
@@ -372,40 +396,36 @@ public class TimeRangeItems<M,R> {
 
     public static class Config<M,R> {
 
-        // Начало периода действия региона
-        @Getter private final Instant startInstant;
-        // Верхняя граница интервала (exclude...)
-        @Getter private final Instant lastInstant;
-        // Размер внутреннего chunk-а деления интервала
+        // The duration of the described interval
+        @Getter private final Duration duration;
+        // The size of the internal chunk-a division of the interval
         @Getter private final Duration interval;
-        // Минимальная задержка опроса в ACTIVE статусе. Позволяет разгрузить процессор, но уменьшить точность срабатывания
-        // event-а приблизительно (в среднем) до величины задержки.
-        // P.S.> Для отрицательных ставится Duration.ZERO, не может быть больше размера внутреннего chunk-а: interval
+        // Minimum polling delay in ACTIVE status. Allows you to unload the processor, but reduce the accuracy of the event
+        // firing approximately (on average) to the delay value.
+        // P.S.> For negative ones, Duration.ZERO is set, it cannot be larger than the size of the internal chunk: interval
         @Getter private final Duration delay;
-        // Таймаут на доставку задержавшихся сообщений.
-        // С момента наступления lastInstant выдерживается timeout на приход сообщений в обработку
+        // Timeout for delayed message delivery.
+        // From the moment of the lastInstant, a timeout is maintained for the arrival of messages for processing
         @Getter private final Duration completeTimeout;
-        // Получение даты из регистрируемого сообщения
-        private final Expectation<M,? extends TemporalAccessor> expectation;
-        // Сравнение двух зарегистрированных объектов
-        private final Comparator<? super M> comparator;
-        // Получение результирующего элемента из зарегистрированного
-        private final RequiredFunction<M,R> extractor;
+        // Getting the date from the logged message
+        @Getter private final Expectation<M,? extends TemporalAccessor> expectation;
+        // Comparison of two registered objects
+        @Getter private final Comparator<? super M> comparator;
+        // Getting result element from registered
+        @Getter private final ResultTransformer<M,R> extractor;
 
         @SuppressWarnings("java:S107")
-        public Config(
-                @NonNull  Instant  instant,
+        private Config(
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
                 @NonNull  Duration completeTimeout,
                 @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
                 @Nullable Comparator<? super M> comparator,
-                @NonNull  RequiredFunction<M,R> extractor
+                @NonNull  ResultTransformer<M,R> extractor
         ) {
             if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("Config::new - Invalid duration: " + duration);
-            this.startInstant = Optional.of(duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-            this.lastInstant = Optional.of(duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+            this.duration = duration;
             this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
             this.delay = ofNullable(delay)
                     .filter(Predicate.not(Duration::isNegative))
@@ -416,96 +436,85 @@ public class TimeRangeItems<M,R> {
             this.comparator = comparator;
             this.extractor = extractor;
         }
-
+        
         /**
-         * Временной интервал с учётом completeTimeout исчерпаны на текущий момент
-         * @return true если исчерпан или false в противном случае
+         * Create TimeRangeItems based on current configuration
+         * @param instant actual border for plotting the final TimeRangeItems
+         * @return object TimeRangeItems
          */
-        public boolean isExpired() {
-            return isExpired(Instant.now());
+        public TimeRangeItems<M,R> timeRange(Instant instant) {
+            return new TimeRangeItems<>(instant, this);
         }
 
         /**
-         * Временной интервал с учётом completeTimeout исчерпаны на переданный момент
-         * @param instant момент времени на который производится проверка
-         * @return true если исчерпан или false в противном случае
-         */
-        public boolean isExpired(@Nullable Instant instant) {
-            return !ofNullable(instant).orElseGet(Instant::now)
-                    .isBefore(this.lastInstant.plus(this.completeTimeout));
-        }
-
-        /**
-         * Создание TimeRangeItems на основе текущей конфигурации
-         * @return объект TimeRangeItems
-         */
-        public TimeRangeItems<M,R> timeRange() {
-            return new TimeRangeItems<>(this);
-        }
-
-        /**
-         * Создание TimeRangeItems.Config с ExpectedPackage как тип регистрируемых элементов
+         * Creating a TimeRangeItems Config as the Type of Registered Items
          *
-         * @param instant Момент, ограничивающий период обработки региона
-         * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
-         * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
-         * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
-         * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
-         * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
-         * @param <M> тип входящего элемента
-         * @param <R> тип выдаваемого элемента
-         * @return экземпляр TimeRangeItems.Config
+         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
+         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+         * @param delay Intervals for checking for the operation of existing Expected objects
+         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+         * @param expectation Getting timestamp from incoming element
+         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+         * @param extractor Method for converting an input element into a result element
+         * @param <M> input element type
+         * @param <R> the type of the returned element
+         * @return TimeRangeItems.Config instance
+         */
+        @SuppressWarnings("java:S107")
+        public static <M,R> Config<M,R> create(
+                @NonNull  Duration duration,
+                @NonNull  Duration interval,
+                @Nullable Duration delay,
+                @NonNull  Duration completeTimeout,
+                @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+                @Nullable Comparator<? super M> comparator,
+                @NonNull  ResultTransformer<M,R> extractor
+        ) {
+            return new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
+        }
+        /**
+         * Creating a TimeRangeItems.Config with ExpectedPackage as the type of items being registered
+         *
+         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
+         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+         * @param delay Intervals for checking for the operation of existing Expected objects
+         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+         * @param <M> input element type
+         * @param <R> the type of the returned element
+         * @return TimeRangeItems.Config instance
          */
         public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> Config<M,R> packable(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super R> comparator
         ) {
-            return new Config<>(
-                    instant,
-                    duration,
-                    interval,
-                    delay,
-                    completeTimeout,
-                    ExpectedPackage::getTick,
+            return create(duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
                     comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
-                    ExpectedPackage::getElement
-            );
+                    ExpectedPackage::getElement);
         }
 
         /**
-         * Создание TimeRangeItems.Config с Expected как тип регистрируемых элементов
+         * Creating a TimeRangeItems.Config with Expected as the type of items being registered
          *
-         * @param instant Момент, ограничивающий период обработки региона
-         * @param duration Длительность периода региона (если отрицательный, то слева от instant, иначе - справа)
-         * @param interval Интервалы на которые бьётся duration (если &gt; duration или &lt;= ZERO, то принимается равным duration.abs())
-         * @param delay Интервалы проверки на срабатывание имеющихся Expected объектов
-         * @param completeTimeout Через заданный интервал после завершения описываемого диапазона в случае отсутствия обрабатываемых объектов актор останавливается
-         * @param comparator Переопределение компаратора для упорядочивания Expected объектов не только по временному возрастанию, но и по внутреннему содержимому
-         * @param <M> тип регистрируемого выдаваемого элемента
-         * @return экземпляр TimeRangeItems.Config
+         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
+         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+         * @param delay Intervals for checking for the operation of existing Expected objects
+         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+         * @param <M> input element type
+         * @return TimeRangeItems.Config instance
          */
         public static <M extends Expected<? extends TemporalAccessor>> Config<M,M> expected(
-                @NonNull  Instant  instant,
                 @NonNull  Duration duration,
                 @NonNull  Duration interval,
                 @Nullable Duration delay,
                 @NonNull  Duration completeTimeout,
                 @Nullable Comparator<? super M> comparator
         ) {
-            return new Config<>(
-                    instant,
-                    duration,
-                    interval,
-                    delay,
-                    completeTimeout,
-                    Expected::getTick,
-                    comparator,
-                    RequiredFunction.identity()
-            );
+            return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, ResultTransformer.identity());
         }
     }
 

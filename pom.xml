@@ -11,6 +11,35 @@
 
     <name>CrayFish :: ALARMS</name>
 
+    <description>
+        The library contains primitives that allow you to control the installation of tasks for processing on a schedule
+    </description>
+    <url>https://github.com/sftwnd/crayfish-alarms</url>
+
+    <licenses>
+        <license>
+            <name>3-Clause BSD License</name>
+            <url>https://opensource.org/licenses/BSD-3-Clause</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>sftwnd</id>
+            <name>Andrey Shindarev</name>
+            <email>ashindarev@gmail.com</email>
+            <timezone>Europe/Moscow</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/sftwnd/crayfish-alarms</url>
+        <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
+        <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
     <modules>
         <module>crayfish-alarms-timerange</module>
         <module>crayfish-alarms-akka</module>
@@ -23,6 +52,19 @@
         <scala.version>${scala.binary.version}.7</scala.version>
         <akka-actor.version>2.6.18</akka-actor.version>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>sonatype-nexus-staging</id>
+            <name>Nexus Release Repository</name>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+        <snapshotRepository>
+            <id>sonatype-nexus-snapshots</id>
+            <name>Sonatype Nexus Snapshots</name>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <dependencies>
         <dependency>
@@ -191,5 +233,44 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <profiles>
+        <profile>
+            <id>sign-artifacts</id>
+            <activation>
+                <property>
+                    <name>performRelease</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.0.1</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <useAgent>true</useAgent>
+                                    <passphrase>${gpg.passphrase}</passphrase>
+                                    <gpgArguments>
+                                        <arg>--batch</arg>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
