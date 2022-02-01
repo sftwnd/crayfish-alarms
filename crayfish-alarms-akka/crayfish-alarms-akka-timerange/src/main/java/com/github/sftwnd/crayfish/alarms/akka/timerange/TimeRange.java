@@ -47,7 +47,7 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * Интерфейс протокола Typed Akka Actor для TimeRange по регистрации будильников и их обработке
+ * Typed Akka Actor protocol interface for TimeRange for registering alarms and processing them
  */
 public interface TimeRange {
 
@@ -62,14 +62,14 @@ public interface TimeRange {
      */
 
     /**
-     * Базовый интерфейс для описания типа входящих сообщений
-     * @param <X> generic для описания содержимого команды
+     * Basic interface for describing the type of incoming messages
+     * @param <X> generic to describe the content of the command
      */
     @SuppressWarnings("java:S2326")
     interface Command<X> {}
 
     final class TimeRangeCommands<M> {
-        // Это кратчайшее описание приведения, по этой причине выбрано именно оно
+        // This is the shortest description of the cast, for this reason it was chosen
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
@@ -84,10 +84,10 @@ public interface TimeRange {
     }
 
     /**
-     * Процессор, содержащий в себе TimeRangeItems структуру с будильниками. Занимается сохранением входящих будильников и
-     * инициализацией реакции на их срабатывание.
-     * @param <M> Тип входящего сообщения на регистрацию будильника
-     * @param <R> Тип уходящего в обработку объекта по факту срабатывания будильника
+     * A processor that contains a TimeRangeItems structure with alarms. Engaged in saving incoming alarms and
+     * initializing the reaction to their operation.
+     * @param <M> Type of incoming message for alarm registration
+     * @param <R> The type of the object to be processed after the alarm goes off
      */
     class TimeRangeProcessor<M,R> {
 
@@ -102,7 +102,7 @@ public interface TimeRange {
                 @NonNull  Instant instant,
                 @NonNull  TimeRangeItems.Config<M,R> timeRangeConfig,
                 @NonNull  FiredElementsConsumer<R> firedConsumer,
-                // В пределах TimeRangeItems::interval можно задать значение насколько раньше считать запись сработавшей...
+                // Within the TimeRangeItems::interval, you can set the value of how soon to consider the entry triggered...
                 @Nullable Duration withCheckDelay
         ) {
             this.timers = timers;
@@ -116,7 +116,7 @@ public interface TimeRange {
             return Instant.now().plus(this.checkDelay);
         }
 
-        // Проверку на expired/complete делаем не ранее, чем Instant.now(), но можем отодвинуть на checkDelay вперёд...
+        // We check for expired/complete no earlier than Instant.now(), but we can move forward by checkDelay...
         private Instant checkInstant() {
             Instant now = Instant.now();
             return of(nearestInstant()).filter(now::isBefore).orElse(now);
@@ -181,16 +181,15 @@ public interface TimeRange {
     }
 
     /**
-     * Создание поведения актора при котором в случае срабатывания будильника будет вызван триггер-метод: firedConsumer,
-     * куда будут переданы сработавшие будильники
-     * @param instant фактическая граница для построения итогового TimeRangeItems
-     * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
-     * @param firedConsumer - триггер-метод обработки сработавших будильников
-     * @param withCheckDuration - временной интервал на который от текущего момента изменяется момент опроса timeRangeItems
-     *                          (может быть как вперед, так и назад во времени)
-     * @param <M> - тип входящих данных, описывающих будильник
-     * @param <R> - тип исходящих данных, которые передаются в функцию обработки
-     * @return Поведение для актора-процессора временного периода с будильниками
+     * Creating an actor behavior in which, in the event of an alarm, a trigger method will be called: firedConsumer,
+     * where the triggered alarms will be transferred
+     * @param instant actual border for plotting the final TimeRangeItems
+     * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
+     * @param firedConsumer listener for handling triggered alarms
+     * @param withCheckDuration - the time interval by which the moment of polling timeRangeItems changes from the current moment (it can be either forward or backward in time)
+     * @param <M> type of input describing the alarm
+     * @param <R> the type of outgoing data that is passed to the processing function
+     * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R> Behavior<Command<M>> create(
             @NonNull Instant instant,
@@ -201,17 +200,16 @@ public interface TimeRange {
     }
 
     /**
-     * Создание поведения актора при котором в случае срабатывания будильника будет отправлено сообщения на actor-приёмник по обработке будильников
-     * @param instant фактическая граница для построения итогового TimeRangeItems
-     * @param timeRangeConfig - конфигурация структуры, описывающей будильники с расписанием их срабатывания на заданный период
-     * @param firedActor - актор-приёмник сообщения со сработавшими будильниками
-     * @param responseSupplier - функция построения из списка сработавших будильников сообщение актору - подписчику
-     * @param withCheckDuration - временной интервал на который от текущего момента изменяется момент опроса timeRangeItems
-     *                          (может быть как вперед, так и назад во времени)
-     * @param <M> - тип входящих данных, описывающих будильник
-     * @param <R> - тип исходящих данных, которые передаются в функцию обработки
-     * @param <X> - тип принимаемого актором-подписчиком сообщения
-     * @return Поведение для актора-процессора временного периода с будильниками
+     * Creating an actor behavior in which, in the event of an alarm, messages will be sent to the actor-receiver for processing alarms
+     * @param instant actual border for plotting the final TimeRangeItems
+     * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
+     * @param firedActor actor-receiver of a message with triggered alarms
+     * @param responseSupplier the function of constructing a message to the subscriber actor from the list of triggered alarms
+     * @param withCheckDuration - the time interval by which the moment of polling timeRangeItems changes from the current moment (it can be either forward or backward in time)
+     * @param <M> type of input describing the alarm
+     * @param <R> the type of outgoing data that is passed to the processing function
+     * @param <X> the type of message received by the subscriber actor
+     * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R,X> Behavior<Command<M>> create(
             @NonNull Instant instant,
@@ -230,11 +228,11 @@ public interface TimeRange {
     }
 
     /**
-     * Отправка актору - обработчику временного периода сообщения на добавление набора элементов
-     * @param timeRangeActor актор - обработчик временного периода
-     * @param elements список добавляемых будильников
-     * @param completableFuture Completable Future ответа (принимает список непринятых элементов) 
-     * @param <M> тип отправляемого сообщения
+     * Sending a message to the actor - time period handler to add a set of elements
+     * @param timeRangeActor actor - time period handler
+     * @param elements list of added alarms
+     * @param completableFuture Completable Future for the response (takes a list of unaccepted elements)
+     * @param <M> the type of message being sent
      */
     static <M> void addElements(
             @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull CompletableFuture<Collection<M>> completableFuture
@@ -249,11 +247,11 @@ public interface TimeRange {
     }
 
     /**
-     * Отправка актору - обработчику временного периода сообщения на добавление набора элементов
-     * @param timeRangeActor актор - обработчик временного периода
-     * @param elements список добавляемых будильников
-     * @param <M> тип отправляемого сообщения
-     * @return Completable Future ответа (принимает список непринятых элементов) 
+     * Sending a message to the actor - time period handler to add a set of elements
+     * @param timeRangeActor actor - time period handler
+     * @param elements list of added alarms
+     * @param <M> the type of message being sent
+     * @return Completable Future of the response (takes a list of unaccepted elements)
      */
     @Nonnull
     static <M> CompletableFuture<Collection<M>> addElements(
@@ -265,11 +263,11 @@ public interface TimeRange {
     }
 
     /**
-     * Отправка актору - обработчику временного периода сообщения на добавление набора элементов с игнорированием исключения
-     * @param timeRangeActor актор - обработчик временного периода
-     * @param elements список добавляемых будильников
-     * @param onCompleteWithReject метод-триггер, срабатывающая по факту добавления элементов в период обработки (в качестве параметра получит непринятые элементы)
-     * @param <M> тип отправляемого сообщения
+     * Sending a message to the actor - time period handler to add a set of elements, ignoring the exception
+     * @param timeRangeActor actor - time period handler
+     * @param elements list of added alarms
+     * @param onCompleteWithReject listener that fires when elements are added during the processing period (it will receive unaccepted elements as a parameter)
+     * @param <M> the type of message being sent
      */
     static <M> void addElements(
             @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull Consumer<Collection<M>> onCompleteWithReject
@@ -278,12 +276,12 @@ public interface TimeRange {
     }
 
     /**
-     * Отправка актору - обработчику временного периода сообщения на добавление набора элементов с обработкой исключения
-     * @param timeRangeActor актор - обработчик временного периода
-     * @param elements список добавляемых будильников
-     * @param onCompleteWithReject метод-триггер, срабатывающая по факту добавления элементов в период обработки (в качестве параметра получит непринятые элементы)
-     * @param onThrow метод-триггер, срабатывающая по факту появления исключения при регистрации элементов в TimeRangeImages
-     * @param <M> тип отправляемого сообщения
+     * Sending an actor - time period handler a message to add a set of elements with exception handling
+     * @param timeRangeActor actor - time period handler
+     * @param elements list of added alarms
+     * @param onCompleteWithReject listener that fires when elements are added during the processing period (it will receive unaccepted elements as a parameter)
+     * @param onThrow trigger method that fires when an exception occurs when registering elements in TimeRangeImages
+     * @param <M> the type of message being sent
      */
     static <M> void addElements(
             @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull Consumer<Collection<M>> onCompleteWithReject, @NonNull Consumer<Throwable> onThrow
@@ -292,10 +290,10 @@ public interface TimeRange {
     }
 
     /**
-     * Данный метод создаёт anonymous актор, который обрабатывает потерянные AddCommand сообщения и отмечает их как исполненные с reject по всем элементам
-     * @param context контекст в рамках которого создаётся актор
-     * @param watchForActor фильтр по актору за deadLetters которого следим (если не указан - за всеми в рамках actorSystem контекста)
-     * @param actorName имя актора, который будет reject-ить dead-letter для AddCommand
+     * This method creates an actor that handles lost AddCommand messages and marks them as rejected on all elements.
+     * @param context the context within which the actor is created
+     * @param watchForActor filter by actor whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
+     * @param actorName the name of the actor that will reject the dead-letter for AddCommand
      */
     static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context, @NonNull ActorRef<? extends Command<?>> watchForActor, @NonNull String actorName) {
         context.getSystem()
@@ -306,7 +304,7 @@ public interface TimeRange {
     }
 
     /**
-     * Подписка на DeadLetter сообщения типа Command
+     * Subscribing to DeadLetter messages of type Command
      */
     class AddCommandDeadSubscriber {
 
@@ -361,15 +359,15 @@ public interface TimeRange {
         private final Map<String, ActorRef<Command<M>>> timeRangeActors = new HashMap<>();
 
         /**
-         * Процессор будильников с автоподъёмом TimeRange, распараллеливанием и информированием о создании TimeRange
+         * Alarm processor with TimeRange auto-raise, parallelization and informing about TimeRange creation
          *
          * @param context AKKA ActorContext
-         * @param timeRangeConfig config для описания параметров региона
-         * @param firedConsumer consumer реализующий реакцию на подъём элементов TimeRange
-         * @param withCheckDuration интервал, позволяющий реагировать на события заранее или с задержкой
-         * @param rangeDepth глубина на которую поднимаются TimeRange на моменты в будущем
-         * @param nrOfInstances количество TimeRegion акторов на один интервал времени
-         * @param timeRangeWakedUp consumer информирующий о подъёме обработки интервала
+         * @param timeRangeConfig config to describe region settings
+         * @param firedConsumer consumer that implements a reaction to the rise of TimeRange elements
+         * @param withCheckDuration an interval that allows you to react to events in advance or with a delay
+         * @param rangeDepth the depth to which TimeRange rises at moments in the future
+         * @param nrOfInstances number of TimeRegion actors per time interval
+         * @param timeRangeWakedUp consumer informing about the rise of interval processing
          */
         @SuppressWarnings("java:S116")
         public TimeRangeAutomaticProcessor(
@@ -410,8 +408,8 @@ public interface TimeRange {
         private final CompletableFuture<Collection<M>>[] completableFutureArray = (CompletableFuture<Collection<M>>[]) new CompletableFuture[]{};
 
         private Behavior<Command<M>> onAddCommand(AddCommand<M> addCommand) {
-            // Делим все добавляемые элементы на группы по timeRangeId. Далее строим вызовы, которые завершают свои CompletableFutures
-            // Если все завершились без ошибки, то аккумулируем результат в одну коллекцию и отправляем в CompletableFuture запроса
+            // Divide all added elements into groups by timeRangeId. Next, we build calls that complete their CompletableFutures
+            // If all completed without an error, then we accumulate the result into one collection and send it to the CompletableFuture of the request
             CompletableFuture<Collection<M>>[] futures = addCommand.getData()
                     .stream()
                     .collect(Collectors.groupingBy(this::timeRangeId))
@@ -444,13 +442,13 @@ public interface TimeRange {
         }
 
         private CompletableFuture<Collection<M>> sendCommand(String regionId, Collection<M> data) {
-            // Для fired элементов вызываем по ним функцию-триггер для сработавших записей
+            // For fired elements, we call the trigger function for triggered entries on them
             return FIRED_RANGE_ID.equals(regionId) ? fireData(data)
-                    // Если для набора есть дочерний актор - отправляем в него элементы и возвращаем CompletableFuture по ним
+                    // If the set has a child actor, we send elements to it and return a CompletableFuture for them
                     : ofNullable(timeRangeActors.get(regionId))
                     .map(timeRangeActor -> TimeRange.addElements(timeRangeActor, data))
                     .orElseGet(() -> {
-                        // Если актора нет, то отклоняем добавление записей
+                        // If there is no actor, then we reject adding records
                         CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
                         completableFuture.complete(data);
                         return completableFuture;
@@ -491,7 +489,7 @@ public interface TimeRange {
             return tick - tick % this.timeRangeTicks;
         }
 
-        // Начало первого имеющегося в timeRangeActors момента региона - от него начинаем отсчёт для подъёма
+        // The beginning of the first moment of the region available in timeRangeActors - from it, we start the countdown for the rise
         private long initialTick(Instant now) {
             return this.timeRangeActors.keySet().stream()
                     .map(key -> key.indexOf('-') == -1 ? key : key.substring(0, key.indexOf('-')))
@@ -519,7 +517,7 @@ public interface TimeRange {
                 Instant now = Instant.now();
                 long regionTick = initialTick(now.plus(withCheckDuration));
                 for (int range = 0; range <= this.rangeDepth - started; regionTick += this.timeRangeTicks) {
-                    // Если на timeRegion существует хоть один actor - считаем его работающим.
+                    // If there is at least one actor on timeRegion, we consider it to be working.
                     if ( !isTimeRegionStarted(regionTick) &&
                          (!Instant.ofEpochMilli(regionTick).isBefore(now.plus(withCheckDuration)) ||
                           Instant.ofEpochMilli(regionTick + this.timeRangeTicks).isAfter(now.plus(withCheckDuration)))
@@ -532,7 +530,7 @@ public interface TimeRange {
             return this;
         }
 
-        // Вызывается, когда нет actor-ов на region, но обходит создание при наличии
+        // Called when there are no actors in the region, but bypasses creation if there are
         private void startRegion(long regionTick) {
             IntStream.rangeClosed(1, this.nrOfInstances)
                     .mapToObj(id -> this.regionTickName(regionTick, id))
@@ -562,7 +560,7 @@ public interface TimeRange {
                     .orElse(null);
         }
 
-        // Если у нас duration отрицательный, то регион строим от правой границы
+        // If we have a negative duration, then we build the region from the right border
         private Instant regionInstant(Instant instant) {
             return of(this.timeRangeConfig.getDuration())
                     .filter(Duration::isNegative)

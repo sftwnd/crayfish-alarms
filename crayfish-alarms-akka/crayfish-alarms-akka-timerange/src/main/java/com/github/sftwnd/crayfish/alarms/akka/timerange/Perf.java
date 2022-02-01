@@ -30,10 +30,10 @@ public class Perf {
 
     private static class Application extends AbstractBehavior<Object> {
 
-        private static final long REQ_SEC = 1500000; // 4500000
-        private static final long ADD_COMMAND_BULK_SIZE = 750; //2500
-        private static final int RANGE_DEPTH = 2; // Поднимать на будущее 2 range (!!! 0 не рекомендуется - будут отставания и не будет gap на загрузку)
-        private static final int RANGE_NR_OF_INSTANCES = 10; // По 10 обработчиков на диапазон
+        private static final long REQ_SEC = 1750; // 4500000
+        private static final long ADD_COMMAND_BULK_SIZE = 125; //2500
+        private static final int RANGE_DEPTH = 4; // Поднимать на будущее X range (!!! 0 не рекомендуется - будут отставания и не будет gap на загрузку)
+        private static final int RANGE_NR_OF_INSTANCES = 2; // По N обработчиков на диапазон
 
         private static final AtomicLong firstTick = new AtomicLong();
         private static final AtomicInteger fired = new AtomicInteger();
@@ -53,10 +53,10 @@ public class Perf {
             super(context);
             // Описываем диапазоны
             Config<Instant, Instant>  config = Config.create(
-                    Duration.ofSeconds(10), // Длина диапазона 10 секунд
-                    Duration.ofMillis(500), // Внутри режется на полусекундные chunk-и
-                    Duration.ofMillis(125), // Реакция опроса - не чаще 125 миллисекунд
-                    Duration.ofSeconds(3),  // Timeout на ожидание прихода запоздавших сообщений
+                    Duration.ofSeconds(180), // Длина диапазона 10 секунд
+                    Duration.ofMillis(15000), // Внутри режется на полусекундные chunk-и
+                    Duration.ofMillis(250), // Реакция опроса - не чаще 125 миллисекунд
+                    Duration.ofSeconds(15),  // Timeout на ожидание прихода запоздавших сообщений
                     instant -> instant, // Временной маркер и есть сам элемент
                     null, // Используется default comparator сервиса
                     TimeRangeItems.ResultTransformer.identity() // Входящее сообщение Instant, исходящее - оно же
