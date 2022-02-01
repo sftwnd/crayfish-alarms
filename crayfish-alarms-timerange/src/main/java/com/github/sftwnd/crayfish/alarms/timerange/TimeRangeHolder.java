@@ -7,7 +7,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import lombok.AccessLevel;
-import lombok.NonNull;
 import lombok.Setter;
 
 import javax.annotation.Nonnull;
@@ -98,14 +97,14 @@ public class TimeRangeHolder<M,R> {
      */
     @SuppressWarnings("java:S107")
     public TimeRangeHolder(
-            @NonNull  Instant  instant,
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Instant  instant,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+            @Nonnull  Duration completeTimeout,
+            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull  ResultTransformer<M,R> extractor
+            @Nonnull  ResultTransformer<M,R> extractor
     ) {
         this(instant, new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
@@ -117,9 +116,11 @@ public class TimeRangeHolder<M,R> {
      * @param timeRangeConfig Configuration for constructor parameters
      */
     public TimeRangeHolder(
-            @NonNull Instant instant,
-            @NonNull TimeRangeConfig<M,R> timeRangeConfig
+            @Nonnull Instant instant,
+            @Nonnull TimeRangeConfig<M,R> timeRangeConfig
     ) {
+        Objects.requireNonNull(instant, "TimeRangeHolder::new - instant is null");
+        Objects.requireNonNull(instant, "TimeRangeHolder::new - timeRangeConfig is null");
         this.timeRangeConfig = timeRangeConfig;
         this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
         this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
@@ -176,6 +177,7 @@ public class TimeRangeHolder<M,R> {
      * @return list of ignored elements
      */
     public Collection<M> addElements(@Nonnull Collection<M> elements) {
+        Objects.requireNonNull("TimeRange::addElement - elements is null");
         List<M> excludes = new ArrayList<>();
         //noinspection ConstantConditions
         elements.stream().filter(Objects::nonNull)
@@ -281,7 +283,7 @@ public class TimeRangeHolder<M,R> {
      * @param now point in time for which we calculate the value
      * @return timeout to the nearest event, taking into account delay
      */
-    public Duration duration(@NonNull Instant now) {
+    public Duration duration(@Nonnull Instant now) {
         // If the time is before the start of the range
         if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
@@ -383,7 +385,7 @@ public class TimeRangeHolder<M,R> {
         return Integer.compare(first.hashCode(), second.hashCode());
     }
 
-    private boolean happened(@Nonnull M element, @NonNull Instant now) {
+    private boolean happened(@Nonnull M element, @Nonnull Instant now) {
         return !instant(element).isAfter(now);
     }
 

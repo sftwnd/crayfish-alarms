@@ -4,13 +4,14 @@ import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
 import lombok.Getter;
-import lombok.NonNull;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -38,14 +39,19 @@ public final class TimeRangeConfig<M,R> {
 
     @SuppressWarnings("java:S107")
     TimeRangeConfig(
-            @NonNull Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+            @Nonnull  Duration completeTimeout,
+            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull TimeRangeHolder.ResultTransformer<M,R> extractor
+            @Nonnull  TimeRangeHolder.ResultTransformer<M,R> extractor
     ) {
+        Objects.requireNonNull(duration, "TimeRangeConfig::new - duration is null");
+        Objects.requireNonNull(interval, "TimeRangeConfig::new - interval is null");
+        Objects.requireNonNull(completeTimeout, "TimeRangeConfig::new - completeTimeout is null");
+        Objects.requireNonNull(expectation, "TimeRangeConfig::new - expectation is null");
+        Objects.requireNonNull(extractor, "TimeRangeConfig::new - extractor is null");
         if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("TimeRangeConfig::new - Invalid duration: " + duration);
         this.duration = duration;
         this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
@@ -84,13 +90,13 @@ public final class TimeRangeConfig<M,R> {
      */
     @SuppressWarnings("java:S107")
     public static <M,R> TimeRangeConfig<M,R> create(
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+            @Nonnull  Duration completeTimeout,
+            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull TimeRangeHolder.ResultTransformer<M,R> extractor
+            @Nonnull  TimeRangeHolder.ResultTransformer<M,R> extractor
     ) {
         return new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
     }
@@ -107,10 +113,10 @@ public final class TimeRangeConfig<M,R> {
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
     public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> TimeRangeConfig<M,R> packable(
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
+            @Nonnull  Duration completeTimeout,
             @Nullable Comparator<? super R> comparator
     ) {
         return create(duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
@@ -130,10 +136,10 @@ public final class TimeRangeConfig<M,R> {
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
     public static <M extends Expected<? extends TemporalAccessor>> TimeRangeConfig<M,M> expected(
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
+            @Nonnull  Duration completeTimeout,
             @Nullable Comparator<? super M> comparator
     ) {
         return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, TimeRangeHolder.ResultTransformer.identity());
