@@ -20,7 +20,8 @@ import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
 import akka.dispatch.PriorityGenerator;
 import akka.dispatch.UnboundedStablePriorityMailbox;
-import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.typesafe.config.Config;
 import lombok.NonNull;
 
@@ -68,7 +69,7 @@ public interface TimeRange {
     @SuppressWarnings("java:S2326")
     interface Command<X> {}
 
-    final class TimeRangeCommands<M> {
+    final class CommandsDescription<M> {
         // This is the shortest description of the cast, for this reason it was chosen
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
@@ -76,7 +77,7 @@ public interface TimeRange {
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
         @SuppressWarnings("java:S116")
         private final Timeout<M> TIMEOUT = new Timeout<>() {};
-        private TimeRangeCommands() {}
+        private CommandsDescription() {}
     }
 
     interface FiredElementsConsumer<M> extends Consumer<Collection<M>> {
@@ -84,29 +85,29 @@ public interface TimeRange {
     }
 
     /**
-     * A processor that contains a TimeRangeItems structure with alarms. Engaged in saving incoming alarms and
+     * A processor that contains a TimeRangeHolder structure with alarms. Engaged in saving incoming alarms and
      * initializing the reaction to their operation.
      * @param <M> Type of incoming message for alarm registration
      * @param <R> The type of the object to be processed after the alarm goes off
      */
-    class TimeRangeProcessor<M,R> {
+    class RangeProcessor<M,R> {
 
-        private final TimeRangeCommands<M> commands = new TimeRangeCommands<>();
+        private final CommandsDescription<M> commands = new CommandsDescription<>();
         private final TimerScheduler<Command<M>> timers;
-        private final TimeRangeItems<M,R> timeRange;
+        private final TimeRangeHolder<M,R> timeRange;
         private final FiredElementsConsumer<R> firedConsumer;
         private final Duration checkDelay;
 
-        private TimeRangeProcessor(
+        private RangeProcessor(
                 @NonNull  TimerScheduler<Command<M>> timers,
                 @NonNull  Instant instant,
-                @NonNull  TimeRangeItems.Config<M,R> timeRangeConfig,
+                @NonNull TimeRangeConfig<M,R> timeRangeConfig,
                 @NonNull  FiredElementsConsumer<R> firedConsumer,
-                // Within the TimeRangeItems::interval, you can set the value of how soon to consider the entry triggered...
+                // Within the TimeRangeHolder::interval, you can set the value of how soon to consider the entry triggered...
                 @Nullable Duration withCheckDelay
         ) {
             this.timers = timers;
-            this.timeRange = timeRangeConfig.timeRange(instant);
+            this.timeRange = timeRangeConfig.timeRangeHolder(instant);
             this.firedConsumer = firedConsumer;
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
             schedule();
@@ -183,7 +184,7 @@ public interface TimeRange {
     /**
      * Creating an actor behavior in which, in the event of an alarm, a trigger method will be called: firedConsumer,
      * where the triggered alarms will be transferred
-     * @param instant actual border for plotting the final TimeRangeItems
+     * @param instant actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedConsumer listener for handling triggered alarms
      * @param withCheckDuration - the time interval by which the moment of polling timeRangeItems changes from the current moment (it can be either forward or backward in time)
@@ -191,17 +192,17 @@ public interface TimeRange {
      * @param <R> the type of outgoing data that is passed to the processing function
      * @return Behavior for Time Period Actor Processor with Alarms
      */
-    static <M,R> Behavior<Command<M>> create(
+    static <M,R> Behavior<Command<M>> processor(
             @NonNull Instant instant,
-            @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
+            @NonNull TimeRangeConfig<M,R> timeRangeConfig,
             @NonNull FiredElementsConsumer<R> firedConsumer,
             @Nullable Duration withCheckDuration) {
-        return Behaviors.withTimers(timers -> new TimeRangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
+        return Behaviors.withTimers(timers -> new RangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
      * Creating an actor behavior in which, in the event of an alarm, messages will be sent to the actor-receiver for processing alarms
-     * @param instant actual border for plotting the final TimeRangeItems
+     * @param instant actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedActor actor-receiver of a message with triggered alarms
      * @param responseSupplier the function of constructing a message to the subscriber actor from the list of triggered alarms
@@ -211,13 +212,13 @@ public interface TimeRange {
      * @param <X> the type of message received by the subscriber actor
      * @return Behavior for Time Period Actor Processor with Alarms
      */
-    static <M,R,X> Behavior<Command<M>> create(
+    static <M,R,X> Behavior<Command<M>> processor(
             @NonNull Instant instant,
-            @NonNull TimeRangeItems.Config<M,R> timeRangeConfig,
+            @NonNull TimeRangeConfig<M,R> timeRangeConfig,
             @NonNull ActorRef<X> firedActor,
             @NonNull Function<Collection<R>,X> responseSupplier,
             @Nullable Duration withCheckDuration) {
-        return create(
+        return processor(
                 instant,
                 timeRangeConfig,
                 firedElements -> of(firedElements)
@@ -295,7 +296,7 @@ public interface TimeRange {
      * @param watchForActor filter by actor whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
      * @param actorName the name of the actor that will reject the dead-letter for AddCommand
      */
-    static void registerDeadCommandSubscriber(@NonNull ActorContext<?> context, @NonNull ActorRef<? extends Command<?>> watchForActor, @NonNull String actorName) {
+    static void subscribeToDeadCommands(@NonNull ActorContext<?> context, @NonNull ActorRef<? extends Command<?>> watchForActor, @NonNull String actorName) {
         context.getSystem()
                 .eventStream()
                 .tell(new EventStream.Subscribe<>(
@@ -341,18 +342,30 @@ public interface TimeRange {
         @Override void accept(@Nonnull Instant startInstant, @Nonnull Instant endInstant);
     }
 
-    class TimeRangeAutomaticProcessor<M,R> extends AbstractBehavior<Command<M>> {
+    static <M,R> Behavior<Command<M>> service(
+            @NonNull ActorContext<Command<M>> context,
+            @NonNull TimeRangeConfig<M, R> timeRangeConfig,
+            @NonNull FiredElementsConsumer<R> firedConsumer,
+            @Nullable Duration withCheckDuration,
+            @Nullable Integer rangeDepth,
+            @Nullable Integer nrOfInstances,
+            @NonNull TimeRangeWakedUp timeRangeWakedUp
+    ) {
+        return new Service<>(context, timeRangeConfig, firedConsumer, withCheckDuration, rangeDepth, nrOfInstances, timeRangeWakedUp);
+    }
+
+    class Service<M,R> extends AbstractBehavior<Command<M>> {
 
         private static final String DEAD_ADD_COMMAND_ACTOR = "dead-command-processor";
         private static final String TIME_RANGE_NAME_PREFIX = "time-range-0x";
         private static final String FIRED_RANGE_ID = "fires";
 
-        private final TimeRangeCommands<M> commands = new TimeRangeCommands<>();
+        private final CommandsDescription<M> commands = new CommandsDescription<>();
         private final ActorContext<Command<M>> context;
         private final int rangeDepth;
         private final Integer nrOfInstances;
         private final TimeRangeWakedUp timeRangeWakedUp;
-        private final TimeRangeItems.Config<M, R> timeRangeConfig;
+        private final TimeRangeConfig<M, R> timeRangeConfig;
         private final Duration withCheckDuration;
         private final long timeRangeTicks;
         private final FiredElementsConsumer<R> firedConsumer;
@@ -370,9 +383,9 @@ public interface TimeRange {
          * @param timeRangeWakedUp consumer informing about the rise of interval processing
          */
         @SuppressWarnings("java:S116")
-        public TimeRangeAutomaticProcessor(
+        private Service(
                 @NonNull ActorContext<Command<M>> context,
-                @NonNull TimeRangeItems.Config<M, R> timeRangeConfig,
+                @NonNull TimeRangeConfig<M, R> timeRangeConfig,
                 @NonNull FiredElementsConsumer<R> firedConsumer,
                 @Nullable Duration withCheckDuration,
                 @Nullable Integer rangeDepth,
@@ -393,7 +406,7 @@ public interface TimeRange {
         }
 
         private void startDeadLetterWatching() {
-            TimeRange.registerDeadCommandSubscriber(context, context.getSelf(), DEAD_ADD_COMMAND_ACTOR);
+            TimeRange.subscribeToDeadCommands(context, context.getSelf(), DEAD_ADD_COMMAND_ACTOR);
         }
 
         @Override
@@ -541,7 +554,7 @@ public interface TimeRange {
 
         private void startRegionActor(String regionTickName, Instant instant) {
             ActorRef<Command<M>> timeRegionActor = context.spawn(
-                    create(this.regionInstant(instant), this.timeRangeConfig, this.firedConsumer, this.withCheckDuration),
+                    processor(this.regionInstant(instant), this.timeRangeConfig, this.firedConsumer, this.withCheckDuration),
                     regionActorName(regionTickName)
             );
             this.timeRangeActors.put(regionTickName, timeRegionActor);

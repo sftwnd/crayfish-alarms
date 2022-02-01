@@ -6,10 +6,7 @@
 package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
-import com.github.sftwnd.crayfish.common.expectation.Expected;
-import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 
@@ -43,7 +40,7 @@ import static java.util.Optional.ofNullable;
  * @param <M> Element type when added
  * @param <R> Element type when retrieving
  */
-public class TimeRangeItems<M,R> {
+public class TimeRangeHolder<M,R> {
 
     /**
      * Transformation of nonnull element to nonnull value
@@ -70,7 +67,7 @@ public class TimeRangeItems<M,R> {
             java:S3864 "Stream.peek" should be used with caution
      */
     // Basic settings
-    private final Config<M,R> config;
+    private final TimeRangeConfig<M,R> timeRangeConfig;
     // Beginning of the region validity period
     private final Instant startInstant;
     // Upper limit of the interval (exclude...)
@@ -100,7 +97,7 @@ public class TimeRangeItems<M,R> {
      * @param extractor Method for converting an input element into a result element
      */
     @SuppressWarnings("java:S107")
-    public TimeRangeItems(
+    public TimeRangeHolder(
             @NonNull  Instant  instant,
             @NonNull  Duration duration,
             @NonNull  Duration interval,
@@ -110,31 +107,31 @@ public class TimeRangeItems<M,R> {
             @Nullable Comparator<? super M> comparator,
             @NonNull  ResultTransformer<M,R> extractor
     ) {
-        this(instant, new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+        this(instant, new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
 
     /**
      * An object containing objects marked with a time-marker for the range to search for triggered
      *
      * @param instant The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
-     * @param config Configuration for constructor parameters
+     * @param timeRangeConfig Configuration for constructor parameters
      */
-    public TimeRangeItems(
+    public TimeRangeHolder(
             @NonNull Instant instant,
-            @NonNull TimeRangeItems.Config<M,R> config
+            @NonNull TimeRangeConfig<M,R> timeRangeConfig
     ) {
-        this.config = config;
-        this.startInstant = Optional.of(config.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-        this.lastInstant = Optional.of(config.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
-        this.comparator = ofNullable(config.comparator).orElse(this::compareObjects);
-        this.lastDelayedInstant = this.lastInstant.minus(config.delay);
+        this.timeRangeConfig = timeRangeConfig;
+        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
+        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+        this.comparator = ofNullable(timeRangeConfig.comparator).orElse(this::compareObjects);
+        this.lastDelayedInstant = this.lastInstant.minus(timeRangeConfig.delay);
     }
 
     @Nonnull public Instant getStartInstant() { return this.startInstant; }
     @Nonnull public Instant getLastInstant() { return this.lastInstant; }
-    @Nonnull public Duration getInterval() { return config.interval; }
-    @Nonnull public Duration getDelay() { return config.delay; }
-    @Nonnull public Duration getCompleteTimeout() { return config.completeTimeout; }
+    @Nonnull public Duration getInterval() { return timeRangeConfig.interval; }
+    @Nonnull public Duration getDelay() { return timeRangeConfig.delay; }
+    @Nonnull public Duration getCompleteTimeout() { return timeRangeConfig.completeTimeout; }
 
     /**
      * The time interval taking into account completeTimeout has been exhausted by the current moment
@@ -151,7 +148,7 @@ public class TimeRangeItems<M,R> {
      */
     public boolean isExpired(@Nullable Instant instant) {
         return !ofNullable(instant).orElseGet(Instant::now)
-                .isBefore(this.lastInstant.plus(config.completeTimeout));
+                .isBefore(this.lastInstant.plus(timeRangeConfig.completeTimeout));
     }
 
     /**
@@ -261,7 +258,7 @@ public class TimeRangeItems<M,R> {
     }
 
     private Stream<M> processComplete(Set<M> elements, Set<R> result) {
-        elements.stream().map(config.extractor).forEach(result::add);
+        elements.stream().map(timeRangeConfig.extractor).forEach(result::add);
         return Stream.empty();
     }
 
@@ -313,7 +310,7 @@ public class TimeRangeItems<M,R> {
     // This time is given by AKKA System to deliver the message with the processing order to us. The fact is that it is not
     // supposed to receive tasks for processing after the moment of their occurrence. This actor only accepts messages for the future
     private @Nonnull Duration durationToStop(Instant now) {
-        return durationTo(this.lastInstant.plus(config.completeTimeout), now);
+        return durationTo(this.lastInstant.plus(timeRangeConfig.completeTimeout), now);
     }
 
     // The time from the specified moment until the first element fires, and in case of absence - until the end of the range of the current key
@@ -327,10 +324,10 @@ public class TimeRangeItems<M,R> {
                                 .orElse(this.lastInstant),
                         now))
                 // Check if it exceeds delay
-                .filter(d -> d.compareTo(config.delay) >= 0)
+                .filter(d -> d.compareTo(timeRangeConfig.delay) >= 0)
                 // If it does not exceed, then when hitting lastDelayedInstant we return delay, otherwise - the remaining time to lastInstant
                 .orElseGet(() -> now.isAfter(this.lastInstant) ? Duration.ZERO
-                        : now.isBefore(this.lastDelayedInstant) ? config.delay // NOSONAR java:S3358 Ternary operators should not be nested
+                        : now.isBefore(this.lastDelayedInstant) ? timeRangeConfig.delay // NOSONAR java:S3358 Ternary operators should not be nested
                         : Duration.between(now, this.lastInstant));
     }
 
@@ -362,7 +359,7 @@ public class TimeRangeItems<M,R> {
      * @return moment describing the range of the polling period
      */
     private Instant getInstantKey(@Nonnull Instant instant) {
-        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % config.interval.toMillis());
+        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % timeRangeConfig.interval.toMillis());
     }
 
     private Instant getTemporalKey(@Nullable TemporalAccessor temporalAccessor) {
@@ -391,131 +388,7 @@ public class TimeRangeItems<M,R> {
     }
 
     private @Nonnull Instant instant(@Nonnull M element) {
-        return Instant.from(config.expectation.apply(element));
+        return Instant.from(timeRangeConfig.expectation.apply(element));
     }
-
-    public static class Config<M,R> {
-
-        // The duration of the described interval
-        @Getter private final Duration duration;
-        // The size of the internal chunk-a division of the interval
-        @Getter private final Duration interval;
-        // Minimum polling delay in ACTIVE status. Allows you to unload the processor, but reduce the accuracy of the event
-        // firing approximately (on average) to the delay value.
-        // P.S.> For negative ones, Duration.ZERO is set, it cannot be larger than the size of the internal chunk: interval
-        @Getter private final Duration delay;
-        // Timeout for delayed message delivery.
-        // From the moment of the lastInstant, a timeout is maintained for the arrival of messages for processing
-        @Getter private final Duration completeTimeout;
-        // Getting the date from the logged message
-        @Getter private final Expectation<M,? extends TemporalAccessor> expectation;
-        // Comparison of two registered objects
-        @Getter private final Comparator<? super M> comparator;
-        // Getting result element from registered
-        @Getter private final ResultTransformer<M,R> extractor;
-
-        @SuppressWarnings("java:S107")
-        private Config(
-                @NonNull  Duration duration,
-                @NonNull  Duration interval,
-                @Nullable Duration delay,
-                @NonNull  Duration completeTimeout,
-                @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
-                @Nullable Comparator<? super M> comparator,
-                @NonNull  ResultTransformer<M,R> extractor
-        ) {
-            if (Duration.ZERO.equals(duration)) throw new IllegalArgumentException("Config::new - Invalid duration: " + duration);
-            this.duration = duration;
-            this.interval = Optional.of(interval).filter(Predicate.not(Duration::isNegative)).filter(iv -> iv.compareTo(duration.abs()) <= 0).orElse(duration.abs());
-            this.delay = ofNullable(delay)
-                    .filter(Predicate.not(Duration::isNegative))
-                    .map(d -> d.compareTo(this.interval) > 0 ? this.interval : d)
-                    .orElse(Duration.ZERO);
-            this.completeTimeout = completeTimeout.abs();
-            this.expectation = expectation;
-            this.comparator = comparator;
-            this.extractor = extractor;
-        }
-        
-        /**
-         * Create TimeRangeItems based on current configuration
-         * @param instant actual border for plotting the final TimeRangeItems
-         * @return object TimeRangeItems
-         */
-        public TimeRangeItems<M,R> timeRange(Instant instant) {
-            return new TimeRangeItems<>(instant, this);
-        }
-
-        /**
-         * Creating a TimeRangeItems Config as the Type of Registered Items
-         *
-         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-         * @param delay Intervals for checking for the operation of existing Expected objects
-         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-         * @param expectation Getting timestamp from incoming element
-         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-         * @param extractor Method for converting an input element into a result element
-         * @param <M> input element type
-         * @param <R> the type of the returned element
-         * @return TimeRangeItems.Config instance
-         */
-        @SuppressWarnings("java:S107")
-        public static <M,R> Config<M,R> create(
-                @NonNull  Duration duration,
-                @NonNull  Duration interval,
-                @Nullable Duration delay,
-                @NonNull  Duration completeTimeout,
-                @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
-                @Nullable Comparator<? super M> comparator,
-                @NonNull  ResultTransformer<M,R> extractor
-        ) {
-            return new Config<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
-        }
-        /**
-         * Creating a TimeRangeItems.Config with ExpectedPackage as the type of items being registered
-         *
-         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-         * @param delay Intervals for checking for the operation of existing Expected objects
-         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-         * @param <M> input element type
-         * @param <R> the type of the returned element
-         * @return TimeRangeItems.Config instance
-         */
-        public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> Config<M,R> packable(
-                @NonNull  Duration duration,
-                @NonNull  Duration interval,
-                @Nullable Duration delay,
-                @NonNull  Duration completeTimeout,
-                @Nullable Comparator<? super R> comparator
-        ) {
-            return create(duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
-                    comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
-                    ExpectedPackage::getElement);
-        }
-
-        /**
-         * Creating a TimeRangeItems.Config with Expected as the type of items being registered
-         *
-         * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-         * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-         * @param delay Intervals for checking for the operation of existing Expected objects
-         * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-         * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-         * @param <M> input element type
-         * @return TimeRangeItems.Config instance
-         */
-        public static <M extends Expected<? extends TemporalAccessor>> Config<M,M> expected(
-                @NonNull  Duration duration,
-                @NonNull  Duration interval,
-                @Nullable Duration delay,
-                @NonNull  Duration completeTimeout,
-                @Nullable Comparator<? super M> comparator
-        ) {
-            return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, ResultTransformer.identity());
-        }
-    }
-
+    
 }

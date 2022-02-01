@@ -7,8 +7,8 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems;
-import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeItems.Config;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +32,8 @@ public class Perf {
 
         private static final long REQ_SEC = 1750; // 4500000
         private static final long ADD_COMMAND_BULK_SIZE = 125; //2500
-        private static final int RANGE_DEPTH = 4; // Поднимать на будущее X range (!!! 0 не рекомендуется - будут отставания и не будет gap на загрузку)
-        private static final int RANGE_NR_OF_INSTANCES = 2; // По N обработчиков на диапазон
+        private static final int RANGE_DEPTH = 4; // Regions depth in the future
+        private static final int RANGE_NR_OF_INSTANCES = 2; // Number of processors per range
 
         private static final AtomicLong firstTick = new AtomicLong();
         private static final AtomicInteger fired = new AtomicInteger();
@@ -51,33 +51,33 @@ public class Perf {
 
         public Application(ActorContext<Object> context) {
             super(context);
-            // Описываем диапазоны
-            Config<Instant, Instant>  config = Config.create(
-                    Duration.ofSeconds(180), // Длина диапазона 10 секунд
-                    Duration.ofMillis(15000), // Внутри режется на полусекундные chunk-и
-                    Duration.ofMillis(250), // Реакция опроса - не чаще 125 миллисекунд
-                    Duration.ofSeconds(15),  // Timeout на ожидание прихода запоздавших сообщений
-                    instant -> instant, // Временной маркер и есть сам элемент
-                    null, // Используется default comparator сервиса
-                    TimeRangeItems.ResultTransformer.identity() // Входящее сообщение Instant, исходящее - оно же
+            // Diapason descriptions
+            TimeRangeConfig<Instant, Instant> config = TimeRangeConfig.create(
+                    Duration.ofSeconds(180), // Length of range
+                    Duration.ofMillis(15000), // Internal chunk size
+                    Duration.ofMillis(250), // Refresh interval
+                    Duration.ofSeconds(15),  // Wait interval for delayed messages
+                    instant -> instant, // Take time marker from the message
+                    null, // Use default comparator
+                    TimeRangeHolder.ResultTransformer.identity() // Result is the same message
             );
-            // Создаём актор сервиса
+            // Create and start service
             timeRangeProcessor = context.spawn(
                     Behaviors.setup(ctx ->
-                            new TimeRange.TimeRangeAutomaticProcessor<>(
+                            TimeRange.service(
                                     ctx,
                                     config,
                                     Application::firedElementsConsumer,
                                     Duration.ZERO,
                                     RANGE_DEPTH,
                                     RANGE_NR_OF_INSTANCES,
-                                    // При появлении диапазона - отправляем себе запрос на генерацию данных
+                                    // send request to generate region messages
                                     (startInstant, endInstant) -> context.getSelf().tell(new Generate(startInstant, endInstant))
                             )), "time-ranges"
             );
         }
 
-        // Реакция на сработавшие сообщения (изменяем счётчики)
+        // Fired elements reaction (counters calculation)
         private static void firedElementsConsumer(@Nonnull Collection<Instant> elements) {
             long tick = Instant.now().toEpochMilli();
             firstTick.compareAndSet(0, Instant.now().toEpochMilli());
@@ -96,6 +96,19 @@ public class Perf {
 
         public static AtomicLong id = new AtomicLong();
 
+        private boolean addElements(List<Instant> elements, long size, Generate generate) {
+            if (elements.size() >= size) {
+                Optional.of(elements).ifPresent(elm ->
+                        // Send elements to the service
+                        TimeRange.addElements(timeRangeProcessor,elm)
+                                // Return rejects back
+                                .whenComplete((rejects, throwable) -> informReject(elm, generate.startInstant, generate.endInstant, rejects, throwable))
+                );
+                return true;
+            }
+            return false;
+        }
+
         private Behavior<Object> onGenerate(Generate generate) {
             logger.info("Generate for: {} - {}", generate.startInstant, generate.endInstant);
             long nanosPerRec = Math.round(1000000000.0D / REQ_SEC);
@@ -104,28 +117,15 @@ public class Perf {
                  instant.isBefore(generate.endInstant);
                  instant = instant.plusNanos(nanosPerRec)) {
                 id.incrementAndGet();
-                // Генерируем элементы
+                // Store generated elements
                 elements.add(instant);
-                // Если получили достаточный объем
-                if (elements.size() >= ADD_COMMAND_BULK_SIZE) {
-                    Optional.of(elements).ifPresent(elm ->
-                            // Отправляем в сервис
-                            TimeRange.addElements(timeRangeProcessor,elm)
-                                    // Отмечаем reject-ы
-                                    .whenComplete((rejects, throwable) -> informReject(elm, generate.startInstant, generate.endInstant, rejects, throwable))
-                    );
+                // Try to send elements to the service (if more than ADD_COMMAND_BULK_SIZE)
+                if (addElements(elements, ADD_COMMAND_BULK_SIZE, generate)) {
                     elements = new ArrayList<>();
                 }
             }
-            // Если ещё есть элементы
-            if (elements.size() > 0) {
-                Optional.of(elements).ifPresent(elm ->
-                        // Отправляем в сервис
-                        TimeRange.addElements(timeRangeProcessor,elm)
-                                // Отмечаем reject-ы
-                                .whenComplete((rejects, throwable) -> informReject(elm, generate.startInstant, generate.endInstant, rejects, throwable))
-                );
-            }
+            // Send existed elements to the service
+            addElements(elements, 1, generate);
             return this;
         }
 
@@ -141,8 +141,7 @@ public class Perf {
 
     public static void main(String[] args) throws InterruptedException {
         logger.info("Main...");
-        // Запускаем приложение
-        /*ActorSystem<?> actorSystem =*/ ActorSystem.create(Behaviors.setup(Application::new), "main");
+        ActorSystem.create(Behaviors.setup(Application::new), "main");
         logMe();
     }
 
