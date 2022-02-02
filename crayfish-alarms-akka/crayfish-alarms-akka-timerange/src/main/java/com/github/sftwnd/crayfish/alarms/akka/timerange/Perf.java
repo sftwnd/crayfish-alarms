@@ -30,10 +30,10 @@ public class Perf {
 
     private static class Application extends AbstractBehavior<Object> {
 
-        private static final long REQ_SEC = 1750; // 4500000
-        private static final long ADD_COMMAND_BULK_SIZE = 125; //2500
-        private static final int RANGE_DEPTH = 4; // Regions depth in the future
-        private static final int RANGE_NR_OF_INSTANCES = 2; // Number of processors per range
+        private static final long REQ_SEC = 4500000; // 4500000
+        private static final long ADD_COMMAND_BULK_SIZE = 25000; //2500
+        private static final int RANGE_DEPTH = 2; // Regions depth in the future
+        private static final int RANGE_NR_OF_INSTANCES = 10; // Number of processors per range
 
         private static final AtomicLong firstTick = new AtomicLong();
         private static final AtomicInteger fired = new AtomicInteger();
@@ -53,10 +53,10 @@ public class Perf {
             super(context);
             // Diapason descriptions
             TimeRangeConfig<Instant, Instant> config = TimeRangeConfig.create(
-                    Duration.ofSeconds(180), // Length of range
-                    Duration.ofMillis(15000), // Internal chunk size
-                    Duration.ofMillis(250), // Refresh interval
-                    Duration.ofSeconds(15),  // Wait interval for delayed messages
+                    Duration.ofSeconds(10), // Length of range
+                    Duration.ofMillis(500), // Internal chunk size
+                    Duration.ofMillis(125), // Refresh interval
+                    Duration.ofSeconds(5),  // Wait interval for delayed messages
                     instant -> instant, // Take time marker from the message
                     null, // Use default comparator
                     TimeRangeHolder.ResultTransformer.identity() // Result is the same message
