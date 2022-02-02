@@ -125,7 +125,7 @@ The launch is performed by the TimeRange.processor method with a description of 
 
 Behavior definition:
 ```java
-    Behavior<Command<MyObject> behavior = TimeRange.processor(now, timeRangeConfig, firedElementConsumer, null);
+    Behavior<Command<MyObject> behavior = TimeRange.processor(now, timeRangeConfig, [firedElementConsumer](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L84-L86), null);
 ```
 Creation of processor in the ActorContext:
 ```java
@@ -151,7 +151,7 @@ You can also call addCommands as a function without the CompletableFuture parame
 ```
 If the elements fall within the range described by the TimeRange of Processor, then they are stored inside for further processing. If they do not, then a list of such elements will be sent to the CompletableFuture as the result of the operation.
 #### Handling triggered messages
-If at the current moment of time, taking into account the shift, triggered elements are found, then the collection of these elements is sent for processing by calling the callback method (firedElementConsumer), passing the collection there as a parameter.
+If at the current moment of time, taking into account the shift, triggered elements are found, then the collection of these elements is sent for processing by calling the callback method ([firedElementConsumer](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L84-L86)), passing the collection there as a parameter.
 #### Stop processing
 When the point in time arrives at which the isComplete operation applied to the TimeRegionHolder in the processor yields a positive result, then processing of the region is stopped and the service is terminated.
 #### Determining when the processor has stopped
