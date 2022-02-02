@@ -13,7 +13,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 import java.util.Objects;
@@ -72,11 +71,11 @@ public final class TimeRangeConfig<M,R> {
 
     /**
      * Create TimeRangeHolder based on current configuration
-     * @param instant actual border for plotting the final TimeRangeHolder
+     * @param time actual border for plotting the final TimeRangeHolder
      * @return object TimeRangeHolder
      */
-    public TimeRangeHolder<M,R> timeRangeHolder(Instant instant) {
-        return new TimeRangeHolder<>(instant, this);
+    public TimeRangeHolder<M,R> timeRangeHolder(@Nonnull TemporalAccessor time) {
+        return new TimeRangeHolder<>(time, this);
     }
 
     /**

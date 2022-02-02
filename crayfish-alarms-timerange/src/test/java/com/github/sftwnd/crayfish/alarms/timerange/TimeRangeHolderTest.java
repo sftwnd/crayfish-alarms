@@ -78,7 +78,7 @@ class TimeRangeHolderTest {
     @Test
     void addAndFiredElementsTest() {
         addElements();
-        Set<ExpectedTest> elements = this.timeRange.getFiredElements(now);
+        Set<ExpectedTest> elements = this.timeRange.extractFiredElements(now);
         assertEquals(new HashSet<>(this.elements), new HashSet<>(elements), "TimeRangeHolder has to contains added elements");
     }
 
@@ -89,29 +89,29 @@ class TimeRangeHolderTest {
                 expected(this.timeRange.getStartInstant().plus(-1, ChronoUnit.MILLIS))
         );
         assertEquals(exclude, this.timeRange.addElements(exclude), "Elements before and after the range has to be excluded from addElements operation");
-        assertEquals(Collections.emptySet(), this.timeRange.getFiredElements(this.now.plus(this.completeTimeout)), "Range has to be empty after add elements not in the range");
+        assertEquals(Collections.emptySet(), this.timeRange.extractFiredElements(this.now.plus(this.completeTimeout)), "Range has to be empty after add elements not in the range");
     }
 
     @Test
     void addFirstFiredInstantElementTest() {
         addElements();
-        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.getFiredElements(elementA.getTick()));
+        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(elementA.getTick()));
         assertEquals(Set.of(elementA), new HashSet<>(elements), "TimeRangeHolder has to return first element");
     }
 
     @Test
     void addSkipFirstSecondFiredInstantElementTest() {
         addElements();
-        this.timeRange.getFiredElements(elementA.getTick());
-        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.getFiredElements(elementB.getTick()));
+        this.timeRange.extractFiredElements(elementA.getTick());
+        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(elementB.getTick()));
         assertEquals(Set.of(elementB), elements, "TimeRangeHolder has to return second element");
     }
 
     @Test
     void addSkipFirstLastFiredInstantElementsTest() {
         addElements();
-        this.timeRange.getFiredElements(elementA.getTick());
-        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.getFiredElements(now));
+        this.timeRange.extractFiredElements(elementA.getTick());
+        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(now));
         assertEquals(Set.of(elementB,elementC), elements, "TimeRangeHolder has to return second and third element");
     }
 
@@ -119,7 +119,7 @@ class TimeRangeHolderTest {
     void addDupElementTest() {
         this.timeRange.addElements(List.of(elementA, elementC));
         this.timeRange.addElements(List.of(elementA, elementB));
-        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.getFiredElements());
+        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements());
         assertEquals(new HashSet<>(this.elements), elements, "TimeRangeHolder has to return second element");
     }
 
@@ -127,13 +127,13 @@ class TimeRangeHolderTest {
     void addSameInstantElementsTest() {
         Instant instant = this.timeRange.getStartInstant().plusMillis(1);
         this.timeRange.addElements(List.of(expected(instant), expected(instant), expected(instant)));
-        assertEquals(3, this.timeRange.getFiredElements().size(), "TimeRangeHolder has to return three elements on the same instant");
+        assertEquals(3, this.timeRange.extractFiredElements().size(), "TimeRangeHolder has to return three elements on the same instant");
     }
 
     @Test
     void addListWithDupElementTest() {
         this.timeRange.addElements(List.of(elementA, elementC, elementA, elementB, elementC, elementB));
-        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.getFiredElements());
+        Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements());
         assertEquals(new HashSet<>(this.elements), elements, "TimeRangeHolder after non unique list add has to return distinct elements");
     }
 
@@ -153,7 +153,7 @@ class TimeRangeHolderTest {
     @Test
     void durationInTheMiddleTest() {
         addElements();
-        timeRange.getFiredElements(elementA.getTick());
+        timeRange.extractFiredElements(elementA.getTick());
         assertEquals(Duration.between(elementA.getTick(), elementB.getTick()), timeRange.duration(elementA.getTick()),
                 "Duration on firstElement timeRangeHolder has to be equals duration to second element");
     }
@@ -245,8 +245,8 @@ class TimeRangeHolderTest {
                         ExpectedPackage.pack(strE, now)));
         assertEquals(List.of(strE), rejected.stream().map(ExpectedPackage::getElement).collect(Collectors.toList()), "timeRangeHolder.addElements has to reject strD");
         assertEquals( Stream.of(strA,strB,strC).collect(Collectors.toCollection(TreeSet::new)),
-                      timeRangeHolder.getFiredElements(now.minusMillis(2)), "constructPackable has to return three elements on now");
-        assertEquals(Set.of(strD), timeRangeHolder.getFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
+                      timeRangeHolder.extractFiredElements(now.minusMillis(2)), "constructPackable has to return three elements on now");
+        assertEquals(Set.of(strD), timeRangeHolder.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
     }
 
     void addElements() {

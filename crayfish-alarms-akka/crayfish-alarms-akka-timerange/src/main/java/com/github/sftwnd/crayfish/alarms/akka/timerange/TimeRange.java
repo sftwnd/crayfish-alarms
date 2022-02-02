@@ -132,7 +132,7 @@ public interface TimeRange {
         }
 
         private Behavior<Command<M>> processState() {
-            of(timeRange.getFiredElements(nearestInstant()))
+            of(timeRange.extractFiredElements(nearestInstant()))
                     .filter(Predicate.not(Collection::isEmpty))
                     .ifPresent(firedConsumer);
             return nextBehavior();

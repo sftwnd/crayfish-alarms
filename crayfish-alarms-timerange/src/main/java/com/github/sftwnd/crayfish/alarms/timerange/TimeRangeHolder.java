@@ -112,18 +112,18 @@ public class TimeRangeHolder<M,R> {
     /**
      * An object containing objects marked with a time-marker for the range to search for triggered
      *
-     * @param instant The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
+     * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param timeRangeConfig Configuration for constructor parameters
      */
     public TimeRangeHolder(
-            @Nonnull Instant instant,
+            @Nonnull TemporalAccessor time,
             @Nonnull TimeRangeConfig<M,R> timeRangeConfig
     ) {
-        Objects.requireNonNull(instant, "TimeRangeHolder::new - instant is null");
-        Objects.requireNonNull(instant, "TimeRangeHolder::new - timeRangeConfig is null");
+        Objects.requireNonNull(time, "TimeRangeHolder::new - time is null");
+        Objects.requireNonNull(timeRangeConfig, "TimeRangeHolder::new - timeRangeConfig is null");
         this.timeRangeConfig = timeRangeConfig;
-        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.comparator = ofNullable(timeRangeConfig.comparator).orElse(this::compareObjects);
         this.lastDelayedInstant = this.lastInstant.minus(timeRangeConfig.delay);
     }
@@ -208,17 +208,17 @@ public class TimeRangeHolder<M,R> {
      * Extracting from the saved elements those that, according to the temporary marker, are considered to have worked at the current moment
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> getFiredElements() {
+    public @Nonnull Set<R> extractFiredElements() {
         // Looking for current moment
-        return getFiredElements(Instant.now());
+        return extractFiredElements(Instant.now());
     }
 
     /**
-     * Retrieving from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
+     * Extracting from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
      * @param instant point in time at which the check is made
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> getFiredElements(@Nullable Instant instant) {
+    public @Nonnull Set<R> extractFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
         // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
