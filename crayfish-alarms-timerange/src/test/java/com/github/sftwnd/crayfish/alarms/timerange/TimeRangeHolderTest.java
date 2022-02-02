@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -78,8 +77,9 @@ class TimeRangeHolderTest {
     @Test
     void addAndFiredElementsTest() {
         addElements();
-        Set<ExpectedTest> elements = this.timeRange.extractFiredElements(now);
-        assertEquals(new HashSet<>(this.elements), new HashSet<>(elements), "TimeRangeHolder has to contains added elements");
+        assertEquals(this.elements.stream().sorted().collect(Collectors.toList()),
+                this.timeRange.extractFiredElements(now).stream().sorted().collect(Collectors.toList()),
+                "TimeRangeHolder has to contains added elements");
     }
 
     @Test
@@ -89,7 +89,7 @@ class TimeRangeHolderTest {
                 expected(this.timeRange.getStartInstant().plus(-1, ChronoUnit.MILLIS))
         );
         assertEquals(exclude, this.timeRange.addElements(exclude), "Elements before and after the range has to be excluded from addElements operation");
-        assertEquals(Collections.emptySet(), this.timeRange.extractFiredElements(this.now.plus(this.completeTimeout)), "Range has to be empty after add elements not in the range");
+        assertEquals(Collections.emptyList(), this.timeRange.extractFiredElements(this.now.plus(this.completeTimeout)), "Range has to be empty after add elements not in the range");
     }
 
     @Test
@@ -244,9 +244,10 @@ class TimeRangeHolderTest {
                         ExpectedPackage.pack(strD, now.minusMillis(1)),
                         ExpectedPackage.pack(strE, now)));
         assertEquals(List.of(strE), rejected.stream().map(ExpectedPackage::getElement).collect(Collectors.toList()), "timeRangeHolder.addElements has to reject strD");
-        assertEquals( Stream.of(strA,strB,strC).collect(Collectors.toCollection(TreeSet::new)),
-                      timeRangeHolder.extractFiredElements(now.minusMillis(2)), "constructPackable has to return three elements on now");
-        assertEquals(Set.of(strD), timeRangeHolder.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
+        assertEquals( Stream.of(strA,strB,strC).sorted().collect(Collectors.toList()),
+                      timeRangeHolder.extractFiredElements(now.minusMillis(2)).stream().sorted().collect(Collectors.toList()),
+                "constructPackable has to return three elements on now");
+        assertEquals(List.of(strD), timeRangeHolder.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
     }
 
     void addElements() {
@@ -275,9 +276,14 @@ class TimeRangeHolderTest {
     }
 
     @AllArgsConstructor
-    static class ExpectedTest implements Expected<Instant> {
+    static class ExpectedTest implements Expected<Instant>, Comparable<ExpectedTest> {
         @Getter
         private final Instant tick;
+
+        @Override
+        public int compareTo(ExpectedTest expectedTest) {
+            return tick.compareTo(expectedTest.getTick());
+        }
     }
 
     static ExpectedTest expected(Instant instant) {

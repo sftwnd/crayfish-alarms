@@ -103,10 +103,9 @@ If any elements do not fall within the specified region (excluding the right bor
 
 #### Getting triggered (fired) elements from a holder
 To get fired elements, you need to call the extractFiredElements method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
-All fired elements will be extracted from the holder and returned as a result as a Set of elements (unique if the timestamp matches).
+All fired elements will be extracted from the holder and returned as a result as a Collection of elements (unique if the timestamp matches).
 ```java
-    Set<NewObject> firedSet=timeRange.extractFiredElements(Instant.now.plusMillis(250));
-
+    Collection<NewObject> firedSet=timeRange.extractFiredElements(Instant.now.plusMillis(250));
 ```
 
 ---

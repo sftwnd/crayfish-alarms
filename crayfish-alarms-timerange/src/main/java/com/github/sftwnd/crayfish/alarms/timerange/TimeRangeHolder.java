@@ -17,7 +17,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -177,7 +176,7 @@ public class TimeRangeHolder<M,R> {
      * @return list of ignored elements
      */
     public Collection<M> addElements(@Nonnull Collection<M> elements) {
-        Objects.requireNonNull("TimeRange::addElement - elements is null");
+        Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
         List<M> excludes = new ArrayList<>();
         //noinspection ConstantConditions
         elements.stream().filter(Objects::nonNull)
@@ -208,7 +207,7 @@ public class TimeRangeHolder<M,R> {
      * Extracting from the saved elements those that, according to the temporary marker, are considered to have worked at the current moment
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> extractFiredElements() {
+    public @Nonnull Collection<R> extractFiredElements() {
         // Looking for current moment
         return extractFiredElements(Instant.now());
     }
@@ -218,11 +217,11 @@ public class TimeRangeHolder<M,R> {
      * @param instant point in time at which the check is made
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> extractFiredElements(@Nullable Instant instant) {
+    public @Nonnull Collection<R> extractFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
         // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
-        HashSet<R> result = new HashSet<>();
+        List<R> result = new ArrayList<>();
         addCollectionOnProcess(
                 this.expectedMap
                         .entrySet()
@@ -255,16 +254,16 @@ public class TimeRangeHolder<M,R> {
                 .orElse(null);
     }
 
-    private Stream<M> processKey(Set<M> elements, Instant now, boolean complete, Set<R> result) {
+    private Stream<M> processKey(Set<M> elements, Instant now, boolean complete, List<R> result) {
         return complete ? processComplete(elements, result) : processIncomplete(elements, now, result);
     }
 
-    private Stream<M> processComplete(Set<M> elements, Set<R> result) {
+    private Stream<M> processComplete(Set<M> elements, List<R> result) {
         elements.stream().map(timeRangeConfig.extractor).forEach(result::add);
         return Stream.empty();
     }
 
-    private Stream<M> processIncomplete(Set<M> elements, Instant now, Set<R> result) {
+    private Stream<M> processIncomplete(Set<M> elements, Instant now, List<R> result) {
         return elements
                 .stream()
                 .collect(Collectors.partitioningBy(element -> happened(element,now), Collectors.toSet()))
