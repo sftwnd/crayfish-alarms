@@ -31,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -69,7 +68,7 @@ class TimeRangeTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<String>> argumentCaptor = ArgumentCaptor.forClass(Collection.class);
         Mockito.verify(collectionConsumer, Mockito.times(1)).accept(argumentCaptor.capture());
-        assertEquals(Set.of(elmA.getElement()), argumentCaptor.getValue(), "element 'A' has to be processed by TimeRange actor");
+        assertEquals(List.of(elmA.getElement()), argumentCaptor.getValue(), "element 'A' has to be processed by TimeRange actor");
     }
 
     @Test
@@ -186,9 +185,9 @@ class TimeRangeTest {
     }
 
     static class DeadCommandTestActor<X,M> extends AbstractBehavior<X> {
-        public DeadCommandTestActor(ActorContext<X> context, ActorRef<Command<M>> spyActor, CountDownLatch latch, String deadActorname) {
+        public DeadCommandTestActor(ActorContext<X> context, ActorRef<Command<M>> spyActor, CountDownLatch latch, String deadActorName) {
             super(context);
-            TimeRange.subscribeToDeadCommands(context, spyActor, deadActorname);
+            TimeRange.subscribeToDeadCommands(context, spyActor, deadActorName);
             Optional.ofNullable(latch).ifPresent(CountDownLatch::countDown);
         }
         @Override

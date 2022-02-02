@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.
+ * Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
  * This program is made available under the terms of the BSD 3-Clause License.
  * Contacts: ashindarev@gmail.com
  */
@@ -23,18 +23,19 @@ import akka.dispatch.UnboundedStablePriorityMailbox;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.typesafe.config.Config;
-import lombok.NonNull;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -99,16 +100,17 @@ public interface TimeRange {
         private final Duration checkDelay;
 
         private RangeProcessor(
-                @NonNull  TimerScheduler<Command<M>> timers,
-                @NonNull  Instant instant,
-                @NonNull TimeRangeConfig<M,R> timeRangeConfig,
-                @NonNull  FiredElementsConsumer<R> firedConsumer,
+                @Nonnull  TimerScheduler<Command<M>> timers,
+                @Nonnull  TemporalAccessor time,
+                @Nonnull  TimeRangeConfig<M,R> timeRangeConfig,
+                @Nonnull  FiredElementsConsumer<R> firedConsumer,
                 // Within the TimeRangeHolder::interval, you can set the value of how soon to consider the entry triggered...
                 @Nullable Duration withCheckDelay
         ) {
-            this.timers = timers;
-            this.timeRange = timeRangeConfig.timeRangeHolder(instant);
-            this.firedConsumer = firedConsumer;
+            this.timers = Objects.requireNonNull(timers, "RangeProcessor::new - timers is null");
+            this.timeRange = Objects.requireNonNull(timeRangeConfig, "RangeProcessor::new - timeRangeConfig is null")
+                    .timeRangeHolder(Objects.requireNonNull(time, "RangeProcessor::new - time is null"));
+            this.firedConsumer = Objects.requireNonNull(firedConsumer, "RangeProcessor::new - firedConsumer is null");
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
             schedule();
         }
@@ -131,7 +133,7 @@ public interface TimeRange {
         }
 
         private Behavior<Command<M>> processState() {
-            of(timeRange.getFiredElements(nearestInstant()))
+            of(timeRange.extractFiredElements(nearestInstant()))
                     .filter(Predicate.not(Collection::isEmpty))
                     .ifPresent(firedConsumer);
             return nextBehavior();
@@ -172,7 +174,9 @@ public interface TimeRange {
     class AddCommand<X> implements Command<X> {
         private final Collection<X> data;
         private final CompletableFuture<Collection<X>> completableFuture;
-        public AddCommand(@NonNull Collection<X> data, @NonNull CompletableFuture<Collection<X>> completableFuture) {
+        public AddCommand(@Nonnull Collection<X> data, @Nonnull CompletableFuture<Collection<X>> completableFuture) {
+            Objects.requireNonNull(data, "AddCommand::new - data s null");
+            Objects.requireNonNull(completableFuture, "AddCommand::new - completableFuture s null");
             this.data = List.copyOf(data);
             this.completableFuture = completableFuture;
         }
@@ -184,7 +188,7 @@ public interface TimeRange {
     /**
      * Creating an actor behavior in which, in the event of an alarm, a trigger method will be called: firedConsumer,
      * where the triggered alarms will be transferred
-     * @param instant actual border for plotting the final TimeRangeHolder
+     * @param time actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedConsumer listener for handling triggered alarms
      * @param withCheckDuration - the time interval by which the moment of polling timeRangeItems changes from the current moment (it can be either forward or backward in time)
@@ -193,16 +197,16 @@ public interface TimeRange {
      * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R> Behavior<Command<M>> processor(
-            @NonNull Instant instant,
-            @NonNull TimeRangeConfig<M,R> timeRangeConfig,
-            @NonNull FiredElementsConsumer<R> firedConsumer,
+            @Nonnull TemporalAccessor time,
+            @Nonnull TimeRangeConfig<M,R> timeRangeConfig,
+            @Nonnull FiredElementsConsumer<R> firedConsumer,
             @Nullable Duration withCheckDuration) {
-        return Behaviors.withTimers(timers -> new RangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
+        return Behaviors.withTimers(timers -> new RangeProcessor<M,R>(timers, time, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
      * Creating an actor behavior in which, in the event of an alarm, messages will be sent to the actor-receiver for processing alarms
-     * @param instant actual border for plotting the final TimeRangeHolder
+     * @param time actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedActor actor-receiver of a message with triggered alarms
      * @param responseSupplier the function of constructing a message to the subscriber actor from the list of triggered alarms
@@ -213,13 +217,13 @@ public interface TimeRange {
      * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R,X> Behavior<Command<M>> processor(
-            @NonNull Instant instant,
-            @NonNull TimeRangeConfig<M,R> timeRangeConfig,
-            @NonNull ActorRef<X> firedActor,
-            @NonNull Function<Collection<R>,X> responseSupplier,
+            @Nonnull TemporalAccessor time,
+            @Nonnull TimeRangeConfig<M,R> timeRangeConfig,
+            @Nonnull ActorRef<X> firedActor,
+            @Nonnull Function<Collection<R>,X> responseSupplier,
             @Nullable Duration withCheckDuration) {
         return processor(
-                instant,
+                time,
                 timeRangeConfig,
                 firedElements -> of(firedElements)
                         .filter(Predicate.not(Collection::isEmpty))
@@ -236,9 +240,11 @@ public interface TimeRange {
      * @param <M> the type of message being sent
      */
     static <M> void addElements(
-            @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull CompletableFuture<Collection<M>> completableFuture
+            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull CompletableFuture<Collection<M>> completableFuture
     ) {
-        of(elements)
+        Objects.requireNonNull(timeRangeActor, "TimeRange::addElements - timeRangeActor is null");
+        Objects.requireNonNull(completableFuture, "TimeRange::addElements - completableFuture is null");
+        of(Objects.requireNonNull(elements, "TimeRange::addElements - elements is null"))
                 .filter(Predicate.not(Collection::isEmpty))
                 .map(data -> new AddCommand<>(data, completableFuture))
                 .ifPresentOrElse(
@@ -256,7 +262,7 @@ public interface TimeRange {
      */
     @Nonnull
     static <M> CompletableFuture<Collection<M>> addElements(
-            @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements
+            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements
     ) {
         CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
         addElements(timeRangeActor, elements, completableFuture);
@@ -271,9 +277,9 @@ public interface TimeRange {
      * @param <M> the type of message being sent
      */
     static <M> void addElements(
-            @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull Consumer<Collection<M>> onCompleteWithReject
+            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull Consumer<Collection<M>> onCompleteWithReject
     ) {
-        addElements(timeRangeActor, elements).thenAccept(onCompleteWithReject);
+        addElements(timeRangeActor, elements).thenAccept(Objects.requireNonNull(onCompleteWithReject, "TimeRange::addElements - onCompleteWithReject is null"));
     }
 
     /**
@@ -285,8 +291,10 @@ public interface TimeRange {
      * @param <M> the type of message being sent
      */
     static <M> void addElements(
-            @NonNull ActorRef<Command<M>> timeRangeActor, @NonNull Collection<M> elements, @NonNull Consumer<Collection<M>> onCompleteWithReject, @NonNull Consumer<Throwable> onThrow
+            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull Consumer<Collection<M>> onCompleteWithReject, @Nonnull Consumer<Throwable> onThrow
     ) {
+        Objects.requireNonNull(onCompleteWithReject, "TimeRange::addElements - onCompleteWithReject is null");
+        Objects.requireNonNull(onThrow, "TimeRange::addElements - onThrow is null");
         addElements(timeRangeActor, elements).whenComplete((rejected, throwable) -> ofNullable(throwable).ifPresentOrElse(onThrow, () -> onCompleteWithReject.accept(rejected)));
     }
 
@@ -296,8 +304,11 @@ public interface TimeRange {
      * @param watchForActor filter by actor whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
      * @param actorName the name of the actor that will reject the dead-letter for AddCommand
      */
-    static void subscribeToDeadCommands(@NonNull ActorContext<?> context, @NonNull ActorRef<? extends Command<?>> watchForActor, @NonNull String actorName) {
-        context.getSystem()
+    static void subscribeToDeadCommands(@Nonnull ActorContext<?> context, @Nonnull ActorRef<? extends Command<?>> watchForActor, @Nonnull String actorName) {
+        Objects.requireNonNull(watchForActor, "TimeRange::subscribeToDeadCommands - watchForActor is null");
+        Objects.requireNonNull(actorName, "TimeRange::subscribeToDeadCommands - actorName is null");
+        Objects.requireNonNull(context, "TimeRange::subscribeToDeadCommands - context is null")
+                .getSystem()
                 .eventStream()
                 .tell(new EventStream.Subscribe<>(
                         DeadLetter.class,
@@ -311,7 +322,7 @@ public interface TimeRange {
 
         private final ActorPath deadActorPath;
 
-        private AddCommandDeadSubscriber(@NonNull ActorRef<? extends Command<?>> watchForActor) {
+        private AddCommandDeadSubscriber(@Nonnull ActorRef<? extends Command<?>> watchForActor) {
             this.deadActorPath = of(watchForActor).map(ActorRef::path).orElse(null);
         }
 
@@ -343,13 +354,13 @@ public interface TimeRange {
     }
 
     static <M,R> Behavior<Command<M>> service(
-            @NonNull ActorContext<Command<M>> context,
-            @NonNull TimeRangeConfig<M, R> timeRangeConfig,
-            @NonNull FiredElementsConsumer<R> firedConsumer,
+            @Nonnull ActorContext<Command<M>> context,
+            @Nonnull TimeRangeConfig<M, R> timeRangeConfig,
+            @Nonnull FiredElementsConsumer<R> firedConsumer,
             @Nullable Duration withCheckDuration,
             @Nullable Integer rangeDepth,
             @Nullable Integer nrOfInstances,
-            @NonNull TimeRangeWakedUp timeRangeWakedUp
+            @Nonnull TimeRangeWakedUp timeRangeWakedUp
     ) {
         return new Service<>(context, timeRangeConfig, firedConsumer, withCheckDuration, rangeDepth, nrOfInstances, timeRangeWakedUp);
     }
@@ -361,7 +372,6 @@ public interface TimeRange {
         private static final String FIRED_RANGE_ID = "fires";
 
         private final CommandsDescription<M> commands = new CommandsDescription<>();
-        private final ActorContext<Command<M>> context;
         private final int rangeDepth;
         private final Integer nrOfInstances;
         private final TimeRangeWakedUp timeRangeWakedUp;
@@ -384,29 +394,28 @@ public interface TimeRange {
          */
         @SuppressWarnings("java:S116")
         private Service(
-                @NonNull ActorContext<Command<M>> context,
-                @NonNull TimeRangeConfig<M, R> timeRangeConfig,
-                @NonNull FiredElementsConsumer<R> firedConsumer,
+                @Nonnull ActorContext<Command<M>> context,
+                @Nonnull TimeRangeConfig<M, R> timeRangeConfig,
+                @Nonnull FiredElementsConsumer<R> firedConsumer,
                 @Nullable Duration withCheckDuration,
                 @Nullable Integer rangeDepth,
                 @Nullable Integer nrOfInstances,
-                @NonNull TimeRangeWakedUp timeRangeWakedUp
+                @Nonnull TimeRangeWakedUp timeRangeWakedUp
         ) {
-            super(context);
-            this.context = context;
+            super(Objects.requireNonNull(context, "Service::new - context is null"));
             this.withCheckDuration = withCheckDuration;
             this.rangeDepth = rangeDepth == null ? 1 : Math.max(0, rangeDepth);
             this.nrOfInstances = nrOfInstances == null ? 1 : Math.max(1, nrOfInstances);
-            this.timeRangeWakedUp = timeRangeWakedUp;
-            this.timeRangeConfig = timeRangeConfig;
+            this.timeRangeWakedUp = Objects.requireNonNull(timeRangeWakedUp, "Service::new - timeRangeWakedUp is null");
+            this.timeRangeConfig = Objects.requireNonNull(timeRangeConfig, "Service::new - timeRangeConfig is null");
             this.timeRangeTicks = this.timeRangeConfig.getDuration().abs().toMillis();
-            this.firedConsumer = firedConsumer;
+            this.firedConsumer = Objects.requireNonNull(firedConsumer, "Service::new - firedConsumer is null");
             startDeadLetterWatching();
             startRegions();
         }
 
         private void startDeadLetterWatching() {
-            TimeRange.subscribeToDeadCommands(context, context.getSelf(), DEAD_ADD_COMMAND_ACTOR);
+            TimeRange.subscribeToDeadCommands(getContext(), getContext().getSelf(), DEAD_ADD_COMMAND_ACTOR);
         }
 
         @Override
@@ -553,12 +562,12 @@ public interface TimeRange {
         }
 
         private void startRegionActor(String regionTickName, Instant instant) {
-            ActorRef<Command<M>> timeRegionActor = context.spawn(
+            ActorRef<Command<M>> timeRegionActor = getContext().spawn(
                     processor(this.regionInstant(instant), this.timeRangeConfig, this.firedConsumer, this.withCheckDuration),
                     regionActorName(regionTickName)
             );
             this.timeRangeActors.put(regionTickName, timeRegionActor);
-            context.watch(timeRegionActor);
+            getContext().watch(timeRegionActor);
         }
 
         private String regionActorName(String regionTick) {

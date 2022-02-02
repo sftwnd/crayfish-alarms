@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.
+ * Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
  * This program is made available under the terms of the BSD 3-Clause License.
  * Contacts: ashindarev@gmail.com
  */
@@ -7,7 +7,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import lombok.AccessLevel;
-import lombok.NonNull;
 import lombok.Setter;
 
 import javax.annotation.Nonnull;
@@ -18,7 +17,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -98,14 +96,14 @@ public class TimeRangeHolder<M,R> {
      */
     @SuppressWarnings("java:S107")
     public TimeRangeHolder(
-            @NonNull  Instant  instant,
-            @NonNull  Duration duration,
-            @NonNull  Duration interval,
+            @Nonnull  Instant  instant,
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
             @Nullable Duration delay,
-            @NonNull  Duration completeTimeout,
-            @NonNull  Expectation<M,? extends TemporalAccessor> expectation,
+            @Nonnull  Duration completeTimeout,
+            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator,
-            @NonNull  ResultTransformer<M,R> extractor
+            @Nonnull  ResultTransformer<M,R> extractor
     ) {
         this(instant, new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
@@ -113,16 +111,18 @@ public class TimeRangeHolder<M,R> {
     /**
      * An object containing objects marked with a time-marker for the range to search for triggered
      *
-     * @param instant The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
+     * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param timeRangeConfig Configuration for constructor parameters
      */
     public TimeRangeHolder(
-            @NonNull Instant instant,
-            @NonNull TimeRangeConfig<M,R> timeRangeConfig
+            @Nonnull TemporalAccessor time,
+            @Nonnull TimeRangeConfig<M,R> timeRangeConfig
     ) {
+        Objects.requireNonNull(time, "TimeRangeHolder::new - time is null");
+        Objects.requireNonNull(timeRangeConfig, "TimeRangeHolder::new - timeRangeConfig is null");
         this.timeRangeConfig = timeRangeConfig;
-        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(instant::plus).orElse(instant);
-        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(instant::plus).orElse(instant);
+        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.comparator = ofNullable(timeRangeConfig.comparator).orElse(this::compareObjects);
         this.lastDelayedInstant = this.lastInstant.minus(timeRangeConfig.delay);
     }
@@ -176,6 +176,7 @@ public class TimeRangeHolder<M,R> {
      * @return list of ignored elements
      */
     public Collection<M> addElements(@Nonnull Collection<M> elements) {
+        Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
         List<M> excludes = new ArrayList<>();
         //noinspection ConstantConditions
         elements.stream().filter(Objects::nonNull)
@@ -206,21 +207,21 @@ public class TimeRangeHolder<M,R> {
      * Extracting from the saved elements those that, according to the temporary marker, are considered to have worked at the current moment
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> getFiredElements() {
+    public @Nonnull Collection<R> extractFiredElements() {
         // Looking for current moment
-        return getFiredElements(Instant.now());
+        return extractFiredElements(Instant.now());
     }
 
     /**
-     * Retrieving from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
+     * Extracting from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
      * @param instant point in time at which the check is made
      * @return List of triggered elements
      */
-    public @Nonnull Set<R> getFiredElements(@Nullable Instant instant) {
+    public @Nonnull Collection<R> extractFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
         // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
-        HashSet<R> result = new HashSet<>();
+        List<R> result = new ArrayList<>();
         addCollectionOnProcess(
                 this.expectedMap
                         .entrySet()
@@ -253,16 +254,16 @@ public class TimeRangeHolder<M,R> {
                 .orElse(null);
     }
 
-    private Stream<M> processKey(Set<M> elements, Instant now, boolean complete, Set<R> result) {
+    private Stream<M> processKey(Set<M> elements, Instant now, boolean complete, List<R> result) {
         return complete ? processComplete(elements, result) : processIncomplete(elements, now, result);
     }
 
-    private Stream<M> processComplete(Set<M> elements, Set<R> result) {
+    private Stream<M> processComplete(Set<M> elements, List<R> result) {
         elements.stream().map(timeRangeConfig.extractor).forEach(result::add);
         return Stream.empty();
     }
 
-    private Stream<M> processIncomplete(Set<M> elements, Instant now, Set<R> result) {
+    private Stream<M> processIncomplete(Set<M> elements, Instant now, List<R> result) {
         return elements
                 .stream()
                 .collect(Collectors.partitioningBy(element -> happened(element,now), Collectors.toSet()))
@@ -281,7 +282,7 @@ public class TimeRangeHolder<M,R> {
      * @param now point in time for which we calculate the value
      * @return timeout to the nearest event, taking into account delay
      */
-    public Duration duration(@NonNull Instant now) {
+    public Duration duration(@Nonnull Instant now) {
         // If the time is before the start of the range
         if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
@@ -383,7 +384,7 @@ public class TimeRangeHolder<M,R> {
         return Integer.compare(first.hashCode(), second.hashCode());
     }
 
-    private boolean happened(@Nonnull M element, @NonNull Instant now) {
+    private boolean happened(@Nonnull M element, @Nonnull Instant now) {
         return !instant(element).isAfter(now);
     }
 
