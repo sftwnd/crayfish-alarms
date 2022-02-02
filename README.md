@@ -94,7 +94,7 @@ There are also three additional methods:
 * duration() - get time interval until the next event occurs from the moment specified by the parameter, or from the current moment if the parameter is not set
 
 #### Adding new elements to the holder
-To add new elements, use the addElements method:
+To add new elements, use the [addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) method:
 ```java
     List<MyObject> elements=getElements();
     List<MyObject> rejected=timeRange.addElements(elements);
@@ -102,7 +102,7 @@ To add new elements, use the addElements method:
 If any elements do not fall within the specified region (excluding the right border), then these elements will be returned by the adElements method as not processed (rejected)
 
 #### Getting triggered (fired) elements from a holder
-To get fired elements, you need to call the extractFiredElements method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java#L206-L241) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements (unique if the timestamp matches).
 ```java
     Collection<NewObject> firedSet=timeRange.extractFiredElements(Instant.now.plusMillis(250));
@@ -136,7 +136,7 @@ Creation of processor as ActorSystem:
     ActorSystem<Command<MyObject>> timeRangeProcessor = ActorSystem.create(behavior, "timeRangeProcessor");
 ```
 #### Add elements to TimeRegion Processor
-To add elements to the TimeRange Processor, use the TimeRange.addElements factory method.
+To add elements to the TimeRange Processor, use the [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) factory method.
 The method contains three parameters:
 * ActorRef&lt;Command&lt;M&gt;&gt; timeRangeActor - Service to which we add elements
 * Collection&lt;M&gt; elements - Collection of elements to add
@@ -145,7 +145,7 @@ The method contains three parameters:
     CompletableFuture<MyObject> rejectedFuture = new CompletableFuture<>;
     TimeRange.addElements(timeRangeProcessor, elements, rejectedFuture);
 ```
-You can also call addCommands as a function without the CompletableFuture parameter. Then the function itself will create a CompletableFuture and return it as a result.
+You can also call [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) as a function without the CompletableFuture parameter. Then the function itself will create a CompletableFuture and return it as a result.
 ```java
     CompletableFuture<MyObject> rejectedFuture = TimeRange.addElements(timeRangeProcessor, elements);
 ```
@@ -168,4 +168,4 @@ To determine the moment when the processor stops, you can use a subscription to 
 ```
 ---
 
-Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.
+Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
