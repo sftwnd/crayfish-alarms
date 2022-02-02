@@ -24,20 +24,20 @@ When accessing TimeRange, you can get information about the interval until the n
 
 ### Supported items
 The implemented library allows you to store elements that have a time marker inside the TimeRange and retrieve at each moment of time those objects that have a time marker earlier than the current moment. A temporary marker can be attached to an object in three ways:
-1) An implementation of the [Expected<T extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, where the token is obtained by calling the getTick() method
-2) Packing the element into an object that implements the [ExpectedPackage<M,T extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) interface, which also supports the [Expected<T extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, and the element itself is obtained by calling the getElemen() method
-3) A description of two methods that implement the interfaces [Expectation<M,? extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [TimeRangeHolder.ResultTransformer<M,R>](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java) to get the resulting object from the original one.
+1) An implementation of the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, where the token is obtained by calling the getTick() method
+2) Packing the element into an object that implements the [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) interface, which also supports the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, and the element itself is obtained by calling the getElemen() method
+3) A description of two methods that implement the interfaces [Expectation&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [TimeRangeHolder.ResultTransformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java) to get the resulting object from the original one.
 
 ### Uniqueness Constraint
 There is one TimeRange limitation: you cannot describe two objects at the same time that, when cast to the resulting object, will turn out to be equal.
-To implement this restriction, the Comparator<> of the resulting object is used, which is used exactly in case of a match in time markers and allows you to filter out duplicates (perform a distinct operation)
+To implement this restriction, the Comparator&lt;&gt; of the resulting object is used, which is used exactly in case of a match in time markers and allows you to filter out duplicates (perform a distinct operation)
 
-### Creation of TimeRangeConfig<M,R>
-The **create**, **packable**, and **expected** factory methods are used to instantiate the [TimeRangeConfig<M,R>](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java) description.
+### Creation of TimeRangeConfig&lt;M,R&gt;
+The **create**, **packable**, and **expected** factory methods are used to instantiate the [TimeRangeConfig&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java) description.
 #### method create
 This is the most general method. When calling it, you must specify the **duration**, **interval**, **delay**, **completeTimeout**, **expectation**, **comparator** and **extractor** parameters described above.
 ```java
-    TimeRangeConfig<MyObject, NewObject> config = TimeRangeConfig.create(
+    TimeRangeConfig&lt;MyObject, NewObject&gt; config = TimeRangeConfig.create(
             Duration.ofSeconds(180),
             Duration.ofMillis(15000),
             Duration.ofMillis(250),
@@ -48,10 +48,10 @@ This is the most general method. When calling it, you must specify the **duratio
     );
 ```
 #### method packable
-This method allows you to create a TimeRangeConfig described the TimeRange that takes [ExpectedPackage<M,T extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
+This method allows you to create a TimeRangeConfig described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
 In this case, the **expectation** and **extractor** parameters are missing
 ```java
-    TimeRangeConfig<ExpectedPackage<String, Instant>, String> config = TimeRangeConfig.packable(
+    TimeRangeConfig&lt;ExpectedPackage&lt;String, Instant&gt;, String&gt; config = TimeRangeConfig.packable(
         Duration.ofSeconds(10),
         Duration.ofMillis(1000),
         Duration.ofMillis(100),
@@ -61,9 +61,9 @@ In this case, the **expectation** and **extractor** parameters are missing
 ```
 
 #### method expected
-This method also defines the **expectation** and **extractor** parameters itself and creates a [TimeRangeConfig<M,R>](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java) that has the same object at the input and output that implements the [Expected<T extends TemporalAccessor>](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface.
+This method also defines the **expectation** and **extractor** parameters itself and creates a [TimeRangeConfig&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java) that has the same object at the input and output that implements the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface.
 ```java
-    TimeRangeConfig<Expected<Instant>, Expected<Instant>> config = TimeRangeConfig.expected(
+    TimeRangeConfig&lt;Expected&lt;Instant&gt;, Expected&lt;Instant&gt;&gt; config = TimeRangeConfig.expected(
         Duration.ofSeconds(10),
         Duration.ofMillis(1000),
         Duration.ofMillis(100),
@@ -71,3 +71,5 @@ This method also defines the **expectation** and **extractor** parameters itself
         null
     );
 ```
+
+Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.

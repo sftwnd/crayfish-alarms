@@ -1,3 +1,8 @@
+/*
+ * Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.
+ * This program is made available under the terms of the BSD 3-Clause License.
+ * Contacts: ashindarev@gmail.com
+ */
 package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
