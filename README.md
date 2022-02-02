@@ -166,6 +166,45 @@ To determine the moment when the processor stops, you can use a subscription to 
                ...;
     }
 ```
----
+### Time Range Processing Service
+The Time Range Processing Service, unlike the Single Time Range Processor, processes incoming elements not for a fixed range, but for a dynamically moving window of TimeRange ranges, each of which is implemented using the TimeRange Processor.
+#### Service creation
+The service is created using the factory method [TimeRange.service](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L356-L366)
+```java
+timeRangeProcessor = context.spawn(
+                    Behaviors.setup(ctx ->
+                            TimeRange.service(
+                                    ctx,
+                                    config,
+                                    target::firedElementsConsumer,
+                                    Duration.ZERO,
+                                    rangeDepth,
+                                    nrOfInstances,
+                                    (startInstant, endInstant) -> context.getSelf().tell(new RangeStarted(startInstant, endInstant))
+                            )), "time-range-service"
+            );
+```
+This method has the same parameters as the processor creation method, except for the time parameter, which is missing.
+When a service is created, the processor starts, for the calculated moment from the current time, rounded down to the value of duration.
 
+The service build method contains three additional parameters:
+* _**rangeDepth**_ - the number of additional TimeRanges that will be created for the future and following the current one sequentially, without time gaps
+* _**nrOfInstances**_ - number of message handlers for each TimeRegion created. Recommended at least one
+* _**[timeRangeWakedUp](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L352-L354)**_ - the method that will be called when creating the TimeRegion handler
+#### Add elements to TimeRegion Service
+This method corresponds to the method of adding to the processor with the only limitation that when adding an element, a TimeRegion is determined that corresponds to the moment of the element and is added there. If TimeRegion is absent or rejects an element, then such elements are sent as rejected
+#### Stop service processing
+To stop a service, you must use the AKKA API to stop the actor or AkkaSystem that implements the service.
+```java
+    ActorSystem<Command<MyObject>> timeRangeService = ActorSystem.create(..., "time-range-service");
+    ...
+    timeRangeService.terminate();
+```
+```java
+    ActorRef<Command<MyObject>> timeRangeService = context.spawn(...,"time-range-service");
+    ...
+    context.stop(timeRangeService);
+```
+
+---
 Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
