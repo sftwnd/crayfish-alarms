@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -100,7 +101,7 @@ public interface TimeRange {
 
         private RangeProcessor(
                 @Nonnull  TimerScheduler<Command<M>> timers,
-                @Nonnull  Instant instant,
+                @Nonnull  TemporalAccessor time,
                 @Nonnull  TimeRangeConfig<M,R> timeRangeConfig,
                 @Nonnull  FiredElementsConsumer<R> firedConsumer,
                 // Within the TimeRangeHolder::interval, you can set the value of how soon to consider the entry triggered...
@@ -108,7 +109,7 @@ public interface TimeRange {
         ) {
             this.timers = Objects.requireNonNull(timers, "RangeProcessor::new - timers is null");
             this.timeRange = Objects.requireNonNull(timeRangeConfig, "RangeProcessor::new - timeRangeConfig is null")
-                    .timeRangeHolder(Objects.requireNonNull(instant, "RangeProcessor::new - instant is null"));
+                    .timeRangeHolder(Objects.requireNonNull(time, "RangeProcessor::new - time is null"));
             this.firedConsumer = Objects.requireNonNull(firedConsumer, "RangeProcessor::new - firedConsumer is null");
             this.checkDelay = ofNullable(withCheckDelay).orElse(Duration.ZERO);
             schedule();
@@ -187,7 +188,7 @@ public interface TimeRange {
     /**
      * Creating an actor behavior in which, in the event of an alarm, a trigger method will be called: firedConsumer,
      * where the triggered alarms will be transferred
-     * @param instant actual border for plotting the final TimeRangeHolder
+     * @param time actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedConsumer listener for handling triggered alarms
      * @param withCheckDuration - the time interval by which the moment of polling timeRangeItems changes from the current moment (it can be either forward or backward in time)
@@ -196,16 +197,16 @@ public interface TimeRange {
      * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R> Behavior<Command<M>> processor(
-            @Nonnull Instant instant,
+            @Nonnull TemporalAccessor time,
             @Nonnull TimeRangeConfig<M,R> timeRangeConfig,
             @Nonnull FiredElementsConsumer<R> firedConsumer,
             @Nullable Duration withCheckDuration) {
-        return Behaviors.withTimers(timers -> new RangeProcessor<M,R>(timers, instant, timeRangeConfig, firedConsumer, withCheckDuration).initial());
+        return Behaviors.withTimers(timers -> new RangeProcessor<M,R>(timers, time, timeRangeConfig, firedConsumer, withCheckDuration).initial());
     }
 
     /**
      * Creating an actor behavior in which, in the event of an alarm, messages will be sent to the actor-receiver for processing alarms
-     * @param instant actual border for plotting the final TimeRangeHolder
+     * @param time actual border for plotting the final TimeRangeHolder
      * @param timeRangeConfig configuration of a structure that describes alarm clocks with a schedule for their operation for a given period
      * @param firedActor actor-receiver of a message with triggered alarms
      * @param responseSupplier the function of constructing a message to the subscriber actor from the list of triggered alarms
@@ -216,13 +217,13 @@ public interface TimeRange {
      * @return Behavior for Time Period Actor Processor with Alarms
      */
     static <M,R,X> Behavior<Command<M>> processor(
-            @Nonnull Instant instant,
+            @Nonnull TemporalAccessor time,
             @Nonnull TimeRangeConfig<M,R> timeRangeConfig,
             @Nonnull ActorRef<X> firedActor,
             @Nonnull Function<Collection<R>,X> responseSupplier,
             @Nullable Duration withCheckDuration) {
         return processor(
-                instant,
+                time,
                 timeRangeConfig,
                 firedElements -> of(firedElements)
                         .filter(Predicate.not(Collection::isEmpty))

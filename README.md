@@ -108,6 +108,64 @@ All fired elements will be extracted from the holder and returned as a result as
     Collection<NewObject> firedSet=timeRange.extractFiredElements(Instant.now.plusMillis(250));
 ```
 
+## TimeRegion Processing
+Automation of time range processing is implemented by the [TimeRange](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java) interface components.
+Implemented the ability to automatically process a specific time range, or a dynamically changing set of ranges moving along the time scale.
+To run the handlers, the [AKKA Typed ActorSystem](https://doc.akka.io/docs/akka/current/index.html) from [Lightbend Inc.](https://www.lightbend.com/) is used.
+
+### Single Time Range Processing
+AKKA Benavior's RangeProcessor<M,R> is implemented to process one particular time range. 
+
+#### Run a handler for a specific time range
+The launch is performed by the TimeRange.processor method with a description of the following parameters:
+* time - the border of the temporary region. Set by analogy with TimeRangeHolder.
+* timeRangeConfig - see above description of TimeRangeConfig
+* firedConsumer - Consumer, which will be called if elements that have fired at the current time are found. Consumer interface: [FiredElementsConsumer&lt;R&gt;](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java)
+* withCheckDuration - Time shift, which allows you to search for elements not exactly at the current moment, but with a slight offset.
+
+Behavior definition:
+```java
+    Behavior<Command<MyObject> behavior = TimeRange.processor(now, timeRangeConfig, firedElementConsumer, null);
+```
+Creation of processor in the ActorContext:
+```java
+    ActorRef<Command<MyObject>> timeRangeProcessor = context.spawn(behavior,"timeRangeProcessor"); 
+```
+Creation of processor as ActorSystem:
+```java
+    ActorSystem<Command<MyObject>> timeRangeProcessor = ActorSystem.create(behavior, "timeRangeProcessor");
+```
+#### Add elements to TimeRegion Processor
+To add elements to the TimeRange Processor, use the TimeRange.addElements factory method.
+The method contains three parameters:
+* ActorRef&lt;Command&lt;M&gt;&gt; timeRangeActor - Service to which we add elements
+* Collection&lt;M&gt; elements - Collection of elements to add
+* CompletableFuture<Collection<M>> completableFuture - CompletableFuture, where the result of adding elements will be placed
+```java
+    CompletableFuture<MyObject> rejectedFuture = new CompletableFuture<>;
+    TimeRange.addElements(timeRangeProcessor, elements, rejectedFuture);
+```
+You can also call addCommands as a function without the CompletableFuture parameter. Then the function itself will create a CompletableFuture and return it as a result.
+```java
+    CompletableFuture<MyObject> rejectedFuture = TimeRange.addElements(timeRangeProcessor, elements);
+```
+If the elements fall within the range described by the TimeRange of Processor, then they are stored inside for further processing. If they do not, then a list of such elements will be sent to the CompletableFuture as the result of the operation.
+#### Handling triggered messages
+If at the current moment of time, taking into account the shift, triggered elements are found, then the collection of these elements is sent for processing by calling the callback method (firedElementConsumer), passing the collection there as a parameter.
+#### Stop processing
+When the point in time arrives at which the isComplete operation applied to the TimeRegionHolder in the processor yields a positive result, then processing of the region is stopped and the service is terminated.
+#### Determining when the processor has stopped
+To determine the moment when the processor stops, you can use a subscription to the AKKA Actor with the processing of the signal to stop the processor actor.
+```java
+    ...
+       context.watch(timeRangeProcessor);
+    ...
+    public Receive<Command<M>> createReceive() {
+        return ...
+                .onSignal(Terminated.class, this::onTerminate)
+               ...;
+    }
+```
 ---
 
 Copyright © 2017-20xx Andrey D. Shindarev. All rights reserved.
