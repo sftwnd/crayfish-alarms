@@ -205,6 +205,11 @@ To stop a service, you must use the AKKA API to stop the actor or AkkaSystem tha
     ...
     context.stop(timeRangeService);
 ```
+#### Usage of [TimeRange.Mailbox](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L595-L618)
+All request processing in the AKKA Actor is done by sequentially reading messages from the mailbox.
+When processing messages in the TimeRange Service, they pass through one Mailbox - both messages for adding elements, and messages for creating a TimeRange Processor.
+In order not to delay messages about the creation of a new TimeRange Processor, it is recommended to use a prioritized TimeRange.Mailbox.
+More details about using mailbox can be found in the [AKKA documentation](https://doc.akka.io/docs/akka/current/typed/mailboxes.html).
 
 ---
 Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
