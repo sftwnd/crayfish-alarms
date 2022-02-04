@@ -54,7 +54,7 @@ class TimeRangeConfigTest {
     @Test
     void getExtractorTest() {
         Instant instant = Instant.now().plus(DURATION).minusSeconds(13);
-        assertSame(EXTRACTOR, config.getExtractor(), "getExtractor has return wrong value");
+        assertSame(EXTRACTOR.apply(instant), config.getExtractor().apply(instant), "getExtractor has return function with same result");
         assertEquals(instant, config.getExtractor().apply(instant), "extractor has produce wrong value");
     }
 
@@ -68,7 +68,7 @@ class TimeRangeConfigTest {
 
     @BeforeAll
     static void startUp() {
-        config = TimeRangeConfig.create(DURATION, INTERVAL, DELAY, COMPLETE_TIMEOUT, EXPECTATION, COMPARATOR, EXTRACTOR);
+        config = TimeRangeConfig.create(DURATION, INTERVAL, DELAY, COMPLETE_TIMEOUT, EXPECTATION, COMPARATOR);
     }
 
     @AfterAll
