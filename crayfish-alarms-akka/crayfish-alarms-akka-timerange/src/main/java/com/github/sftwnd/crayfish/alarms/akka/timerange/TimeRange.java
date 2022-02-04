@@ -592,6 +592,10 @@ public interface TimeRange {
 
     }
 
+    /**
+     * When processing messages to the Service actor, it is desirable to process messages about the completion
+     * and start of the RangeProcessor out of turn
+     */
     class Mailbox extends UnboundedStablePriorityMailbox {
 
         @SuppressWarnings("java:S1172")
