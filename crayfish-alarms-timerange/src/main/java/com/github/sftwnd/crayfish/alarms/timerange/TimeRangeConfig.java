@@ -104,6 +104,31 @@ public final class TimeRangeConfig<M,R> {
     ) {
         return new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
     }
+
+    /**
+     * Creating a TimeRangeHolder TimeRangeConfig as the Type of Registered Items
+     *
+     * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param delay Intervals for checking for the operation of existing Expected objects
+     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param expectation Getting timestamp from incoming element
+     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param <M> input and returned elements type
+     * @return TimeRangeHolder.TimeRangeConfig instance
+     */
+    @SuppressWarnings("java:S107")
+    public static <M> TimeRangeConfig<M,M> create(
+            @Nonnull  Duration duration,
+            @Nonnull  Duration interval,
+            @Nullable Duration delay,
+            @Nonnull  Duration completeTimeout,
+            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
+            @Nullable Comparator<? super M> comparator
+    ) {
+        return create(duration, interval, delay, completeTimeout, expectation, comparator, TimeRangeHolder.ResultTransformer.identity());
+    }
+
     /**
      * Creating a TimeRangeHolder.TimeRangeConfig with ExpectedPackage as the type of items being registered
      *
@@ -148,4 +173,5 @@ public final class TimeRangeConfig<M,R> {
     ) {
         return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, TimeRangeHolder.ResultTransformer.identity());
     }
+
 }
