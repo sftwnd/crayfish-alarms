@@ -23,6 +23,9 @@ import akka.dispatch.UnboundedStablePriorityMailbox;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.typesafe.config.Config;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,7 +72,7 @@ public interface TimeRange {
      * @param <X> generic to describe the content of the command
      */
     @SuppressWarnings("java:S2326")
-    interface Command<X> {}
+    interface Command<X> { default void unhandled(){} }
 
     final class Commands<M> {
         // This is the shortest description of the cast, for this reason it was chosen
@@ -176,21 +179,21 @@ public interface TimeRange {
     }
 
     class Timeout<X> implements Command<X> {}
-    interface Unhandable {
-        void unhandled();
+    @AllArgsConstructor(access = AccessLevel.PRIVATE)
+    class GracefulStop<X> implements Command<X> {
+        @Getter private final CompletableFuture<Void> completableFuture;
+        @Override public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(null)); }
     }
-    class AddCommand<X> implements Command<X>, Unhandable {
-        private final Collection<X> data;
-        private final CompletableFuture<Collection<X>> completableFuture;
+    class AddCommand<X> implements Command<X> {
+        @Getter private final Collection<X> data;
+        @Getter private final CompletableFuture<Collection<X>> completableFuture;
         public AddCommand(@Nonnull Collection<X> data, @Nonnull CompletableFuture<Collection<X>> completableFuture) {
             Objects.requireNonNull(data, "AddCommand::new - data s null");
             Objects.requireNonNull(completableFuture, "AddCommand::new - completableFuture s null");
             this.data = List.copyOf(data);
             this.completableFuture = completableFuture;
         }
-        public @Nonnull Collection<X> getData() { return this.data; }
-        public @Nonnull CompletableFuture<Collection<X>> getCompletableFuture() { return this.completableFuture; }
-        public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
+        @Override public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(this.data)); }
     }
 
     /**
@@ -343,13 +346,14 @@ public interface TimeRange {
             return deadActorPath.equals(checkPath) || (!checkPath.equals(checkPath.root()) && checkPath(checkPath.parent()));
         }
 
+        @SuppressWarnings("rawtypes")
         private Behavior<DeadLetter> onDeadLetter(DeadLetter deadLetter) {
             of(deadLetter)
                     .filter(letter -> checkPath(letter.recipient().path()))
                     .map(DeadLetter::message)
-                    .filter(Unhandable.class::isInstance)
-                    .map(Unhandable.class::cast)
-                    .ifPresent(Unhandable::unhandled);
+                    .filter(Command.class::isInstance)
+                    .map(Command.class::cast)
+                    .ifPresent(Command::unhandled);
             return Behaviors.same();
         }
 
