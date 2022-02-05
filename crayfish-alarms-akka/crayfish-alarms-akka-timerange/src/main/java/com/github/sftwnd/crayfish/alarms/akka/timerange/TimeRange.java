@@ -80,6 +80,8 @@ public interface TimeRange {
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
+        @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
+        private final Class<GracefulStop<M>> GRACEFUL_STOP = (Class<GracefulStop<M>>)((Class<? extends GracefulStop>) GracefulStop.class);
         @SuppressWarnings("java:S116")
         private final Timeout<M> TIMEOUT = new Timeout<>() {};
         private Commands() {}
@@ -137,8 +139,13 @@ public interface TimeRange {
         private Behavior<Command<M>> initial() {
             return Behaviors.receive(commands.COMMAND)
                     .onMessage(commands.ADD_COMMAND, this::onAddCommand)
+                    .onMessage(commands.GRACEFUL_STOP, this::onGracefulStop)
                     .onMessageEquals(commands.TIMEOUT, this::processState)
                     .build();
+        }
+
+        private Behavior<Command<M>> onGracefulStop(GracefulStop<M> gracefulStop) {
+            return Behaviors.stopped(gracefulStop::complete);
         }
 
         private Behavior<Command<M>> processState() {
@@ -182,7 +189,8 @@ public interface TimeRange {
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     class GracefulStop<X> implements Command<X> {
         @Getter private final CompletableFuture<Void> completableFuture;
-        @Override public void unhandled() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(null)); }
+        public void complete() { of(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(null)); }
+        @Override public void unhandled() { complete(); }
     }
     class AddCommand<X> implements Command<X> {
         @Getter private final Collection<X> data;
@@ -309,6 +317,16 @@ public interface TimeRange {
     }
 
     /**
+     * Send TimeRange actor Graceful Stop event
+     * @param timeRangeActor actor - time period handler
+     * @param <M> the type of message being sent
+     * @return Completion Stage of the response (wait for stop)
+     */
+    static <M> CompletionStage<Void> stop(@Nonnull ActorRef<Command<M>> timeRangeActor) {
+        return Commands.completableFuture(completableFuture -> timeRangeActor.tell(new GracefulStop<>(completableFuture)));
+    }
+
+    /**
      * This method creates an actor that handles lost AddCommand messages and marks them as rejected on all elements.
      * @param context the context within which the actor is created
      * @param watchForActor filter by actor whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
@@ -432,8 +450,13 @@ public interface TimeRange {
         public Receive<Command<M>> createReceive() {
             return newReceiveBuilder()
                     .onMessage(commands.ADD_COMMAND, this::onAddCommand)
+                    .onMessage(commands.GRACEFUL_STOP, this::onGracefulStop)
                     .onSignal(Terminated.class, this::onTerminate)
                     .build();
+        }
+
+        private Behavior<Command<M>> onGracefulStop(GracefulStop<M> gracefulStop) {
+            return Behaviors.stopped(gracefulStop::complete);
         }
 
         @SuppressWarnings({"unchecked", "rawtypes", "java:S1170", "java:S1905"})
