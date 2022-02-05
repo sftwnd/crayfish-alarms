@@ -176,8 +176,10 @@ public interface TimeRange {
     }
 
     class Timeout<X> implements Command<X> {}
-
-    class AddCommand<X> implements Command<X> {
+    interface Unhandable {
+        void unhandled();
+    }
+    class AddCommand<X> implements Command<X>, Unhandable {
         private final Collection<X> data;
         private final CompletableFuture<Collection<X>> completableFuture;
         public AddCommand(@Nonnull Collection<X> data, @Nonnull CompletableFuture<Collection<X>> completableFuture) {
@@ -341,14 +343,13 @@ public interface TimeRange {
             return deadActorPath.equals(checkPath) || (!checkPath.equals(checkPath.root()) && checkPath(checkPath.parent()));
         }
 
-        @SuppressWarnings("rawtypes")
         private Behavior<DeadLetter> onDeadLetter(DeadLetter deadLetter) {
             of(deadLetter)
                     .filter(letter -> checkPath(letter.recipient().path()))
                     .map(DeadLetter::message)
-                    .filter(AddCommand.class::isInstance)
-                    .map(AddCommand.class::cast)
-                    .ifPresent(AddCommand::unhandled);
+                    .filter(Unhandable.class::isInstance)
+                    .map(Unhandable.class::cast)
+                    .ifPresent(Unhandable::unhandled);
             return Behaviors.same();
         }
 
