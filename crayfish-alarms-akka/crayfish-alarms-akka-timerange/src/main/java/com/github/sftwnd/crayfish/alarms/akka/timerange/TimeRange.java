@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -70,7 +71,7 @@ public interface TimeRange {
     @SuppressWarnings("java:S2326")
     interface Command<X> {}
 
-    final class CommandsDescription<M> {
+    final class Commands<M> {
         // This is the shortest description of the cast, for this reason it was chosen
         @SuppressWarnings({"unchecked", "rawtypes", "java:S116", "java:S1170"})
         private final Class<Command<M>> COMMAND = (Class<Command<M>>)((Class<? extends Command>) Command.class);
@@ -78,7 +79,12 @@ public interface TimeRange {
         private final Class<AddCommand<M>> ADD_COMMAND = (Class<AddCommand<M>>)((Class<? extends AddCommand>) AddCommand.class);
         @SuppressWarnings("java:S116")
         private final Timeout<M> TIMEOUT = new Timeout<>() {};
-        private CommandsDescription() {}
+        private Commands() {}
+        static <X> CompletableFuture<X> completableFuture(Consumer<CompletableFuture<X>> consumer) {
+            CompletableFuture<X> completableFuture = new CompletableFuture<>();
+            consumer.accept(completableFuture);
+            return completableFuture;
+        }
     }
 
     interface FiredElementsConsumer<M> extends Consumer<Collection<M>> {
@@ -93,7 +99,7 @@ public interface TimeRange {
      */
     class RangeProcessor<M,R> {
 
-        private final CommandsDescription<M> commands = new CommandsDescription<>();
+        private final Commands<M> commands = new Commands<>();
         private final TimerScheduler<Command<M>> timers;
         private final TimeRangeHolder<M,R> timeRange;
         private final FiredElementsConsumer<R> firedConsumer;
@@ -236,20 +242,21 @@ public interface TimeRange {
      * Sending a message to the actor - time period handler to add a set of elements
      * @param timeRangeActor actor - time period handler
      * @param elements list of added alarms
-     * @param completableFuture Completable Future for the response (takes a list of unaccepted elements)
+     * @param completableFuture Completable Future for the response (takes a list of unaccepted elements) if present
      * @param <M> the type of message being sent
      */
     static <M> void addElements(
-            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull CompletableFuture<Collection<M>> completableFuture
+            @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nullable CompletableFuture<Collection<M>> completableFuture
     ) {
         Objects.requireNonNull(timeRangeActor, "TimeRange::addElements - timeRangeActor is null");
-        Objects.requireNonNull(completableFuture, "TimeRange::addElements - completableFuture is null");
+        CompletableFuture<Collection<M>> future = Optional.ofNullable(completableFuture).orElseGet(CompletableFuture::new);
         of(Objects.requireNonNull(elements, "TimeRange::addElements - elements is null"))
                 .filter(Predicate.not(Collection::isEmpty))
-                .map(data -> new AddCommand<>(data, completableFuture))
+                .filter(ignore -> !future.isDone())
+                .map(data -> new AddCommand<>(data, future))
                 .ifPresentOrElse(
                         timeRangeActor::tell,
-                        () -> completableFuture.complete(Collections.emptySet())
+                        () -> future.complete(Collections.emptySet())
                 );
     }
 
@@ -258,15 +265,13 @@ public interface TimeRange {
      * @param timeRangeActor actor - time period handler
      * @param elements list of added alarms
      * @param <M> the type of message being sent
-     * @return Completable Future of the response (takes a list of unaccepted elements)
+     * @return Completion Stage of the response (takes a list of unaccepted elements)
      */
     @Nonnull
-    static <M> CompletableFuture<Collection<M>> addElements(
+    static <M> CompletionStage<Collection<M>> addElements(
             @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements
     ) {
-        CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
-        addElements(timeRangeActor, elements, completableFuture);
-        return completableFuture;
+        return Commands.completableFuture(completableFuture -> addElements(timeRangeActor, elements, completableFuture));
     }
 
     /**
@@ -371,7 +376,7 @@ public interface TimeRange {
         private static final String TIME_RANGE_NAME_PREFIX = "time-range-0x";
         private static final String FIRED_RANGE_ID = "fires";
 
-        private final CommandsDescription<M> commands = new CommandsDescription<>();
+        private final Commands<M> commands = new Commands<>();
         private final int rangeDepth;
         private final Integer nrOfInstances;
         private final TimeRangeWakedUp timeRangeWakedUp;
@@ -468,24 +473,19 @@ public interface TimeRange {
             return FIRED_RANGE_ID.equals(regionId) ? fireData(data)
                     // If the set has a child actor, we send elements to it and return a CompletableFuture for them
                     : ofNullable(timeRangeActors.get(regionId))
-                    .map(timeRangeActor -> TimeRange.addElements(timeRangeActor, data))
-                    .orElseGet(() -> {
-                        // If there is no actor, then we reject adding records
-                        CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
-                        completableFuture.complete(data);
-                        return completableFuture;
-                    });
+                    .map(timeRangeActor -> Commands.<Collection<M>>completableFuture(future -> TimeRange.addElements(timeRangeActor, data, future)))
+                    .orElseGet(() -> Commands.completableFuture(completableFuture -> completableFuture.complete(data)));
         }
 
         private CompletableFuture<Collection<M>> fireData(Collection<M> data) {
-            CompletableFuture<Collection<M>> completableFuture = new CompletableFuture<>();
-            try {
-                this.firedConsumer.accept(data.stream().map(this.timeRangeConfig.getExtractor()).collect(Collectors.toSet()));
-                completableFuture.complete(Collections.emptyList());
-            } catch (Exception ex) {
-                completableFuture.completeExceptionally(ex);
-            }
-            return completableFuture;
+            return Commands.completableFuture(completableFuture -> {
+                try {
+                    this.firedConsumer.accept(data.stream().map(this.timeRangeConfig.getExtractor()).collect(Collectors.toSet()));
+                    completableFuture.complete(Collections.emptyList());
+                } catch (Exception ex) {
+                    completableFuture.completeExceptionally(ex);
+                }
+            });
         }
 
         private long timeRangeKeyTick(@Nonnull String key) {

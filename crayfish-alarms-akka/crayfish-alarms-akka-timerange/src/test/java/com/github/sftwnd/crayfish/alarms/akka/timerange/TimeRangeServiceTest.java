@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -32,15 +33,17 @@ class TimeRangeServiceTest {
     private static ActorTestKit actorTestKit;
 
     @Test
-    void testRegionReject() {
+    void testRegionReject() throws InterruptedException {
         @SuppressWarnings("unchecked")
         ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
                 Behaviors.setup(context -> TimeRange.service(context, config, Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, Mockito.mock(TimeRange.TimeRangeWakedUp.class)))
                 , "testRegionReject");
         Instant instant = Instant.now().plus(1, ChronoUnit.HOURS);
-        CompletableFuture<Collection<Instant>> rejectFuture = TimeRange.addElements(service, List.of(instant));
-        assertDoesNotThrow(() -> rejectFuture.get(1, TimeUnit.SECONDS), "command has to pe processed");
-        assertEquals(List.of(instant), List.copyOf(rejectFuture.join()), "all commands has to be rejected");
+        CountDownLatch cdl = new CountDownLatch(1);
+        List<Instant> rejects = new ArrayList<>();
+        TimeRange.addElements(service, List.of(instant)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
+        assertTrue(cdl.await(1, TimeUnit.SECONDS), "command has to pe processed");
+        assertEquals(List.of(instant), rejects, "all commands has to be rejected");
     }
 
     @Test
@@ -64,15 +67,17 @@ class TimeRangeServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void testFiredCallback() {
+    void testFiredCallback() throws InterruptedException {
         FiredElementsConsumer<Instant> firedElementsConsumer = Mockito.mock(FiredElementsConsumer.class);
         Instant now = Instant.now();
         ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
                 Behaviors.setup(context -> TimeRange.service(context, config, firedElementsConsumer, Duration.ZERO, 1, 1, Mockito.mock(TimeRange.TimeRangeWakedUp.class)))
                 , "testFiredCallback");
-        CompletableFuture<Collection<Instant>> rejectFuture = TimeRange.addElements(service, List.of(now));
-        assertDoesNotThrow(() -> rejectFuture.get(1, TimeUnit.SECONDS), "command has to pe processed");
-        assertTrue(rejectFuture.join().isEmpty(), "no one command has to be rejected");
+        CountDownLatch cdl = new CountDownLatch(1);
+        List<Instant> rejects = new ArrayList<>();
+        TimeRange.addElements(service, List.of(now)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
+        assertTrue(cdl.await(1, TimeUnit.SECONDS), "command has to pe processed");
+        assertTrue(rejects.isEmpty(), "no one command has to be rejected");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<Instant>> firedCollection = ArgumentCaptor.forClass(Collection.class);
         verify(firedElementsConsumer).accept(firedCollection.capture());
