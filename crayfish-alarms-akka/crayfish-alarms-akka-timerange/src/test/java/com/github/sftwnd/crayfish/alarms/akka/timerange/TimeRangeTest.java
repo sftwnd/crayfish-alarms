@@ -5,10 +5,8 @@ import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.AbstractBehavior;
-import akka.actor.typed.javadsl.ActorContext;
+import akka.actor.typed.eventstream.EventStream;
 import akka.actor.typed.javadsl.Behaviors;
-import akka.actor.typed.javadsl.Receive;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.Command;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.FiredElementsConsumer;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
@@ -30,15 +28,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -51,7 +44,7 @@ class TimeRangeTest {
     TimeRangeConfig<ExpectedPackage<String, Instant>, String> timeRangeConfig;
 
     @Test
-    void createWithFiredConsumerAndAddElementsTest() throws ExecutionException, InterruptedException {
+    void createWithFiredConsumerAndAddElementsTest() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         var collectionConsumer = Mockito.spy(new FiredElementsConsumer<String>() {
             @Override public void accept(@Nonnull Collection<String> t) { countDownLatch.countDown(); }
@@ -60,10 +53,14 @@ class TimeRangeTest {
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"createWithFiredConsumerAndAddElementsTest");
         ExpectedPackage<String, Instant> elmA = ExpectedPackage.pack("A", now);
         ExpectedPackage<String, Instant> elmB = ExpectedPackage.pack("B", now.minus(1, ChronoUnit.MINUTES));
-        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, List.of(elmA, elmB));
-        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements call");
-        Collection<String> rejected = completableFuture.get().stream().map(ExpectedPackage::getElement).collect(Collectors.toList());
-        assertEquals(List.of(elmB.getElement()), rejected, "element 'B' has to be rejected");
+        CountDownLatch cdl = new CountDownLatch(1);
+        List<ExpectedPackage<String, Instant>> rejected = new ArrayList<>();
+        TimeRange.addElements(timeRangeActor, List.of(elmA, elmB)).thenAccept(elements -> {
+            rejected.addAll(elements);
+            cdl.countDown();
+        });
+        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to proceed AddElements call");
+        assertEquals(List.of(elmB), rejected, "element 'B' has to be rejected");
         assertTrue(countDownLatch.await(500, TimeUnit.MILLISECONDS), "collectionConsumer has to be called");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<String>> argumentCaptor = ArgumentCaptor.forClass(Collection.class);
@@ -89,7 +86,6 @@ class TimeRangeTest {
             //noinspection ResultOfMethodCallIgnored
             countDownLatch.await(750, TimeUnit.MILLISECONDS);
             assertEquals(List.of(elmD.getElement()), rejected, "element 'D' has to be rejected");
-
         } finally {
             testProbe.stop();
         }
@@ -117,48 +113,88 @@ class TimeRangeTest {
     }
 
     @Test
-    void addEmptyElements() throws ExecutionException, InterruptedException, TimeoutException {
+    void addEmptyElements() throws InterruptedException {
         Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.processor(now, timeRangeConfig, elements -> {}, null);
         ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"addEmptyElements");
-        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, Collections.emptyList());
-        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange hasn't got to throw on AddElements with empty list call");
-        assertEquals(Collections.emptySet(), completableFuture.get(500, TimeUnit.MILLISECONDS), "AddElements has return empty list for the empty request");
+        CountDownLatch cdl = new CountDownLatch(1);
+        List<ExpectedPackage<String, Instant>> rejected = new ArrayList<>();
+        TimeRange.addElements(timeRangeActor, Collections.emptyList()).thenAccept(elements -> { rejected.addAll(elements); cdl.countDown(); });
+        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to process AddElements");
+        assertEquals(Collections.emptyList(), rejected, "AddElements has return empty list for the empty request");
     }
 
     @Test
-    void testAddOnExpired() throws ExecutionException, InterruptedException, TimeoutException {
-        now = Instant.now().minus(1, ChronoUnit.MINUTES);
-        timeRangeConfig = TimeRangeConfig.packable(Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
-        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.processor(now, timeRangeConfig, elements -> {}, null);
-        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"testAddOnExpired");
-        CountDownLatch latch = new CountDownLatch(1);
-        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, timeRangeActor, latch, "testAddOnExpired-dead")));
-        latch.await();
-        ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", now.minus(30, ChronoUnit.SECONDS));
-        assertTrue(elmX.happened(now.minusMillis(1)), "elmX hasn't got to be happend near the end of timeRangeHolder");
-        assertFalse(elmX.happened(now.plus(timeRangeConfig.getDuration())), "elmX has to be happend on the end of timeRangeHolder");
-        assertTrue(now.plus(timeRangeConfig.getDuration()).plus(timeRangeConfig.getCompleteTimeout()).isBefore(Instant.now()), "TimeRange period has to be expired");
-        Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
-        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, elements);
-        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange has to process addElements without throws");
-        assertEquals(elements, completableFuture.get(500, TimeUnit.MILLISECONDS), "Elements has to be rejected by addElements to expired range");
-        testKit.stop(deadLetterSubscriber);
+    void testAddOnAfterLastBeforeExpired() throws InterruptedException {
+        now = Instant.now();
+        Instant start = now.truncatedTo(ChronoUnit.MINUTES).minus(1, ChronoUnit.MINUTES);
+        Duration duration = Duration.ofMinutes(1);
+        Instant end = start.plus(duration);
+        CountDownLatch fireCdl = new CountDownLatch(1);
+        List<String> fired = new ArrayList<>();
+        timeRangeConfig = TimeRangeConfig.packable(duration, Duration.ofSeconds(1), Duration.ofMillis(255), Duration.between(end,Instant.now()).plusMillis(50), null);
+        Behavior<Command<ExpectedPackage<String, Instant>>> behavior = TimeRange.processor(start, timeRangeConfig, elm -> { fired.addAll(elm); fireCdl.countDown(); }, null);
+        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(behavior,"testAddOnAfterLastBeforeExpired");
+        try {
+            ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("X", start.plusSeconds(1));
+            assertTrue(elmX.happened(end), "elmX has to be happend on the end of TimeRanger");
+            assertFalse(elmX.happened(start), "elmX hasn't got to be happend for the start of TimeRange");
+            assertTrue(now.isAfter(end), "TimeRange period has to be expired");
+            Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
+            CountDownLatch rejectCdl = new CountDownLatch(1);
+            List<ExpectedPackage<String, Instant>> rejected = new ArrayList<>();
+            TimeRange.addElements(timeRangeActor, elements).thenAccept(elm -> {
+                rejected.addAll(elm);
+                rejectCdl.countDown();
+            });
+            assertTrue(rejectCdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to process addElements");
+            assertTrue(rejected.isEmpty(), "Elements hasn't got to be rejected until TimeRange is not expires");
+            assertTrue(fireCdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to fire addElements");
+            assertEquals(List.of(elmX.getElement()), fired, "Elements has to be fired until TimeRange is not expires");
+        } finally {
+            testKit.stop(timeRangeActor);
+        }
     }
 
     @Test
-    void testDeadAllSubscriber() throws ExecutionException, InterruptedException, TimeoutException {
+    void testTimeRangeStop() throws InterruptedException {
+        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(TimeRange.processor(now, timeRangeConfig, elements -> {}, null),"testTimeRangeStop");
+        CountDownLatch cdl = new CountDownLatch(1);
+        TimeRange.stop(timeRangeActor).thenAccept(ignore -> cdl.countDown());
+        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to be stopped");
+    }
+
+    @Test
+    void testDeadAllSubscriber() throws InterruptedException {
         now = Instant.now().minus(1, ChronoUnit.MINUTES);
-        timeRangeConfig = TimeRangeConfig.packable(Duration.ofMinutes(-1), Duration.ofSeconds(5), Duration.ofMillis(255), Duration.ofSeconds(15), null);
-        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(TimeRange.processor(now, timeRangeConfig, elements -> {}, null),"testDeadSubscriber");
-        CountDownLatch latch = new CountDownLatch(1);
-        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> new DeadCommandTestActor<>(context, timeRangeActor, latch, "testDeadAllSubscriber-dead")));
-        latch.await();
-        ExpectedPackage<String, Instant> elmX = ExpectedPackage.pack("Z", now.minus(30, ChronoUnit.SECONDS));
-        Collection<ExpectedPackage<String, Instant>> elements = List.of(elmX);
-        CompletableFuture<Collection<ExpectedPackage<String, Instant>>> completableFuture = TimeRange.addElements(timeRangeActor, elements);
-        assertDoesNotThrow(() -> completableFuture.get(500, TimeUnit.MILLISECONDS), "TimeRange has to process addElements without throws");
-        assertEquals(elements, completableFuture.get(500, TimeUnit.MILLISECONDS), "Elements has to be rejected by addElements to expired range");
-        testKit.stop(deadLetterSubscriber);
+        List<String> fired = new ArrayList<>();
+        CountDownLatch fireLatch = new CountDownLatch(1);
+        // Start timeRange actor
+        ActorRef<Command<ExpectedPackage<String, Instant>>> timeRangeActor = testKit.spawn(
+                TimeRange.processor(now, timeRangeConfig, elements -> { fired.addAll(elements); fireLatch.countDown();}, null),
+                "testDeadAllSubscriber");
+        // Start Shutdown actor
+        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> TimeRange.timeRangeDeadLetterSubscriber(timeRangeActor)));
+        try {
+            ExpectedPackage<String, Instant> elmXZ = ExpectedPackage.pack("XZ", now.plus(10, ChronoUnit.SECONDS));
+            // Subscribe to dead letters
+            testKit.system().eventStream().tell(new EventStream.Subscribe<>(DeadLetter.class, deadLetterSubscriber));
+            // Add elements to TimeRange
+            TimeRange.addElements(timeRangeActor, List.of(elmXZ));
+            assertTrue(fireLatch.await(500, TimeUnit.MILLISECONDS), "TimeRange.addElements command has to be proceed");
+            assertEquals(List.of(elmXZ.getElement()), fired, "All elements has to be fired by AddElements");
+            // Stop timeRangeActor and wait for complete
+            CountDownLatch stopLatch = new CountDownLatch(1);
+            TimeRange.stop(timeRangeActor).thenAccept(ignore -> stopLatch.countDown());
+            stopLatch.await();
+            // AddElements
+            List<ExpectedPackage<String, Instant>> rejects = new ArrayList<>();
+            CountDownLatch addLatch = new CountDownLatch(1);
+            TimeRange.addElements(timeRangeActor, List.of(elmXZ)).thenAccept(rejected -> { rejects.addAll(rejected); addLatch.countDown(); });
+            assertTrue(addLatch.await(500, TimeUnit.MILLISECONDS), "TimeRange.addElements command has to be proceed");
+            assertEquals(List.of(elmXZ), rejects, "All elements has to be rejected by AddElements");
+        } finally {
+            testKit.stop(deadLetterSubscriber);
+        }
     }
 
     @BeforeEach
@@ -175,25 +211,13 @@ class TimeRangeTest {
 
     @BeforeAll
     static void startUp() {
-        testKit = ActorTestKit.create(ConfigFactory.load("akka-test.conf"));
+        testKit = ActorTestKit.create("timeRangeTest", ConfigFactory.load("akka-test.conf"));
     }
 
     @AfterAll
     static void tearDown() {
         testKit.shutdownTestKit();
         testKit = null;
-    }
-
-    static class DeadCommandTestActor<X,M> extends AbstractBehavior<X> {
-        public DeadCommandTestActor(ActorContext<X> context, ActorRef<Command<M>> spyActor, CountDownLatch latch, String deadActorName) {
-            super(context);
-            TimeRange.subscribeToDeadCommands(context, spyActor, deadActorName);
-            Optional.ofNullable(latch).ifPresent(CountDownLatch::countDown);
-        }
-        @Override
-        public Receive<X> createReceive() {
-            return newReceiveBuilder().build();
-        }
     }
 
 }
