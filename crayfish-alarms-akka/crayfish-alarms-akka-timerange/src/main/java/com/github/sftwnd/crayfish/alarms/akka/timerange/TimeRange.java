@@ -330,20 +330,20 @@ public interface TimeRange {
     /**
      * This method creates a behavior for actor that handles lost AddCommand messages and marks them as rejected on all elements.
      * @param rangeActor filter by actor with childs whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
-     * @return CompletionStage<Void> for start of subscription control
+     * @return Behavior for process of dead letter control
      */
     static Behavior<DeadLetter> timeRangeDeadLetterSubscriber(@Nonnull final ActorRef<? extends Command<?>> rangeActor) {
         Objects.requireNonNull(rangeActor, "TimeRange::timeRangeDeadLetterSubscriber - rangeActor is null");
-        final Function<ActorPath, Boolean> checkPath = new Function<>() {
+        final Predicate<ActorPath> checkPath = new Predicate<>() {
             @Override
-            public Boolean apply(ActorPath actorPath) {
-                return actorPath.equals(rangeActor.path()) || (!actorPath.equals(actorPath.root()) && apply(actorPath.parent()));
+            public boolean test(ActorPath actorPath) {
+                return actorPath.equals(rangeActor.path()) || (!actorPath.equals(actorPath.root()) && test(actorPath.parent()));
             }
         };
         return Behaviors.receive(DeadLetter.class)
                 .onMessage(DeadLetter.class, deadLetter -> {
                     Optional.of(deadLetter)
-                            .filter(letter -> checkPath.apply(letter.recipient().path()))
+                            .filter(letter -> checkPath.test(letter.recipient().path()))
                             .map(DeadLetter::message)
                             .filter(Unhandable.class::isInstance)
                             .map(Unhandable.class::cast)
