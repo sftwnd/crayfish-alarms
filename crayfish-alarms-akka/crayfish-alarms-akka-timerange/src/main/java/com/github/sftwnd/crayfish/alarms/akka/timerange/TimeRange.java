@@ -12,6 +12,7 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.Signal;
 import akka.actor.typed.Terminated;
+import akka.actor.typed.eventstream.EventStream;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
@@ -417,7 +418,11 @@ public interface TimeRange {
         }
 
         private void startDeadLetterWatching() {
-            getContext().spawn(TimeRange.timeRangeDeadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
+            ActorRef<DeadLetter> deadLetterActor = getContext().spawn(TimeRange.timeRangeDeadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
+            getContext()
+                    .getSystem()
+                    .eventStream()
+                    .tell(new EventStream.Subscribe<>(DeadLetter.class, deadLetterActor));
         }
 
         @Override

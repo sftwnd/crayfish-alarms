@@ -17,12 +17,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -95,6 +93,20 @@ class TimeRangeServiceTest {
                         Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, timeRangeWakedUp))
                 , "testStartRegion");
         assertTrue(countDownLatch.await(1, TimeUnit.SECONDS), "at least three timeRangeWakedUp calls has to be produced (with at least one region termination)");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testServiceStop() throws InterruptedException {
+        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
+                Behaviors.setup( context -> TimeRange.service(
+                        context,
+                        TimeRangeConfig.create(Duration.ofMillis(125), Duration.ofMillis(50), Duration.ofMillis(1), Duration.ofMillis(25), i->i, null, i->i),
+                        Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, (start, end) -> {}))
+                , "testServiceStop");
+        CountDownLatch cdl = new CountDownLatch(1);
+        TimeRange.stop(service).thenAccept(ignore -> cdl.countDown());
+        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to be stopped");
     }
 
     @BeforeEach
