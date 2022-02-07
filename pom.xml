@@ -47,9 +47,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <crayfish-common-expectation.version>1.0.0</crayfish-common-expectation.version>
+        <crayfish-common-expectation.version>1.0.1</crayfish-common-expectation.version>
         <scala.binary.version>2.13</scala.binary.version>
-        <scala.version>${scala.binary.version}.7</scala.version>
         <akka-actor.version>2.6.18</akka-actor.version>
     </properties>
 
