@@ -90,6 +90,7 @@ public interface TimeRange {
         }
     }
 
+    @FunctionalInterface
     interface FiredElementsConsumer<M> extends Consumer<Collection<M>> {
         @Override void accept(@Nonnull Collection<M> t);
     }
@@ -182,7 +183,10 @@ public interface TimeRange {
     }
 
     class Timeout<X> implements Command<X> {}
+
+    @FunctionalInterface
     interface Unhandable { void unhandled(); }
+
     @AllArgsConstructor
     abstract class AbstractCommand<X,D> implements Command<X>, Unhandable {
         private final CompletableFuture<D> completableFuture;
@@ -191,10 +195,12 @@ public interface TimeRange {
         public void completeExceptionally(Throwable throwable) { ofNullable(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.completeExceptionally(throwable)); }
         @Override public void unhandled() { complete(getData()); }
     }
+
     class GracefulStop<X> extends AbstractCommand<X,Void> {
         public GracefulStop(CompletableFuture<Void> completableFuture) { super(completableFuture); }
         public void complete() { complete(null); }
     }
+
     class AddCommand<X> extends AbstractCommand<X,Collection<X>> {
         private final Collection<X> data;
         public AddCommand(@Nonnull Collection<X> data, @Nonnull CompletableFuture<Collection<X>> completableFuture) {
@@ -352,6 +358,7 @@ public interface TimeRange {
                 }).build();
     }
 
+    @FunctionalInterface
     interface TimeRangeWakedUp extends BiConsumer<Instant, Instant> {
         @Override void accept(@Nonnull Instant startInstant, @Nonnull Instant endInstant);
     }

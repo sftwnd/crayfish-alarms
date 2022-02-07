@@ -45,6 +45,7 @@ public class TimeRangeHolder<M,R> {
      * @param <M> source element type
      * @param <R> target element type
      */
+    @FunctionalInterface
     public interface ResultTransformer<M,R> extends Function<M,R> {
         /**
          * Transform element from one type to other
@@ -52,7 +53,7 @@ public class TimeRangeHolder<M,R> {
          * @param element the source element
          * @return target element
          */
-        R apply(M element);
+        @Nonnull R apply(@Nonnull M element);
         static <T> ResultTransformer<T, T> identity() {
             return t -> t;
         }
