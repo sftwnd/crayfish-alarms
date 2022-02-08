@@ -43,6 +43,7 @@
     <modules>
         <module>crayfish-alarms-timerange</module>
         <module>crayfish-alarms-akka</module>
+        <module>crayfish-alarms-spring-timerange</module>
     </modules>
 
     <properties>
@@ -50,6 +51,7 @@
         <crayfish-common-expectation.version>1.0.1</crayfish-common-expectation.version>
         <scala.binary.version>2.13</scala.binary.version>
         <akka-actor.version>2.6.18</akka-actor.version>
+        <spring.version>5.3.15</spring.version>
     </properties>
 
     <distributionManagement>
@@ -179,6 +181,11 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.sftwnd.crayfish.alarms.akka</groupId>
+                <artifactId>crayfish-alarms-akka-timerange</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-actor-typed_${scala.binary.version}</artifactId>
                 <version>${akka-actor.version}</version>
@@ -187,6 +194,11 @@
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-slf4j_${scala.binary.version}</artifactId>
                 <version>${akka-actor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-context</artifactId>
+                <version>${spring.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
