@@ -73,6 +73,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
     public @SuppressWarnings("unchecked") <M,R> ResultTransformer<M,R> getExtractor() { return (ResultTransformer<M,R>) extractor; }
     public @SuppressWarnings("unchecked") <R> FiredElementsConsumer<R> getFiredConsumer() { return (FiredElementsConsumer<R>) firedConsumer; }
     public void setComparator(@Nonnull String comparator) {
+        if (clean(comparator, () -> this.comparator = null)) return;
         @SuppressWarnings("rawtypes")
         Class<Comparator> comparatorClass = Comparator.class;
         this.comparator = Optional.of(comparatorClass)
@@ -80,6 +81,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                 .orElseGet(() -> beanFactory.getBean(comparator, comparatorClass));
     }
     public void setExtractor(@Nonnull String extractor) {
+        if (clean(extractor, () -> this.extractor = null)) return;
         @SuppressWarnings("rawtypes")
         Class<ResultTransformer> extractorClass = ResultTransformer.class;
         this.extractor = Optional.of(extractorClass)
@@ -87,6 +89,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                 .orElseGet(() -> beanFactory.getBean(extractor, extractorClass));
     }
     public void setFiredConsumer(@Nonnull String firedConsumer) {
+        if (clean(firedConsumer, () -> this.firedConsumer = null)) return;
         @SuppressWarnings("rawtypes")
         Class<FiredElementsConsumer> firedConsumerClass = FiredElementsConsumer.class;
         this.firedConsumer = Optional.of(firedConsumerClass)
@@ -94,6 +97,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                 .orElseGet(() -> beanFactory.getBean(firedConsumer, firedConsumerClass));
     }
     public void setExpectation(@Nonnull String expectation) {
+        if (clean(expectation, () -> this.expectation = null)) return;
         @SuppressWarnings("rawtypes")
         Class<Expectation> expectationClass = Expectation.class;
         this.expectation = Optional.of(expectationClass)
@@ -101,11 +105,13 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                 .orElseGet(() -> beanFactory.getBean(expectation, expectationClass));
     }
     public void setRegionListener(@Nonnull String regionListener) {
+        if (clean(regionListener, () -> this.regionListener = null)) return;
         this.regionListener = Optional.of(TimeRangeWakedUp.class)
                 .map(clazz -> wakeUp(regionListener, clazz))
                 .orElseGet(() -> beanFactory.getBean(regionListener, TimeRangeWakedUp.class));
     }
     public void setAkkaConfig(@Nonnull String akkaConfig) {
+        if (clean(akkaConfig, () -> this.akkaConfig = null)) return;
         Matcher matcher = configPattern.matcher(akkaConfig);
         if (matcher.matches()) {
             this.akkaConfig = ConfigFactory.load(akkaConfig);
@@ -114,6 +120,9 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                     .map(clazz -> wakeUp(akkaConfig, clazz))
                     .orElseGet(() -> beanFactory.getBean(akkaConfig, Config.class));
         }
+    }
+    private boolean clean(@Nullable String value, @Nonnull Runnable cleaner) {
+        return Optional.ofNullable(value).filter(String::isBlank).map(ignored -> { cleaner.run(); return true; }).orElse(false);
     }
     private final AutowireCapableBeanFactory beanFactory;
     private static final Pattern classPattern = Pattern.compile("(.+^\\.)\\.class");
@@ -133,6 +142,5 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
         }
         return null;
     }
-
 
 }
