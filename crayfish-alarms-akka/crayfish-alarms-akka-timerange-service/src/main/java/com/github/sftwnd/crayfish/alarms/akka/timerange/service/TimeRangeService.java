@@ -27,7 +27,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -35,6 +34,11 @@ import java.util.function.Predicate;
 import static java.util.Optional.ofNullable;
 
 public interface TimeRangeService<M> extends AutoCloseable {
+
+    /*
+        Used Sonar warnings:
+            java:S107 Methods should not have too many parameters
+     */
 
     /**
      * Send new elements to TimeService
@@ -108,7 +112,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
                 return TimeRangeConfig.create(
                         getDuration(), getInterval(), getDelay(), getCompleteTimeout(), getExpectation(), getComparator(), getExtractor()
                 );
-            } catch (Throwable throwable) {
+            } catch (Exception ignored) {
                 return null;
             }
         }
@@ -209,6 +213,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
             private final CompletableFuture<Void> stopFuture; // Service is stopped
             private final CompletableFuture<Void> completeFuture; // Service is completed
 
+            @SuppressWarnings("java:S107")
             private TimeRangeServiceBehavior(@Nonnull ActorContext<TimeRangeServiceCommand> actorContext,
                                              @Nonnull TimeRangeConfig<M, R> timeRangeConfig,
                                              @Nonnull TimeRange.FiredElementsConsumer<R> firedConsumer,
@@ -263,10 +268,8 @@ public interface TimeRangeService<M> extends AutoCloseable {
             private Behavior<TimeRangeServiceCommand> onTerminate(Terminated terminated) {
                 if (this.timeRangeServiceActor.equals(terminated.ref())) { // If timeRangeServiceActor has been broken
                     return onStopServiceActor();
-                } else if (DEAD_LETTER_ACTOR_NAME.equals(terminated.ref().path().name())) { // If deadLetterActor has been stopped
-                    if (!this.active.get()) {
-                        getContext().getSelf().tell(TimeRangeServiceCommand.GRACEFUL_STOP);
-                    }
+                } else if (DEAD_LETTER_ACTOR_NAME.equals(terminated.ref().path().name()) && !this.active.get()) {
+                    getContext().getSelf().tell(TimeRangeServiceCommand.GRACEFUL_STOP);
                 }
                 return Behaviors.same();
             }
@@ -280,7 +283,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
 
             private Behavior<TimeRangeServiceCommand> onStopServiceActor() {
                 if (this.active.get()) {
-                    Optional.of(stopFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(stopFuture -> stopFuture.complete(null));
+                    Optional.of(stopFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(null));
                     // create dead-letter actor for timeRangeServiceActor
                     ActorRef<DeadLetter> deadLetterActor = getContext().spawn(
                             TimeRange.deadLetterSubscriber(this.timeRangeServiceActor, this.deadLetterTimeout, this.deadLetterCompleteTimeout),

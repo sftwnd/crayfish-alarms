@@ -378,13 +378,13 @@ public interface TimeRange {
         };
         return Behaviors.setup(context -> {
             final ActorSystem<?> actorSystem = context.getSystem();
-            final DeadLetter TIMEOUT = new DeadLetter("TIMEOUT", Adapter.toClassic(actorSystem.deadLetters()), Adapter.toClassic(actorSystem.deadLetters()));
+            final DeadLetter timeoutMessage = new DeadLetter("TIMEOUT", Adapter.toClassic(actorSystem.deadLetters()), Adapter.toClassic(actorSystem.deadLetters()));
             return Behaviors.withTimers( timers -> {
                 ofNullable(initialTimeout)
                         .filter(Predicate.not(Duration::isNegative))
-                        .ifPresent(timeout -> timers.startSingleTimer(TIMEOUT, timeout));
+                        .ifPresent(timeout -> timers.startSingleTimer(timeoutMessage, timeout));
                 return Behaviors.receive(DeadLetter.class)
-                        .onMessageEquals(TIMEOUT, Behaviors::stopped)
+                        .onMessageEquals(timeoutMessage, Behaviors::stopped)
                         .onMessage(DeadLetter.class, deadLetter -> {
                             Optional.of(deadLetter)
                                     .filter(letter -> checkPath.test(letter.recipient().path()))
@@ -394,7 +394,7 @@ public interface TimeRange {
                                     .ifPresent(Unhandable::unhandled);
                             ofNullable(completeTimeout)
                                     .filter(Predicate.not(Duration::isNegative))
-                                    .ifPresent(timeout -> timers.startSingleTimer(TIMEOUT, timeout));
+                                    .ifPresent(timeout -> timers.startSingleTimer(timeoutMessage, timeout));
                             return Behaviors.same();
                         }).build();
             });
