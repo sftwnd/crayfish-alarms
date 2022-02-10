@@ -163,10 +163,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
             // Stop the service on AkkaSystem termination
             timeRangeService.getWhenTerminated().thenAccept(done -> service.stop());
             // Register Java Shutdown Hook
-            Thread timeRangeServiceShutdownHook = new Thread(() -> {
-                System.out.println("Что-то пошло не так...");
-                service.complete().toCompletableFuture().join();
-            });
+            Thread timeRangeServiceShutdownHook = new Thread(() -> service.complete().toCompletableFuture().join());
             Runtime.getRuntime().addShutdownHook(timeRangeServiceShutdownHook);
             // Unregister hook on stop
             stopFuture.thenApply(ignored -> Runtime.getRuntime().removeShutdownHook(timeRangeServiceShutdownHook));
