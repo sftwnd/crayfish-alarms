@@ -72,14 +72,9 @@ public interface TimeRangeService<M> extends AutoCloseable {
 
     /**
      * Complete TimeRange Service and DeadLetter processing and wait for completion
-     * @throws ExecutionException in case of Execution Exception
      */
-    @Override default void close() throws ExecutionException {
-        try {
-            complete().toCompletableFuture().get();
-        } catch (InterruptedException interruptedException) {
-            throw new ExecutionException("TimeRangeService.close() has been interrupted.", interruptedException);
-        }
+    @Override default void close() {
+        complete().toCompletableFuture().join();
     }
 
     static <M,R> ServiceFactory<M,R> serviceFactory(@Nonnull Configuration configuration) {
