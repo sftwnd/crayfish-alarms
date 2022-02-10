@@ -11,12 +11,12 @@
 
     <artifactId>crayfish-alarms-spring-timerange-service</artifactId>
 
-    <name>CrayFish :: ALARMS :: SPRING</name>
+    <name>CrayFish :: ALARMS :: SPRING BOOT :: Starter</name>
 
     <dependencies>
         <dependency>
             <groupId>com.github.sftwnd.crayfish.alarms.akka</groupId>
-            <artifactId>crayfish-alarms-akka-timerange</artifactId>
+            <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
         </dependency>
     </dependencies>
 

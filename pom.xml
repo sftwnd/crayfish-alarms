@@ -43,7 +43,7 @@
     <modules>
         <module>crayfish-alarms-timerange</module>
         <module>crayfish-alarms-akka</module>
-        <module>crayfish-alarms-spring-timerange</module>
+        <module>crayfish-alarms-spring-boot</module>
     </modules>
 
     <properties>
@@ -183,6 +183,11 @@
             <dependency>
                 <groupId>com.github.sftwnd.crayfish.alarms.akka</groupId>
                 <artifactId>crayfish-alarms-akka-timerange</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.sftwnd.crayfish.alarms.akka</groupId>
+                <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

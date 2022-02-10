@@ -16,16 +16,24 @@
     <groupId>com.github.sftwnd.crayfish.alarms.spring</groupId>
     <artifactId>crayfish-alarms-spring-timerange</artifactId>
 
-    <name>CrayFish :: ALARMS :: SPRING</name>
+    <name>CrayFish :: ALARMS :: SPRING BOOT</name>
 
     <dependencies>
         <dependency>
-            <groupId>com.github.sftwnd.crayfish.alarms.akka</groupId>
-            <artifactId>crayfish-alarms-akka-timerange</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+            <version>2.6.3</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <version>2.6.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+            <version>2.6.3</version>
         </dependency>
     </dependencies>
 

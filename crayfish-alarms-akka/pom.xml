@@ -17,6 +17,7 @@
 
     <modules>
         <module>crayfish-alarms-akka-timerange</module>
+        <module>crayfish-alarms-akka-timerange-service</module>
     </modules>
 
     <dependencies>

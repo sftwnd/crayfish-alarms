@@ -1,4 +1,4 @@
-package com.github.sftwnd.crayfish.alarms.spring.timerange.service;
+package com.github.sftwnd.crayfish.alarms.akka.timerange.service;
 
 import akka.actor.DeadLetter;
 import akka.actor.typed.ActorRef;
@@ -16,10 +16,6 @@ import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.typesafe.config.Config;
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -86,140 +82,111 @@ public interface TimeRangeService<M> extends AutoCloseable {
         }
     }
 
-    class ConfigDescription<M,R> {
+    static <M,R> ServiceFactory<M,R> serviceFactory(@Nonnull Configuration configuration) {
+        return new ServiceFactory<>(configuration);
+    }
 
-        public static final Duration DEFAULT_DURATION = Duration.ofMinutes(1);
-        public static final Duration DEFAULT_INTERVAL = Duration.ofSeconds(15);
-        public static final Duration DEFAULT_DELAY = Duration.ofMillis(125);
-        public static final Duration DEFAULT_COMPLETE_TIMEOUT = Duration.ofSeconds(12);
+    interface Configuration {
 
-        private final ApplicationContext applicationContext;
+        @Nonnull String getServiceName();
+        @Nonnull Duration getDuration();
+        @Nonnull Duration getInterval();
+        @Nonnull Duration getDelay();
+        @Nonnull Duration getCompleteTimeout();
 
-        @Getter @Setter Duration duration;
-        @Getter @Setter Duration interval;
-        @Getter @Setter Duration delay;
-        @Getter @Setter Duration completeTimeout;
+        Duration getWithCheckDuration();
+        Integer getTimeRangeDepth();
+        Integer getNrOfInstances();
+        Duration getDeadLetterTimeout();
+        Duration getDeadLetterCompleteTimeout();
 
-        @Getter Expectation<M,? extends TemporalAccessor> expectation;
-        @Getter Comparator<M> comparator;
-        @Getter TimeRangeHolder.ResultTransformer<M,R> extractor;
+        TimeRange.TimeRangeWakedUp getRegionListener();
+        Config getAkkaConfig();
 
-        public ConfigDescription(@Autowired ApplicationContext applicationContext) { this.applicationContext = applicationContext; }
+        <M,T extends TemporalAccessor> Expectation<M,T> getExpectation();
+        <M> Comparator<M> getComparator();
+        <M,R> TimeRangeHolder.ResultTransformer<M,R> getExtractor();
+        <R> TimeRange.FiredElementsConsumer<R> getFiredConsumer();
 
-        public void setExpectation(@Nonnull Expectation<M,? extends TemporalAccessor> expectation) {
-            this.expectation = Objects.requireNonNull(expectation, "ConfigDescription::setExpectation - expectation is null");
+        default @Nullable <M,R> TimeRangeConfig<M,R> timeRangeConfig() {
+            try {
+                return TimeRangeConfig.create(
+                        getDuration(), getInterval(), getDelay(), getCompleteTimeout(), getExpectation(), getComparator(), getExtractor()
+                );
+            } catch (Throwable throwable) {
+                return null;
+            }
         }
-        @SuppressWarnings("unchecked")
-        public void setExpectation(@Nonnull String expectation) {
-            setExpectation(applicationContext.getBean(expectation, Expectation.class));
-        }
-        public void setComparator(@Nonnull Comparator<M> comparator) {
-            this.comparator = Objects.requireNonNull(comparator, "ConfigDescription::setComparator - comparator is null");
-        }
-        @SuppressWarnings("unchecked")
-        public void setComparator(@Nonnull String extractor) {
-            setComparator(applicationContext.getBean(extractor, Comparator.class));
-        }
-        public void setExtractor(@Nonnull TimeRangeHolder.ResultTransformer<M,R> extractor) {
-            this.extractor = Objects.requireNonNull(extractor, "ConfigDescription::setComparator - extractor is null");
-        }
-        @SuppressWarnings("unchecked")
-        public void setExtractor(@Nonnull String extractor) {
-            setExtractor(applicationContext.getBean(extractor, TimeRangeHolder.ResultTransformer.class));
-        }
-
-        private TimeRangeConfig<M,R> timeRangeConfig() {
-            Duration duration = ofNullable(this.getDuration()).orElse(DEFAULT_DURATION);
-            Duration interval = ofNullable(this.getInterval()).orElse(DEFAULT_INTERVAL);
-            Duration delay = ofNullable(this.getDelay()).orElse(DEFAULT_DELAY);
-            Duration completeTimeout = ofNullable(this.getCompleteTimeout()).orElse(DEFAULT_COMPLETE_TIMEOUT);
-            Expectation<M,? extends TemporalAccessor> expectation = Objects.requireNonNull(this.getExpectation(), "ConfigDescription::timeRangeConfig - expectation is null");
-            Comparator<M> comparator = getComparator();
-            TimeRangeHolder.ResultTransformer<M,R> extractor = Objects.requireNonNull(this.getExtractor(),  "ConfigDescription::timeRangeConfig - extractor is null");
-            return TimeRangeConfig.create(duration, interval, delay, completeTimeout, expectation, comparator, extractor);
+        default boolean isCompleted() {
+            return timeRangeConfig() != null
+                    && getFiredConsumer() != null
+                    && getRegionListener() != null;
         }
 
     }
 
-    class ServiceDescription<M,R> {
-
-        public static final String TIME_RANGE_SERVICE_ACTOR_NAME = "time-range-service";
-        public static final String DEAD_LETTER_ACTOR_NAME = "dead-letters";
+    class ServiceFactory<M,R> {
 
         public static final int DEFAULT_TIME_RANGE_DEPTH = 2;
         public static final int DEFAULT_NR_OF_INSTANCES = 1;
+        public static final String TIME_RANGE_SERVICE_ACTOR_NAME = "time-range-service";
+        public static final String DEAD_LETTER_ACTOR_NAME = "dead-letters";
         public static final Duration DEFAULT_WITH_CHECK_DURATION = Duration.ZERO;
         public static final Duration DEFAULT_DEAD_LETTER_TIMEOUT = Duration.ofSeconds(3);
         public static final Duration DEFAULT_DEAD_LETTER_COMPLETE_TIMEOUT = Duration.ofMillis(250);
 
-        private final ApplicationContext applicationContext;
+        private final TimeRangeConfig<M,R> timeRangeConfig;
+        private final Configuration serviceConfig;
 
-        @Getter @Setter ConfigDescription<M,R> configDescription;
-        @Getter @Setter Integer timeRangeDepth;
-        @Getter @Setter Integer nrOfInstances;
-        @Getter @Setter Duration withCheckDuration;
-        @Getter @Setter Duration deadLetterTimeout;
-        @Getter @Setter Duration deadLetterCompleteTimeout;
-
-        @Getter TimeRange.TimeRangeWakedUp regionListener;
-        @Getter TimeRange.FiredElementsConsumer<R> alarmsConsumer;
-
-        @Getter @Setter
-        Config akkaConfig;
-
-        public ServiceDescription(@Autowired ApplicationContext applicationContext) {
-            this.applicationContext = applicationContext;
-        }
-
-        public void setRegionListener(@Nonnull TimeRange.TimeRangeWakedUp regionListener) {
-            this.regionListener = Objects.requireNonNull(regionListener, "ConfigDescription::setRegionListener - regionListener is null");
-        }
-
-        public void setRegionListener(@Nonnull String regionListener) {
-            setRegionListener(applicationContext.getBean(regionListener, TimeRange.TimeRangeWakedUp.class));
-        }
-        public void setAlarmsConsumer(@Nonnull TimeRange.FiredElementsConsumer<R> alarmsConsumer) {
-            this.alarmsConsumer = Objects.requireNonNull(alarmsConsumer, "ConfigDescription::setAlarmsConsumer - alarmsConsumer is null");
-        }
-        @SuppressWarnings("unchecked")
-        public void setAlarmsConsumer(@Nonnull String alarmsConsumer) {
-            setAlarmsConsumer(applicationContext.getBean(alarmsConsumer, TimeRange.FiredElementsConsumer.class));
+        private ServiceFactory(@Nonnull Configuration serviceConfig) {
+            this.serviceConfig = Objects.requireNonNull(serviceConfig, "TimeRangeService.ServiceFactory::new - serviceConfig is null");
+            this.timeRangeConfig = Objects.requireNonNull(serviceConfig.timeRangeConfig(), "TimeRangeService.ServiceFactory::new - unable to construct timeRangeConfig");
         }
 
         @Nonnull
-        public TimeRangeService<M> timeRangeService(@Nonnull final String serviceName) {
+        public TimeRangeService<M> timeRangeService() {
+            final String serviceName = serviceConfig.getServiceName();
             final Function<Behavior<TimeRangeServiceCommand>, ActorSystem<TimeRangeServiceCommand>> timeRangeServiceSpawn =
-                    getAkkaConfig() == null ? behavior -> ActorSystem.create(behavior, serviceName) : behavior -> ActorSystem.create(behavior, serviceName, getAkkaConfig());
+                    serviceConfig.getAkkaConfig() == null ? behavior -> ActorSystem.create(behavior, serviceName) : behavior -> ActorSystem.create(behavior, serviceName, serviceConfig.getAkkaConfig());
             CompletableFuture<Void> stopFuture = new CompletableFuture<>();
             CompletableFuture<Void> completeFuture = new CompletableFuture<>();
             CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture = new CompletableFuture<>();
-            ActorSystem<TimeRangeServiceCommand> timeRangeService = timeRangeServiceSpawn.apply(timeRangeService(serviceName, addElementsFunctionFuture, stopFuture, completeFuture));
-            return new TimeRangeService<>() {
+            ActorSystem<TimeRangeServiceCommand> timeRangeService = timeRangeServiceSpawn.apply(timeRangeService(addElementsFunctionFuture, stopFuture, completeFuture));
+            // Create TimeRangeService
+            TimeRangeService<M> service = new TimeRangeService<>() {
                 private final Function<Collection<M>,CompletionStage<Collection<M>>> addElementsFunction = addElementsFunctionFuture.join();
                 @Override @Nonnull public CompletionStage<Collection<M>> addElements(@Nonnull Collection<M> elements) { return addElementsFunction.apply(elements); }
                 @Override @Nonnull public CompletionStage<Void> stopStage() { return stopFuture; }
                 @Override @Nonnull public CompletionStage<Void> completionStage() { return completeFuture; }
                 @Override @Nonnull public CompletionStage<Void> stop() { timeRangeService.tell(TimeRangeServiceCommand.STOP_SERVICE); return stopStage(); }
             };
+            // Stop the service on AkkaSystem termination
+            timeRangeService.getWhenTerminated().thenAccept(done -> service.stop());
+            // Register Java Shutdown Hook
+            Thread timeRangeServiceShutdownHook = new Thread(() -> {
+                System.out.println("Что-то пошло не так...");
+                service.complete().toCompletableFuture().join();
+            });
+            Runtime.getRuntime().addShutdownHook(timeRangeServiceShutdownHook);
+            // Unregister hook on stop
+            stopFuture.thenApply(ignored -> Runtime.getRuntime().removeShutdownHook(timeRangeServiceShutdownHook));
+            return service;
         }
 
         @Nonnull
         private Behavior<TimeRangeServiceCommand> timeRangeService(
-                @Nonnull final String serviceName,
                 @Nonnull final CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture,
                 @Nullable final CompletableFuture<Void> stopFuture,
                 @Nullable final CompletableFuture<Void> completableFuture
         ) {
-            Objects.requireNonNull(serviceName, "ServiceDescription::timeRangeService - serviceName is null");
             Objects.requireNonNull(addElementsFunctionFuture, "ServiceDescription::addElementsFunctionConsumer - serviceName is null");
-            final int timeRangeDepth = ofNullable(this.getTimeRangeDepth()).orElse(DEFAULT_TIME_RANGE_DEPTH);
-            final int nrOfInstances = ofNullable(this.getNrOfInstances()).orElse(DEFAULT_NR_OF_INSTANCES);
-            final Duration withCheckDuration = ofNullable(this.getWithCheckDuration()).orElse(DEFAULT_WITH_CHECK_DURATION);
-            final TimeRange.TimeRangeWakedUp regionListener = Objects.requireNonNull(this.getRegionListener(), "ServiceDescription::timeRangeService - regionListener is null");
-            final TimeRange.FiredElementsConsumer<R> alarmsConsumer = Objects.requireNonNull(this.getAlarmsConsumer(), "ServiceDescription::timeRangeService - alarmsConsumer is null");
-            final TimeRangeConfig<M,R> timeRangeConfig = Objects.requireNonNull(this.configDescription, "ServiceDescription::timeRangeService - timeRangeConfig is null").timeRangeConfig();
-            final Duration deadLetterTimeout = ofNullable(this.getDeadLetterTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_TIMEOUT);
-            final Duration deadLetterCompleteTimeout = ofNullable(this.getDeadLetterCompleteTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_COMPLETE_TIMEOUT);
+            final int timeRangeDepth = ofNullable(serviceConfig.getTimeRangeDepth()).orElse(DEFAULT_TIME_RANGE_DEPTH);
+            final int nrOfInstances = ofNullable(serviceConfig.getNrOfInstances()).orElse(DEFAULT_NR_OF_INSTANCES);
+            final Duration withCheckDuration = ofNullable(serviceConfig.getWithCheckDuration()).orElse(DEFAULT_WITH_CHECK_DURATION);
+            final TimeRange.TimeRangeWakedUp regionListener = Objects.requireNonNull(serviceConfig.getRegionListener(), "ServiceDescription::timeRangeService - regionListener is null");
+            final TimeRange.FiredElementsConsumer<R> alarmsConsumer = Objects.requireNonNull(serviceConfig.getFiredConsumer(), "ServiceDescription::timeRangeService - alarmsConsumer is null");
+            final Duration deadLetterTimeout = ofNullable(serviceConfig.getDeadLetterTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_TIMEOUT);
+            final Duration deadLetterCompleteTimeout = ofNullable(serviceConfig.getDeadLetterCompleteTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_COMPLETE_TIMEOUT);
             return Behaviors.setup(context ->
                     new TimeRangeServiceBehavior<>(
                             context,
