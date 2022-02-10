@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.BiConsumer;
@@ -379,8 +378,7 @@ public interface TimeRange {
         };
         return Behaviors.setup(context -> {
             final ActorSystem<?> actorSystem = context.getSystem();
-            final ActorRef<DeadLetter> self = context.getSelf();
-            final DeadLetter TIMEOUT = new DeadLetter(new Random().nextLong(), Adapter.toClassic(actorSystem.deadLetters()), Adapter.toClassic(actorSystem.deadLetters()));
+            final DeadLetter TIMEOUT = new DeadLetter("TIMEOUT", Adapter.toClassic(actorSystem.deadLetters()), Adapter.toClassic(actorSystem.deadLetters()));
             return Behaviors.withTimers( timers -> {
                 ofNullable(initialTimeout)
                         .filter(Predicate.not(Duration::isNegative))
