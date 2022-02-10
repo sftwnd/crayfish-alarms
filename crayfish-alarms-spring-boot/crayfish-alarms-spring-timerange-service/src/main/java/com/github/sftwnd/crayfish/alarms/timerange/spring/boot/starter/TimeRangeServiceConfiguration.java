@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 
 @Configuration("timeRangeServiceConfiguration")
 @ConfigurationProperties(prefix = "crayfish.alarms.time-range-service")
-@ConfigurationPropertiesScan
 public class TimeRangeServiceConfiguration implements TimeRangeService.Configuration {
 
     public static final String DEFAULT_SERVICE_NAME = "time-range-service";
