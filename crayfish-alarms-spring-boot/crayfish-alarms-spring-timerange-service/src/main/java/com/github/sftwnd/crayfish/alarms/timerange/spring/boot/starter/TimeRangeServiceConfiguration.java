@@ -10,7 +10,6 @@ import com.typesafe.config.ConfigFactory;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -32,7 +31,6 @@ import java.util.regex.Pattern;
 @Configuration("timeRangeServiceConfiguration")
 @ConfigurationProperties(prefix = "crayfish.alarms.time-range-service")
 @ConfigurationPropertiesScan
-@Slf4j
 public class TimeRangeServiceConfiguration implements TimeRangeService.Configuration {
 
     public static final String DEFAULT_SERVICE_NAME = "time-range-service";
