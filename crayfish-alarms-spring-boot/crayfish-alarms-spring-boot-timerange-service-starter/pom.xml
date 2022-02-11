@@ -5,32 +5,28 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-        <artifactId>crayfish-alarms</artifactId>
+        <artifactId>crayfish-alarms-spring-boot</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
-    <packaging>pom</packaging>
 
-    <artifactId>crayfish-alarms-spring-boot</artifactId>
+    <artifactId>crayfish-alarms-spring-boot-timerange-service-starter</artifactId>
 
-    <name>CrayFish :: ALARMS :: SPRING :: BOOT</name>
-
-    <modules>
-        <module>crayfish-alarms-spring-boot-timerange-service-starter</module>
-    </modules>
+    <name>CrayFish :: ALARMS :: SPRING :: BOOT :: Starter</name>
 
     <dependencies>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
+            <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+            <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

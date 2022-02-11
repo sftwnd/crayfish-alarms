@@ -268,5 +268,197 @@ When the method is called, a CompletionStage<Void> is returned, which is execute
         );
 ```
 
+## Time Range Service interface
+
+TimeRegion handling can be run independently of AKKA by hiding its use inside the api. For this, the TimeRangeService interface is used (implemented in the _**crayfish-alarms-akka-timerange-service**_ module).
+
+```xml
+    <parent>
+        <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+        <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
+    </parent>
+```
+
+To create a service, you must first describe it by implementing the TimeRangeService. Configuration configuration.
+
+### Service Configuration
+
+```java
+    return new TimeRangeService.Configuration() {
+        @Nonnull @Override public String getServiceName() { return "test-TimeRangeServiceTest"; }
+        @Nonnull @Override public Duration getDuration() { return Duration.ofSeconds(30); }
+        @Nonnull @Override public Duration getInterval() { return Duration.ofSeconds(1); }
+        @Nonnull @Override public Duration getDelay() { return Duration.ofMillis(125); }
+        @Nonnull @Override public Duration getCompleteTimeout() { return Duration.ofSeconds(3); }
+        @Override public Duration getWithCheckDuration() { return Duration.ofSeconds(0); }
+        @Override public Integer getTimeRangeDepth() { return 3; }
+        @Override public Integer getNrOfInstances() { return 1; }
+        @Override public Duration getDeadLetterTimeout() { return Duration.ofSeconds(1); }
+        @Override public Duration getDeadLetterCompleteTimeout() { return Duration.ofSeconds(1); }
+        @Override public Config getAkkaConfig() { return null; }
+        @Override public TimeRange.TimeRangeWakedUp getRegionListener() { return regionListener; }
+        @Override public Comparator<M> getComparator() { return null; }
+        @Override public Expectation<M, T> getExpectation() { return (Expectation<M, T>)expectation; }
+        @Override public TimeRangeHolder.ResultTransformer<M, R> getExtractor() { return extractor; }
+        @Override public TimeRange.FiredElementsConsumer<R> getFiredConsumer() { return firedElementsConsumer; }
+    };
+```
+
+### Service Factory
+
+_FYI: There is an default implementation of the configuration interface: [TimeRangeServiceConfiguration](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeServiceConfiguration.java)._
+
+The next step is to create a factory from the Configuration interface.
+
+```java
+        this.timeRangeServiceFactory = TimeRangeService.serviceFactory(configuration);
+```
+
+If the Configuration contains an incomplete set of attributes, then the factory creation method throws an exception: [TimeRangeService.ConfigurationException](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L96-L100).
+
+### Time Range Service creation
+
+The factory contains the main parameters of the service and to create it, just call the method: [TimeRangeService.ServiceFactory::timeRangeService(serviceName)](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L163)
+
+```java
+    timeRangeServiceFactory.timeRangeService("time-range-service");
+```
+
+As a result, you will get an object that implements the TimeRangeService interface:
+
+```java
+public interface TimeRangeService<M> extends AutoCloseable {
+    // Send new elements to TimeService with rejects in CompletionStage result
+    @Nonnull CompletionStage<Collection<M>> addElements(@Nonnull Collection<M> elements);
+    // Getting the CompletionStage to be executed after the TimeRange Service is stopped
+    @Nonnull CompletionStage<Void> stopStage();
+    // Getting the CompletionStage to be executed after the TimeRange Service and DeadLetter processing are stopped
+    @Nonnull CompletionStage<Void> completionStage();
+    @Nonnull CompletionStage<Void> stop();
+    // Stop the TimeRange Service and DeadLetter processing
+    @Nonnull CompletionStage<Void> complete();
+    // Stop the TimeRange Service and DeadLetter processing and wait for completion
+    void close();
+    ...
+}
+```
+
+TimeRangeService allows you to send a set of objects marked with a temporary marker to it, according to the configuration passed to the factory, and also makes it possible to track the stop of processing incoming elements, stop the service as a whole, as well as closing it both separately by the stop method with monitoring of the required closing phase, and by the close waiting for a full stop
+
+For example:
+```java
+    // With AutoClosable
+    try(TimeRange<Event> timeRange = timeRangeServiceFactory.timeRangeService("time-range-service")) {
+        timeRange.addElements(elements).thenAccept(this::onRejects);
+        ...
+    }
+```
+
+```java
+    TimeRange<Event> timeRange = timeRangeServiceFactory.timeRangeService("time-range-service")) {
+    ...
+    timeRange.addElements(elements).thenAccept(this::onRejects);
+    ...
+    CountDownLatch completeLatch = new CountDownLatch(1);
+    timeRange.stop().thenAccept(completeLatch.countDown);
+    completeLatch.awit(...);
+```
+
+## Time Range Service Spring Boot starter
+
+### Starter module
+TimeRangeService Spring Boot starter is realized in module: _**crayfish-alarms-spring-boot-timerange-service-starter**_.
+
+```xml
+    <dependency>
+        <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+        <module>crayfish-alarms-spring-boot-timerange-service-starter</module>
+    </dependency>
+```
+
+### Configuration parameters
+
+#### Required parameters
+
+To start the service, just specify the following configuration parameters:
+* crayfish.alarms.time-range-service.fired-consumer
+* crayfish.alarms.time-range-service.region-listener
+* crayfish.alarms.time-range-service.expectation
+* crayfish.alarms.time-range-service.extractor
+
+_The values are either the name of the bean that implements the corresponding interface, or the class (with the addition of .class)_
+
+#### Available parameters
+
+```properties
+    # Here are the default parameter values, except for the required ones mentioned above.
+    crayfish.alarms.time-range-service.region-listener=my-regionListener
+    crayfish.alarms.time-range-service.expectation=my-expectation
+    crayfish.alarms.time-range-service.fired-consumer=my-firedElementsConsumer
+    crayfish.alarms.time-range-service.extractor=com.github...MyExtractor.class
+    crayfish.alarms.time-range-service.service-name=time-range-service
+    crayfish.alarms.time-range-service.duration=1m
+    crayfish.alarms.time-range-service.interval=1s
+    crayfish.alarms.time-range-service.delay=125
+    crayfish.alarms.time-range-service.complete-timeout=12s
+    crayfish.alarms.time-range-service.dead-letter-timeout=3s
+    crayfish.alarms.time-range-service.dead-letter-complete-timeout=250
+    crayfish.alarms.time-range-service.time-range-depth=2
+    crayfish.alarms.time-range-service.nr-of-instances=1
+    crayfish.alarms.time-range-service.with-check-duration=0
+    # crayfish.alarms.time-range-service.comparator=
+    crayfish.alarms.time-range-service.akka-config=
+```
+
+### Demonstration example 
+
+```java
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.TimeRangeWakedUp;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.service.TimeRangeService;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
+import com.github.sftwnd.crayfish.common.expectation.Expectation;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+@SpringBootApplication
+public class Main {
+
+    @SuppressWarnings("unchecked")
+    public static void main(String[] args) throws InterruptedException {
+        System.setProperty("spring.main.banner-mode", "off");
+        System.setProperty("crayfish.alarms.time-range-service.fired-consumer", "firedElementsConsumer");
+        System.setProperty("crayfish.alarms.time-range-service.region-listener", "timeRangeWakedUp");
+        System.setProperty("crayfish.alarms.time-range-service.expectation", "expectation");
+        System.setProperty("crayfish.alarms.time-range-service.extractor", "extractor");
+        ApplicationContext applicationContext = SpringApplication.run(Main.class);
+        try (TimeRangeService<Instant> timeRangeService = applicationContext.getBean(TimeRangeService.class)) {
+            timeRangeService.completionStage().thenAccept(ignored -> System.out.println("Completed..."));
+            System.out.println("TimeRangeService: "+timeRangeService);
+            Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+            timeRangeService.addElements(List.of(
+                    now.minusSeconds(1), now, now.plusSeconds(2), now.plusSeconds(5), now.plus(1, ChronoUnit.HOURS)
+            )).thenAccept(rejected -> System.out.println("Rejected: "+ rejected));
+            Thread.sleep(7000);
+        }
+    }
+
+    @Bean TimeRangeWakedUp timeRangeWakedUp() { return (start, end) -> System.out.println("Range started: "+start+" - "+ end); }
+
+    @Bean Expectation<Instant, Instant> expectation() { return instant -> instant; }
+
+    @Bean TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer() { return elements -> System.out.println("Fired elements: "+ elements); }
+
+    @Bean TimeRangeHolder.ResultTransformer<Instant,Instant> extractor() { return instant -> instant; }
+
+}
+```
+
 ---
 Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.

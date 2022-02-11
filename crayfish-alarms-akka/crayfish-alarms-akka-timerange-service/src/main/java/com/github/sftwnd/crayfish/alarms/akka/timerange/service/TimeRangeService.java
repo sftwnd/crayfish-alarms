@@ -41,7 +41,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
      */
 
     /**
-     * Send new elements to TimeService
+     * Send new elements to TimeService with rejects in CompletionStage result
      * @param elements elements collection
      * @return CompletionStage with the response (takes a list of unaccepted elements)
      */
@@ -81,13 +81,22 @@ public interface TimeRangeService<M> extends AutoCloseable {
         complete().toCompletableFuture().join();
     }
 
-    static <M,R> ServiceFactory<M,R> serviceFactory(@Nonnull Configuration configuration) {
-        return new ServiceFactory<>(configuration);
+    static @Nonnull <M,R> ServiceFactory<M,R> serviceFactory(@Nonnull Configuration configuration) {
+        try {
+            return new ServiceFactory<>(configuration);
+        } catch (NullPointerException npe) {
+            throw new TimeRangeService.ConfigurationException(npe.getLocalizedMessage());
+        } catch (TimeRangeService.ConfigurationException trsce) {
+            throw trsce;
+        } catch (Exception ex) {
+            throw new TimeRangeService.ConfigurationException("Unable to create ServiceFactory for TimeRangeService", ex);
+        }
     }
 
     class ConfigurationException extends IllegalArgumentException {
         ConfigurationException(String text) { super(text); }
         ConfigurationException(String text, Throwable throwable) { super(text, throwable); }
+        private static final long serialVersionUID = -5967394457693068164L;
     }
 
     interface Configuration {
@@ -111,18 +120,11 @@ public interface TimeRangeService<M> extends AutoCloseable {
         <M,R> TimeRangeHolder.ResultTransformer<M,R> getExtractor();
         <R> TimeRange.FiredElementsConsumer<R> getFiredConsumer();
 
-        default @Nonnull <M,R> TimeRangeConfig<M,R> timeRangeConfig() {
-            try {
-                return TimeRangeConfig.create(
-                        getDuration(), getInterval(), getDelay(), getCompleteTimeout(), getExpectation(), getComparator(), getExtractor()
-                );
-            } catch (Exception exception) {
-                throw new ConfigurationException("Unable to construct timeRangeConfig", exception);
-            }
-        }
         default boolean isCompleted() {
             try {
-                return Optional.of(timeRangeConfig())
+                return Optional.of(TimeRangeConfig.create(
+                                getDuration(), getInterval(), getDelay(), getCompleteTimeout(), getExpectation(), getComparator(), getExtractor()
+                        ))
                         .map(ignored -> getFiredConsumer() != null && getRegionListener() != null)
                         .orElse(false);
             } catch (Exception ignored) {
@@ -147,11 +149,18 @@ public interface TimeRangeService<M> extends AutoCloseable {
 
         private ServiceFactory(@Nonnull Configuration serviceConfig) {
             this.serviceConfig = Objects.requireNonNull(serviceConfig, "TimeRangeService.ServiceFactory::new - serviceConfig is null");
-            this.timeRangeConfig = Objects.requireNonNull(serviceConfig.timeRangeConfig(), "TimeRangeService.ServiceFactory::new - unable to construct timeRangeConfig");
+            this.timeRangeConfig = TimeRangeConfig.create(
+                    serviceConfig.getDuration(),
+                    serviceConfig.getInterval(),
+                    serviceConfig.getDelay(),
+                    serviceConfig.getCompleteTimeout(),
+                    serviceConfig.getExpectation(),
+                    serviceConfig.getComparator(),
+                    serviceConfig.getExtractor()
+            );
         }
 
-        @Nonnull
-        public TimeRangeService<M> timeRangeService(@Nonnull String serviceName) {
+        public @Nonnull TimeRangeService<M> timeRangeService(@Nonnull String serviceName) {
             Objects.requireNonNull(serviceName, "TimeRangeService::timeRangeService - serviceName is null");
             final Function<Behavior<TimeRangeServiceCommand>, ActorSystem<TimeRangeServiceCommand>> timeRangeServiceSpawn =
                     serviceConfig.getAkkaConfig() == null ? behavior -> ActorSystem.create(behavior, serviceName) : behavior -> ActorSystem.create(behavior, serviceName, serviceConfig.getAkkaConfig());

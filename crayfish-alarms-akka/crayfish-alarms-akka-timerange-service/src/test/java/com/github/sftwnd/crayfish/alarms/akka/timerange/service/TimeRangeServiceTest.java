@@ -3,7 +3,6 @@ package com.github.sftwnd.crayfish.alarms.akka.timerange.service;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
-import com.typesafe.config.Config;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,10 +10,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletionStage;
@@ -33,6 +30,7 @@ class TimeRangeServiceTest {
     private List<Instant> firedElements;
     private CountDownLatch firedElementsLatch;
     private CountDownLatch regionListenerLatch;
+    private TimeRangeService.Configuration configuration;
     private TimeRangeService.ServiceFactory<Instant,Instant> timeRangeServiceFactory;
     private TimeRangeService<Instant> timeRangeService;
 
@@ -66,7 +64,7 @@ class TimeRangeServiceTest {
         TimeRangeHolder.ResultTransformer<Instant, Instant> extractor = instant -> instant;
         TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer = elements -> { firedElements.addAll(elements); firedElementsLatch.countDown(); };
         TimeRange.TimeRangeWakedUp regionListener = (start, end) -> regionListenerLatch.countDown();
-        TimeRangeService.Configuration configuration = config(expectation, extractor, firedElementsConsumer, regionListener);
+        this.configuration = config(expectation, extractor, firedElementsConsumer, regionListener);
         this.timeRangeServiceFactory = TimeRangeService.serviceFactory(configuration);
     }
 
@@ -76,35 +74,35 @@ class TimeRangeServiceTest {
             timeRangeService.close();
         }
         this.timeRangeServiceFactory = null;
+        this.configuration = null;
         this.firedElements = null;
         this.firedElementsLatch = null;
         this.regionListenerLatch = null;
     }
 
-    @SuppressWarnings("unchecked")
-    <M, R, T extends TemporalAccessor> TimeRangeService.Configuration config(
+    <M, R> TimeRangeService.Configuration config(
             @Nonnull Expectation<Instant,Instant> expectation,
             @Nonnull TimeRangeHolder.ResultTransformer<M, R> extractor,
             @Nonnull TimeRange.FiredElementsConsumer<R> firedElementsConsumer,
             @Nonnull TimeRange.TimeRangeWakedUp regionListener
             ) {
-        return new TimeRangeService.Configuration() {
-            @Nonnull @Override public Duration getDuration() { return Duration.ofSeconds(30); }
-            @Nonnull @Override public Duration getInterval() { return Duration.ofSeconds(1); }
-            @Nonnull @Override public Duration getDelay() { return Duration.ofMillis(125); }
-            @Nonnull @Override public Duration getCompleteTimeout() { return Duration.ofSeconds(3); }
-            @Override public Duration getWithCheckDuration() { return Duration.ofSeconds(0); }
-            @Override public Integer getTimeRangeDepth() { return 3; }
-            @Override public Integer getNrOfInstances() { return 1; }
-            @Override public Duration getDeadLetterTimeout() { return Duration.ofSeconds(1); }
-            @Override public Duration getDeadLetterCompleteTimeout() { return Duration.ofSeconds(1); }
-            @Override public Config getAkkaConfig() { return null; }
-            @Override public TimeRange.TimeRangeWakedUp getRegionListener() { return regionListener; }
-            @Override public Comparator<M> getComparator() { return null; }
-            @Override public Expectation<M, T> getExpectation() { return (Expectation<M, T>)expectation; }
-            @Override public TimeRangeHolder.ResultTransformer<M, R> getExtractor() { return extractor; }
-            @Override public TimeRange.FiredElementsConsumer<R> getFiredConsumer() { return firedElementsConsumer; }
-        };
+        TimeRangeServiceConfiguration config = new TimeRangeServiceConfiguration();
+        config.setDuration(Duration.ofSeconds(30));
+        config.setInterval(Duration.ofSeconds(1));
+        config.setDelay(Duration.ofMillis(125));
+        config.setCompleteTimeout(Duration.ofSeconds(3));
+        config.setWithCheckDuration(Duration.ofSeconds(0));
+        config.setTimeRangeDepth(3);
+        config.setNrOfInstances(1);
+        config.setDeadLetterTimeout(Duration.ofSeconds(1));
+        config.setDeadLetterCompleteTimeout(Duration.ofSeconds(1));
+        config.setAkkaConfig(null);
+        config.setRegionListener(regionListener);
+        config.setComparator(null);
+        config.setExpectation(expectation);
+        config.setExtractor(extractor);
+        config.setFiredConsumer(firedElementsConsumer);
+        return config;
     }
 
 }
