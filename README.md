@@ -380,7 +380,7 @@ If there is a desire to use only one AKKA System in a project, then you can use 
 When the actor implementing this Behavior<> starts, a function will be placed in the corresponding addElementsFunctionFuture to send elements to the TimeRegionService.
 It also accepts CompletableFuture: stopFuture and completeFuture, which will be used to react to the actor's stop phases
 
-The generated Behavior<> can be used to create a service inside the actor or AkkaSystem of your application, [similar to how it is implemented]((./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L170) in the [timeRangeService function](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L163-L187) to create a TimeRangeService.
+The generated Behavior<> can be used to create a service inside the actor or AkkaSystem of your application, [similar to how it is implemented](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L170) in the [timeRangeService function](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L163-L187) to create a TimeRangeService.
 
 ```java
     CompletableFuture<Void> stopFuture = new CompletableFuture<>();
