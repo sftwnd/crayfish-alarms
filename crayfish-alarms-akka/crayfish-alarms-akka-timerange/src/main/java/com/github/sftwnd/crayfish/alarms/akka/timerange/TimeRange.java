@@ -9,12 +9,14 @@ import akka.actor.ActorPath;
 import akka.actor.ActorSystem.Settings;
 import akka.actor.DeadLetter;
 import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.Signal;
 import akka.actor.typed.Terminated;
 import akka.actor.typed.eventstream.EventStream;
 import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
+import akka.actor.typed.javadsl.Adapter;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.actor.typed.javadsl.TimerScheduler;
@@ -90,6 +92,7 @@ public interface TimeRange {
         }
     }
 
+    @FunctionalInterface
     interface FiredElementsConsumer<M> extends Consumer<Collection<M>> {
         @Override void accept(@Nonnull Collection<M> t);
     }
@@ -182,7 +185,10 @@ public interface TimeRange {
     }
 
     class Timeout<X> implements Command<X> {}
+
+    @FunctionalInterface
     interface Unhandable { void unhandled(); }
+
     @AllArgsConstructor
     abstract class AbstractCommand<X,D> implements Command<X>, Unhandable {
         private final CompletableFuture<D> completableFuture;
@@ -191,10 +197,12 @@ public interface TimeRange {
         public void completeExceptionally(Throwable throwable) { ofNullable(this.completableFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.completeExceptionally(throwable)); }
         @Override public void unhandled() { complete(getData()); }
     }
+
     class GracefulStop<X> extends AbstractCommand<X,Void> {
         public GracefulStop(CompletableFuture<Void> completableFuture) { super(completableFuture); }
         public void complete() { complete(null); }
     }
+
     class AddCommand<X> extends AbstractCommand<X,Collection<X>> {
         private final Collection<X> data;
         public AddCommand(@Nonnull Collection<X> data, @Nonnull CompletableFuture<Collection<X>> completableFuture) {
@@ -332,26 +340,68 @@ public interface TimeRange {
      * @param rangeActor filter by actor with childs whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
      * @return Behavior for process of dead letter control
      */
-    static Behavior<DeadLetter> timeRangeDeadLetterSubscriber(@Nonnull final ActorRef<? extends Command<?>> rangeActor) {
-        Objects.requireNonNull(rangeActor, "TimeRange::timeRangeDeadLetterSubscriber - rangeActor is null");
+    static Behavior<DeadLetter> deadLetterSubscriber(@Nonnull final ActorRef<? extends Command<?>> rangeActor) {
+        return deadLetterSubscriber(rangeActor, null);
+    }
+
+    /**
+     * This method creates a behavior for actor that handles lost AddCommand messages and marks them as rejected on all elements.
+     * @param rangeActor filter by actor with childs whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
+     * @param timeout If specified, exit after timeout in the absence of deadLetter
+     * @return Behavior for process of dead letter control
+     */
+    static Behavior<DeadLetter> deadLetterSubscriber(
+            @Nonnull final ActorRef<? extends Command<?>> rangeActor,
+            @Nullable final Duration timeout
+    ) {
+        return deadLetterSubscriber(rangeActor, timeout, timeout);
+    }
+
+    /**
+     * This method creates a behavior for actor that handles lost AddCommand messages and marks them as rejected on all elements.
+     * @param rangeActor filter by actor with childs whose deadLetters we are monitoring (if not specified, all within the actorSystem context)
+     * @param initialTimeout If specified, exit after timeout in the absence of deadLetter
+     * @param completeTimeout If specified, then exit after timeout if there is no deadLetter after the last one arrives
+     * @return Behavior for process of dead letter control
+     */
+    static Behavior<DeadLetter> deadLetterSubscriber(
+            @Nonnull final ActorRef<? extends Command<?>> rangeActor,
+            @Nullable final Duration initialTimeout,
+            @Nullable final Duration completeTimeout
+    ) {
+        Objects.requireNonNull(rangeActor, "TimeRange::deadLetterSubscriber - rangeActor is null");
         final Predicate<ActorPath> checkPath = new Predicate<>() {
             @Override
             public boolean test(ActorPath actorPath) {
                 return actorPath.equals(rangeActor.path()) || (!actorPath.equals(actorPath.root()) && test(actorPath.parent()));
             }
         };
-        return Behaviors.receive(DeadLetter.class)
-                .onMessage(DeadLetter.class, deadLetter -> {
-                    Optional.of(deadLetter)
-                            .filter(letter -> checkPath.test(letter.recipient().path()))
-                            .map(DeadLetter::message)
-                            .filter(Unhandable.class::isInstance)
-                            .map(Unhandable.class::cast)
-                            .ifPresent(Unhandable::unhandled);
-                    return Behaviors.same();
-                }).build();
+        return Behaviors.setup(context -> {
+            final ActorSystem<?> actorSystem = context.getSystem();
+            final DeadLetter timeoutMessage = new DeadLetter("TIMEOUT", Adapter.toClassic(actorSystem.deadLetters()), Adapter.toClassic(actorSystem.deadLetters()));
+            return Behaviors.withTimers( timers -> {
+                ofNullable(initialTimeout)
+                        .filter(Predicate.not(Duration::isNegative))
+                        .ifPresent(timeout -> timers.startSingleTimer(timeoutMessage, timeout));
+                return Behaviors.receive(DeadLetter.class)
+                        .onMessageEquals(timeoutMessage, Behaviors::stopped)
+                        .onMessage(DeadLetter.class, deadLetter -> {
+                            Optional.of(deadLetter)
+                                    .filter(letter -> checkPath.test(letter.recipient().path()))
+                                    .map(DeadLetter::message)
+                                    .filter(Unhandable.class::isInstance)
+                                    .map(Unhandable.class::cast)
+                                    .ifPresent(Unhandable::unhandled);
+                            ofNullable(completeTimeout)
+                                    .filter(Predicate.not(Duration::isNegative))
+                                    .ifPresent(timeout -> timers.startSingleTimer(timeoutMessage, timeout));
+                            return Behaviors.same();
+                        }).build();
+            });
+        });
     }
 
+    @FunctionalInterface
     interface TimeRangeWakedUp extends BiConsumer<Instant, Instant> {
         @Override void accept(@Nonnull Instant startInstant, @Nonnull Instant endInstant);
     }
@@ -418,7 +468,7 @@ public interface TimeRange {
         }
 
         private void startDeadLetterWatching() {
-            ActorRef<DeadLetter> deadLetterActor = getContext().spawn(TimeRange.timeRangeDeadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
+            ActorRef<DeadLetter> deadLetterActor = getContext().spawn(TimeRange.deadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
             getContext()
                     .getSystem()
                     .eventStream()

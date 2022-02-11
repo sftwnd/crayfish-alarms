@@ -74,7 +74,7 @@ public final class TimeRangeConfig<M,R> {
      * @param time actual border for plotting the final TimeRangeHolder
      * @return object TimeRangeHolder
      */
-    public TimeRangeHolder<M,R> timeRangeHolder(@Nonnull TemporalAccessor time) {
+    public @Nonnull TimeRangeHolder<M,R> timeRangeHolder(@Nonnull TemporalAccessor time) {
         return new TimeRangeHolder<>(time, this);
     }
 
@@ -93,7 +93,7 @@ public final class TimeRangeConfig<M,R> {
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
     @SuppressWarnings("java:S107")
-    public static <M,R> TimeRangeConfig<M,R> create(
+    public static @Nonnull <M,R> TimeRangeConfig<M,R> create(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
@@ -118,7 +118,7 @@ public final class TimeRangeConfig<M,R> {
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
     @SuppressWarnings("java:S107")
-    public static <M> TimeRangeConfig<M,M> create(
+    public static @Nonnull <M> TimeRangeConfig<M,M> create(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
@@ -141,7 +141,7 @@ public final class TimeRangeConfig<M,R> {
      * @param <R> the type of the returned element
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
-    public static <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> TimeRangeConfig<M,R> packable(
+    public static @Nonnull <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> TimeRangeConfig<M,R> packable(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
@@ -164,7 +164,7 @@ public final class TimeRangeConfig<M,R> {
      * @param <M> input element type
      * @return TimeRangeHolder.TimeRangeConfig instance
      */
-    public static <M extends Expected<? extends TemporalAccessor>> TimeRangeConfig<M,M> expected(
+    public static @Nonnull <M extends Expected<? extends TemporalAccessor>> TimeRangeConfig<M,M> expected(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,

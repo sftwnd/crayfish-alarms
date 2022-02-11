@@ -9,14 +9,14 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>crayfish-alarms-akka-timerange</artifactId>
+    <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
 
-    <name>CrayFish :: ALARMS :: AKKA :: TimeRange</name>
+    <name>CrayFish :: ALARMS :: AKKA :: TimeRange Service</name>
 
     <dependencies>
         <dependency>
             <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-            <artifactId>crayfish-alarms-timerange</artifactId>
+            <artifactId>crayfish-alarms-akka-timerange</artifactId>
         </dependency>
     </dependencies>
 
