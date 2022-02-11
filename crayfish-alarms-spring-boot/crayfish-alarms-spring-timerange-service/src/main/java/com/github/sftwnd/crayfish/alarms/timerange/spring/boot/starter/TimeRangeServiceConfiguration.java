@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -24,8 +25,11 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.Optional.*;
 
 @Configuration("timeRangeServiceConfiguration")
 @ConfigurationProperties(prefix = "crayfish.alarms.time-range-service")
@@ -58,11 +62,11 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
     @Getter private TimeRangeWakedUp regionListener;
     @Getter private Config akkaConfig;
 
-    public @Nonnull String getServiceName() { return Optional.ofNullable(serviceName).orElse(DEFAULT_SERVICE_NAME); }
-    public @Nonnull Duration getDuration() { return Optional.ofNullable(duration).orElse(DEFAULT_DURATION); }
-    public @Nonnull Duration getInterval() { return Optional.ofNullable(interval).orElse(DEFAULT_INTERVAL); }
-    public @Nonnull Duration getDelay() { return Optional.ofNullable(delay).orElse(DEFAULT_DELAY); }
-    public @Nonnull Duration getCompleteTimeout() { return Optional.ofNullable(completeTimeout).orElse(DEFAULT_COMPLETE_TIMEOUT); }
+    public @Nonnull String getServiceName() { return ofNullable(serviceName).filter(Predicate.not(String::isBlank)).orElse(DEFAULT_SERVICE_NAME); }
+    public @Nonnull Duration getDuration() { return ofNullable(duration).orElse(DEFAULT_DURATION); }
+    public @Nonnull Duration getInterval() { return ofNullable(interval).orElse(DEFAULT_INTERVAL); }
+    public @Nonnull Duration getDelay() { return ofNullable(delay).orElse(DEFAULT_DELAY); }
+    public @Nonnull Duration getCompleteTimeout() { return ofNullable(completeTimeout).orElse(DEFAULT_COMPLETE_TIMEOUT); }
 
     public @SuppressWarnings("unchecked") <M,T extends TemporalAccessor> Expectation<M,T> getExpectation() { return (Expectation<M,T>) expectation; }
     public @SuppressWarnings("unchecked") <M> Comparator<M> getComparator() { return (Comparator<M>) comparator; }
@@ -72,7 +76,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
         if (clean(comparator, () -> this.comparator = null)) return;
         @SuppressWarnings("rawtypes")
         Class<Comparator> comparatorClass = Comparator.class;
-        this.comparator = Optional.of(comparatorClass)
+        this.comparator = of(comparatorClass)
                 .map(clazz -> wakeUp(comparator, comparatorClass))
                 .orElseGet(() -> beanFactory.getBean(comparator, comparatorClass));
     }
@@ -80,7 +84,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
         if (clean(extractor, () -> this.extractor = null)) return;
         @SuppressWarnings("rawtypes")
         Class<ResultTransformer> extractorClass = ResultTransformer.class;
-        this.extractor = Optional.of(extractorClass)
+        this.extractor = of(extractorClass)
                 .map(clazz -> wakeUp(extractor, extractorClass))
                 .orElseGet(() -> beanFactory.getBean(extractor, extractorClass));
     }
@@ -88,7 +92,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
         if (clean(firedConsumer, () -> this.firedConsumer = null)) return;
         @SuppressWarnings("rawtypes")
         Class<FiredElementsConsumer> firedConsumerClass = FiredElementsConsumer.class;
-        this.firedConsumer = Optional.of(firedConsumerClass)
+        this.firedConsumer = of(firedConsumerClass)
                 .map(clazz -> wakeUp(firedConsumer, firedConsumerClass))
                 .orElseGet(() -> beanFactory.getBean(firedConsumer, firedConsumerClass));
     }
@@ -96,33 +100,32 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
         if (clean(expectation, () -> this.expectation = null)) return;
         @SuppressWarnings("rawtypes")
         Class<Expectation> expectationClass = Expectation.class;
-        this.expectation = Optional.of(expectationClass)
+        this.expectation = of(expectationClass)
                 .map(clazz -> wakeUp(expectation, expectationClass))
                 .orElseGet(() -> beanFactory.getBean(expectation, expectationClass));
     }
     public void setRegionListener(@Nonnull String regionListener) {
         if (clean(regionListener, () -> this.regionListener = null)) return;
-        this.regionListener = Optional.of(TimeRangeWakedUp.class)
+        this.regionListener = of(TimeRangeWakedUp.class)
                 .map(clazz -> wakeUp(regionListener, clazz))
                 .orElseGet(() -> beanFactory.getBean(regionListener, TimeRangeWakedUp.class));
     }
     public void setAkkaConfig(@Nonnull String akkaConfig) {
         if (clean(akkaConfig, () -> this.akkaConfig = null)) return;
-        Matcher matcher = configPattern.matcher(akkaConfig);
-        if (matcher.matches()) {
+        try {
+            this.akkaConfig = beanFactory.getBean(akkaConfig, Config.class);
+        } catch (BeansException ignored) {
             this.akkaConfig = ConfigFactory.load(akkaConfig);
-        } else {
-            this.akkaConfig = Optional.of(Config.class)
-                    .map(clazz -> wakeUp(akkaConfig, clazz))
-                    .orElseGet(() -> beanFactory.getBean(akkaConfig, Config.class));
         }
     }
     private boolean clean(@Nullable String value, @Nonnull Runnable cleaner) {
-        return Optional.ofNullable(value).filter(String::isBlank).map(ignored -> { cleaner.run(); return true; }).orElse(false);
+        return ofNullable(value)
+                .filter(Predicate.not(String::isBlank))
+                .map(String::isBlank)
+                .orElseGet(() -> { cleaner.run(); return true; });
     }
     private final AutowireCapableBeanFactory beanFactory;
-    private static final Pattern classPattern = Pattern.compile("(.+^\\.)\\.class");
-    private static final Pattern configPattern = Pattern.compile("(.+^\\.)\\.conf");
+    private static final Pattern classPattern = Pattern.compile("(.+[^\\.])\\.class");
     @SuppressWarnings("unchecked")
     @SneakyThrows
     private @Nullable <X> X wakeUp(@Nonnull String className, @Nonnull Class<X> ignored) {
