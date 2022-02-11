@@ -173,7 +173,7 @@ class TimeRangeTest {
                 TimeRange.processor(now, timeRangeConfig, elements -> { fired.addAll(elements); fireLatch.countDown();}, null),
                 "testDeadAllSubscriber");
         // Start Shutdown actor
-        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> TimeRange.timeRangeDeadLetterSubscriber(timeRangeActor)));
+        ActorRef<DeadLetter> deadLetterSubscriber = testKit.spawn(Behaviors.setup(context -> TimeRange.deadLetterSubscriber(timeRangeActor)));
         try {
             ExpectedPackage<String, Instant> elmXZ = ExpectedPackage.pack("XZ", now.plus(10, ChronoUnit.SECONDS));
             // Subscribe to dead letters

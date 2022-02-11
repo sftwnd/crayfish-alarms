@@ -10,28 +10,27 @@
     </parent>
     <packaging>pom</packaging>
 
-    <artifactId>crayfish-alarms-akka</artifactId>
+    <artifactId>crayfish-alarms-spring-boot</artifactId>
 
-    <name>CrayFish :: ALARMS :: AKKA</name>
+    <name>CrayFish :: ALARMS :: SPRING :: BOOT</name>
 
     <modules>
-        <module>crayfish-alarms-akka-timerange</module>
-        <module>crayfish-alarms-akka-timerange-service</module>
+        <module>crayfish-alarms-spring-boot-timerange-service-starter</module>
     </modules>
 
     <dependencies>
         <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-actor-typed_${scala.binary.version}</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-slf4j_${scala.binary.version}</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-actor-testkit-typed_${scala.binary.version}</artifactId>
-            <scope>test</scope>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 
