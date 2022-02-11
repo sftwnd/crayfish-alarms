@@ -39,7 +39,7 @@ class TimeRangeServiceTest {
     @Test
     void timeRangeServiceTest() throws InterruptedException, ExecutionException, TimeoutException {
         assertNotNull(timeRangeServiceFactory, "TimeRangeServiceFactory has to be created");
-        assertDoesNotThrow(() -> { this.timeRangeService = timeRangeServiceFactory.timeRangeService(); }, "TimeRangeServiceFactory::timeRangeService has to be processed without throws");
+        assertDoesNotThrow(() -> { this.timeRangeService = timeRangeServiceFactory.timeRangeService("timeRangeServiceTest"); }, "TimeRangeServiceFactory::timeRangeService has to be processed without throws");
         assertNotNull(timeRangeService, "TimeRangeService has to be created");
         assertTrue(regionListenerLatch.await(750, TimeUnit.SECONDS), "regionListener has to be called at least 4 times");
         Instant element = Instant.now().plusMillis(50);
@@ -89,7 +89,6 @@ class TimeRangeServiceTest {
             @Nonnull TimeRange.TimeRangeWakedUp regionListener
             ) {
         return new TimeRangeService.Configuration() {
-            @Nonnull @Override public String getServiceName() { return "test-TimeRangeServiceTest"; }
             @Nonnull @Override public Duration getDuration() { return Duration.ofSeconds(30); }
             @Nonnull @Override public Duration getInterval() { return Duration.ofSeconds(1); }
             @Nonnull @Override public Duration getDelay() { return Duration.ofMillis(125); }

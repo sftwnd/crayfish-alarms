@@ -1,6 +1,7 @@
 package com.github.sftwnd.crayfish.alarms.timerange.spring.boot.starter;
 
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.service.TimeRangeService;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.typesafe.config.Config;
@@ -15,7 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS;
 
@@ -193,21 +195,54 @@ class TimeRangeServiceConfigurationPojoTest {
         serviceConfig.setExtractor("test-extractor");
         assertTrue(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be true with firedConsumer, regionListener, expectation and extractor is defined");
         // FiredConsumer check
-        serviceConfig.setFiredConsumer(null);
-        assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with firedConsumer is not defined");
-        serviceConfig.setFiredConsumer("test-firedElementsConsumer");
+        try {
+            serviceConfig.setFiredConsumer("");
+            assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with firedConsumer is not defined");
+        } finally {
+            serviceConfig.setFiredConsumer("test-firedElementsConsumer");
+        }
         // RegionListener check
-        serviceConfig.setRegionListener("");
-        assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with regionListener is not defined");
-        serviceConfig.setRegionListener("test-regionListener");
+        try {
+            serviceConfig.setRegionListener("");
+            assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with regionListener is not defined");
+        } finally {
+            serviceConfig.setRegionListener("test-regionListener");
+        }
         // Expectation check
-        serviceConfig.setExpectation("");
-        assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with expectation is not defined");
-        serviceConfig.setExpectation("test-expectation");
+        try {
+            serviceConfig.setExpectation("");
+            assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with expectation is not defined");
+        } finally {
+            serviceConfig.setExpectation("test-expectation");
+        }
         // Extractor check
-        serviceConfig.setExtractor("");
-        assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with extractor is not defined");
-        serviceConfig.setExtractor("test-extractor");
+        try {
+            serviceConfig.setExtractor("");
+            assertFalse(serviceConfig.isCompleted(), "serviceConfig.isCompleted() has to be false with extractor is not defined");
+        } finally {
+            serviceConfig.setExtractor("test-extractor");
+        }
+    }
+
+    @Test
+    void methodCreationByClassTest() {
+        try {
+            serviceConfig.setExpectation(TimeRangeServiceConfigurationTestExpectation.class.getCanonicalName()+".class");
+            var expectationClass = Optional.ofNullable(serviceConfig.getExpectation()).map(Object::getClass).orElse(null);
+            assertEquals(TimeRangeServiceConfigurationTestExpectation.class, expectationClass, "Wrong regionListener result class");
+        } finally {
+            serviceConfig.setExpectation("test-expectation");
+        }
+    }
+
+    @Test
+    void throwsOnIncompleteTest() {
+        try {
+            serviceConfig.setExtractor("");
+            assertThrows(TimeRangeService.ConfigurationException.class, serviceConfig::timeRangeConfig, "serviceConfig::timeRangeConfig has to throws TimeRangeService.ConfigurationException on wrong config");
+        } finally {
+            serviceConfig.setExtractor("test-extractor");
+        }
     }
 
 }

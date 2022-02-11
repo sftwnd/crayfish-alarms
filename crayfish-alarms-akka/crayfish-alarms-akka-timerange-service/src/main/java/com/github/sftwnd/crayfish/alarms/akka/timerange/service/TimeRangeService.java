@@ -85,9 +85,13 @@ public interface TimeRangeService<M> extends AutoCloseable {
         return new ServiceFactory<>(configuration);
     }
 
+    class ConfigurationException extends IllegalArgumentException {
+        ConfigurationException(String text) { super(text); }
+        ConfigurationException(String text, Throwable throwable) { super(text, throwable); }
+    }
+
     interface Configuration {
 
-        @Nonnull String getServiceName();
         @Nonnull Duration getDuration();
         @Nonnull Duration getInterval();
         @Nonnull Duration getDelay();
@@ -107,19 +111,23 @@ public interface TimeRangeService<M> extends AutoCloseable {
         <M,R> TimeRangeHolder.ResultTransformer<M,R> getExtractor();
         <R> TimeRange.FiredElementsConsumer<R> getFiredConsumer();
 
-        default @Nullable <M,R> TimeRangeConfig<M,R> timeRangeConfig() {
+        default @Nonnull <M,R> TimeRangeConfig<M,R> timeRangeConfig() {
             try {
                 return TimeRangeConfig.create(
                         getDuration(), getInterval(), getDelay(), getCompleteTimeout(), getExpectation(), getComparator(), getExtractor()
                 );
-            } catch (Exception ignored) {
-                return null;
+            } catch (Exception exception) {
+                throw new ConfigurationException("Unable to construct timeRangeConfig", exception);
             }
         }
         default boolean isCompleted() {
-            return timeRangeConfig() != null
-                    && getFiredConsumer() != null
-                    && getRegionListener() != null;
+            try {
+                return Optional.of(timeRangeConfig())
+                        .map(ignored -> getFiredConsumer() != null && getRegionListener() != null)
+                        .orElse(false);
+            } catch (Exception ignored) {
+                return false;
+            }
         }
 
     }
@@ -143,8 +151,8 @@ public interface TimeRangeService<M> extends AutoCloseable {
         }
 
         @Nonnull
-        public TimeRangeService<M> timeRangeService() {
-            final String serviceName = serviceConfig.getServiceName();
+        public TimeRangeService<M> timeRangeService(@Nonnull String serviceName) {
+            Objects.requireNonNull(serviceName, "TimeRangeService::timeRangeService - serviceName is null");
             final Function<Behavior<TimeRangeServiceCommand>, ActorSystem<TimeRangeServiceCommand>> timeRangeServiceSpawn =
                     serviceConfig.getAkkaConfig() == null ? behavior -> ActorSystem.create(behavior, serviceName) : behavior -> ActorSystem.create(behavior, serviceName, serviceConfig.getAkkaConfig());
             CompletableFuture<Void> stopFuture = new CompletableFuture<>();

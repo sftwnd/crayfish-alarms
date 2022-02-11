@@ -24,12 +24,12 @@ import java.time.Duration;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Optional.*;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 @Configuration("timeRangeServiceConfiguration")
 @ConfigurationProperties(prefix = "crayfish.alarms.time-range-service")
@@ -63,15 +63,15 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
     @Getter private Config akkaConfig;
 
     public @Nonnull String getServiceName() { return ofNullable(serviceName).filter(Predicate.not(String::isBlank)).orElse(DEFAULT_SERVICE_NAME); }
-    public @Nonnull Duration getDuration() { return ofNullable(duration).orElse(DEFAULT_DURATION); }
-    public @Nonnull Duration getInterval() { return ofNullable(interval).orElse(DEFAULT_INTERVAL); }
-    public @Nonnull Duration getDelay() { return ofNullable(delay).orElse(DEFAULT_DELAY); }
-    public @Nonnull Duration getCompleteTimeout() { return ofNullable(completeTimeout).orElse(DEFAULT_COMPLETE_TIMEOUT); }
+    @Override public @Nonnull Duration getDuration() { return ofNullable(duration).orElse(DEFAULT_DURATION); }
+    @Override public @Nonnull Duration getInterval() { return ofNullable(interval).orElse(DEFAULT_INTERVAL); }
+    @Override public @Nonnull Duration getDelay() { return ofNullable(delay).orElse(DEFAULT_DELAY); }
+    @Override public @Nonnull Duration getCompleteTimeout() { return ofNullable(completeTimeout).orElse(DEFAULT_COMPLETE_TIMEOUT); }
 
-    public @SuppressWarnings("unchecked") <M,T extends TemporalAccessor> Expectation<M,T> getExpectation() { return (Expectation<M,T>) expectation; }
-    public @SuppressWarnings("unchecked") <M> Comparator<M> getComparator() { return (Comparator<M>) comparator; }
-    public @SuppressWarnings("unchecked") <M,R> ResultTransformer<M,R> getExtractor() { return (ResultTransformer<M,R>) extractor; }
-    public @SuppressWarnings("unchecked") <R> FiredElementsConsumer<R> getFiredConsumer() { return (FiredElementsConsumer<R>) firedConsumer; }
+    @Override public @SuppressWarnings("unchecked") <M,T extends TemporalAccessor> Expectation<M,T> getExpectation() { return (Expectation<M,T>) expectation; }
+    @Override public @SuppressWarnings("unchecked") <M> Comparator<M> getComparator() { return (Comparator<M>) comparator; }
+    @Override public @SuppressWarnings("unchecked") <M,R> ResultTransformer<M,R> getExtractor() { return (ResultTransformer<M,R>) extractor; }
+    @Override public @SuppressWarnings("unchecked") <R> FiredElementsConsumer<R> getFiredConsumer() { return (FiredElementsConsumer<R>) firedConsumer; }
     public void setComparator(@Nonnull String comparator) {
         if (clean(comparator, () -> this.comparator = null)) return;
         @SuppressWarnings("rawtypes")
@@ -125,7 +125,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
                 .orElseGet(() -> { cleaner.run(); return true; });
     }
     private final AutowireCapableBeanFactory beanFactory;
-    private static final Pattern classPattern = Pattern.compile("(.+[^\\.])\\.class");
+    private static final Pattern classPattern = Pattern.compile("(.+[^.])\\.class");
     @SuppressWarnings("unchecked")
     @SneakyThrows
     private @Nullable <X> X wakeUp(@Nonnull String className, @Nonnull Class<X> ignored) {
@@ -137,7 +137,7 @@ public class TimeRangeServiceConfiguration implements TimeRangeService.Configura
     public @Nullable <M> TimeRangeService<M> timeRangeService() {
         if (isCompleted()) {
             TimeRangeService.ServiceFactory<M,?> serviceFactory = TimeRangeService.serviceFactory(this);
-            return serviceFactory.timeRangeService();
+            return serviceFactory.timeRangeService(getServiceName());
         }
         return null;
     }
