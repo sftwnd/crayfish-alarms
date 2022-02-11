@@ -49,7 +49,7 @@ This is the most general method. When calling it, you must specify the **duratio
     );
 ```
 
-#### method [packable](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L119-L129)
+#### method [packable](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L144-L154)
 This method allows you to create a TimeRangeConfig described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
 In this case, the **expectation** and **extractor** parameters are missing
 
@@ -63,7 +63,7 @@ In this case, the **expectation** and **extractor** parameters are missing
     );
 ```
 
-#### method [expected](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L142-L150)
+#### method [expected](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L167-L175)
 This method also defines the **expectation** and **extractor** parameters itself and creates a [TimeRangeConfig&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java) that has the same object at the input and output that implements the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface.
 
 ```java
@@ -100,7 +100,7 @@ There are also three additional methods:
 * duration() - get time interval until the next event occurs from the moment specified by the parameter, or from the current moment if the parameter is not set
 
 #### Adding new elements to the holder
-To add new elements, use the [addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) method:
+To add new elements, use the [addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L263-L326) method:
 
 ```java
     List<MyObject> elements=getElements();
@@ -110,7 +110,7 @@ To add new elements, use the [addElements](./crayfish-alarms-akka/crayfish-alarm
 If any elements do not fall within the specified region (excluding the right border), then these elements will be returned by the adElements method as not processed (rejected)
 
 #### Getting triggered (fired) elements from a holder
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java#L206-L241) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java#L207-L242) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements (unique if the timestamp matches).
 
 ```java
@@ -129,7 +129,7 @@ AKKA Benavior's RangeProcessor<M,R> is implemented to process one particular tim
 The launch is performed by the TimeRange.processor method with a description of the following parameters:
 * time - the border of the temporary region. Set by analogy with TimeRangeHolder.
 * timeRangeConfig - see above description of TimeRangeConfig
-* firedConsumer - Consumer, which will be called if elements that have fired at the current time are found. Consumer interface: [FiredElementsConsumer&lt;R&gt;](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L84-L86)
+* firedConsumer - Consumer, which will be called if elements that have fired at the current time are found. Consumer interface: [FiredElementsConsumer&lt;R&gt;](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L95-L98)
 * withCheckDuration - Time shift, which allows you to search for elements not exactly at the current moment, but with a slight offset.
 
 Behavior definition:
@@ -151,7 +151,7 @@ Creation of processor as ActorSystem:
 ```
 
 #### Add elements to TimeRegion Processor
-To add elements to the TimeRange Processor, use the [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) factory method.
+To add elements to the TimeRange Processor, use the [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L263-L326) factory method.
 The method contains three parameters:
 * ActorRef&lt;Command&lt;M&gt;&gt; timeRangeActor - Service to which we add elements
 * Collection&lt;M&gt; elements - Collection of elements to add
@@ -162,7 +162,7 @@ The method contains three parameters:
     TimeRange.addElements(timeRangeProcessor, elements, rejectedFuture);
 ```
 
-You can also call [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L235-L299) as a function without the CompletableFuture parameter. Then the function itself will create a CompletionStage and return it as a result.
+You can also call [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L263-L326) as a function without the CompletableFuture parameter. Then the function itself will create a CompletionStage and return it as a result.
 
 ```java
     CompletionStage<MyObject> rejectedFuture = TimeRange.addElements(timeRangeProcessor, elements);
@@ -170,7 +170,7 @@ You can also call [TimeRange.addElements](./crayfish-alarms-akka/crayfish-alarms
 
 If the elements fall within the range described by the TimeRange of Processor, then they are stored inside for further processing. If they do not, then a list of such elements will be sent to the CompletionStage as the result of the operation.
 #### Handling triggered messages
-If at the current moment of time, taking into account the shift, triggered elements are found, then the collection of these elements is sent for processing by calling the callback method ([firedElementConsumer](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L84-L86)), passing the collection there as a parameter.
+If at the current moment of time, taking into account the shift, triggered elements are found, then the collection of these elements is sent for processing by calling the callback method ([firedElementConsumer](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L95-L98)), passing the collection there as a parameter.
 #### Stop processing
 When the point in time arrives at which the isComplete operation applied to the TimeRegionHolder in the processor yields a positive result, then processing of the region is stopped and the service is terminated.
 #### Determining when the processor has stopped
@@ -190,7 +190,7 @@ To determine the moment when the processor stops, you can use a subscription to 
 ### Time Range Processing Service
 The Time Range Processing Service, unlike the Single Time Range Processor, processes incoming elements not for a fixed range, but for a dynamically moving window of TimeRange ranges, each of which is implemented using the TimeRange Processor.
 #### Service creation
-The service is created using the factory method [TimeRange.service](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L356-L366)
+The service is created using the factory method [TimeRange.service](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L409-L419)
 
 ```java
     timeRangeProcessor = context.spawn(
@@ -213,7 +213,7 @@ When a service is created, the processor starts, for the calculated moment from 
 The service build method contains three additional parameters:
 * _**rangeDepth**_ - the number of additional TimeRanges that will be created for the future and following the current one sequentially, without time gaps
 * _**nrOfInstances**_ - number of message handlers for each TimeRegion created. Recommended at least one
-* _**[timeRangeWakedUp](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L352-L354)**_ - the method that will be called when creating the TimeRegion handler
+* _**[timeRangeWakedUp](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L404-L407)**_ - the method that will be called when creating the TimeRegion handler
 
 #### Add elements to TimeRegion Service
 This method corresponds to the method of adding to the processor with the only limitation that when adding an element, a TimeRegion is determined that corresponds to the moment of the element and is added there. If TimeRegion is absent or rejects an element, then such elements are sent as rejected
@@ -233,7 +233,7 @@ To stop a service, you must use the AKKA API to stop the actor or AkkaSystem tha
     context.stop(timeRangeService);
 ```
 
-#### Usage of [TimeRange.Mailbox](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L595-L618)
+#### Usage of [TimeRange.Mailbox](./crayfish-alarms-akka/crayfish-alarms-akka-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/TimeRange.java#L651-L680)
 All request processing in the AKKA Actor is done by sequentially reading messages from the mailbox.
 When processing messages in the TimeRange Service, they pass through one Mailbox - both messages for adding elements, and messages for creating a TimeRange Processor.
 In order not to delay messages about the creation of a new TimeRange Processor, it is recommended to use a prioritized TimeRange.Mailbox.
@@ -381,10 +381,10 @@ TimeRangeService Spring Boot starter is realized in module: _**crayfish-alarms-s
 #### Required parameters
 
 To start the service, just specify the following configuration parameters:
-* crayfish.alarms.time-range-service.fired-consumer
-* crayfish.alarms.time-range-service.region-listener
-* crayfish.alarms.time-range-service.expectation
-* crayfish.alarms.time-range-service.extractor
+* _crayfish.alarms.time-range-service.fired-consumer_
+* _crayfish.alarms.time-range-service.region-listener_
+* _crayfish.alarms.time-range-service.expectation_
+* _crayfish.alarms.time-range-service.extractor_
 
 _The values are either the name of the bean that implements the corresponding interface, or the class (with the addition of .class)_
 
