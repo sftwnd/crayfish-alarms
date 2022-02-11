@@ -190,7 +190,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
         private Behavior<TimeRangeServiceCommand> timeRangeService(
                 @Nonnull final CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture,
                 @Nullable final CompletableFuture<Void> stopFuture,
-                @Nullable final CompletableFuture<Void> completableFuture
+                @Nullable final CompletableFuture<Void> completeFuture
         ) {
             Objects.requireNonNull(addElementsFunctionFuture, "ServiceDescription::addElementsFunctionConsumer - serviceName is null");
             final int timeRangeDepth = ofNullable(serviceConfig.getTimeRangeDepth()).orElse(DEFAULT_TIME_RANGE_DEPTH);
@@ -213,7 +213,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
                             deadLetterCompleteTimeout,
                             addElementsFunctionFuture,
                             stopFuture,
-                            completableFuture
+                            completeFuture
                     ));
         }
 

@@ -26,7 +26,7 @@ When accessing TimeRange, you can get information about the interval until the n
 The implemented library allows you to store elements that have a time marker inside the TimeRange and retrieve at each moment of time those objects that have a time marker earlier than the current moment. A temporary marker can be attached to an object in three ways:
 1) An implementation of the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, where the token is obtained by calling the getTick() method
 2) Packing the element into an object that implements the [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) interface, which also supports the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, and the element itself is obtained by calling the getElemen() method
-3) A description of two methods that implement the interfaces [Expectation&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [TimeRangeHolder.ResultTransformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java#L48-L59) to get the resulting object from the original one.
+3) A description of two methods that implement the interfaces [Expectation&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [TimeRangeHolder.ResultTransformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeHolder.java#L48-L60) to get the resulting object from the original one.
 
 ### Uniqueness Constraint
 There is one TimeRange limitation: you cannot describe two objects at the same time that, when cast to the resulting object, will turn out to be equal.
@@ -362,6 +362,40 @@ For example:
     CountDownLatch completeLatch = new CountDownLatch(1);
     timeRange.stop().thenAccept(completeLatch.countDown);
     completeLatch.awit(...);
+```
+
+### Back to AKKA
+
+When the service starts, an AkkaSystem<> is implicitly created, but its use is hidden behind the api.
+If there is a desire to use only one AKKA System in a project, then you can use the [timeRangeService function fo Behavior<>](crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L190-L194) that implements this service, so although we hid AKKA behind api, we still retained access to enable finer integration of the service into applications running over AKKA Platform.
+
+```java
+  private Behavior<TimeRangeServiceCommand> timeRangeService(
+          @Nonnull final CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture,
+          @Nullable final CompletableFuture<Void> stopFuture,
+          @Nullable final CompletableFuture<Void> completeFuture
+  )
+```
+
+When the actor implementing this Behavior<> starts, a function will be placed in the corresponding addElementsFunctionFuture to send elements to the TimeRegionService.
+It also accepts CompletableFuture: stopFuture and completeFuture, which will be used to react to the actor's stop phases
+
+The generated Behavior<> can be used to create a service inside the actor or AkkaSystem of your application, [similar to how it is implemented]((./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L170) in the [timeRangeService function](./crayfish-alarms-akka/crayfish-alarms-akka-timerange-service/src/main/java/com/github/sftwnd/crayfish/alarms/akka/timerange/service/TimeRangeService.java#L163-L187) to create a TimeRangeService.
+
+```java
+    CompletableFuture<Void> stopFuture = new CompletableFuture<>();
+    CompletableFuture<Void> completeFuture = new CompletableFuture<>();
+    CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture = new CompletableFuture<>();
+    ActorSystem<TimeRangeServiceCommand> timeRangeService =
+        getContext().spawn(
+            timeRangeService(
+                addElementsFunctionFuture,
+                stopFuture,
+                completeFuture
+            ),
+            "time-range-service"
+        );
+    Function<Collection<M>,CompletionStage<Collection<M>>> addElementsFunction = addElementsFunctionFuture.join();            
 ```
 
 ## Time Range Service Spring Boot starter
