@@ -44,6 +44,7 @@
         <module>crayfish-alarms-timerange</module>
         <module>crayfish-alarms-akka</module>
         <module>crayfish-alarms-spring-boot</module>
+        <module>spring-boot-starter-demo</module>
     </modules>
 
     <properties>
