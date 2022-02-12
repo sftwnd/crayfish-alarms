@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.github.sftwnd.crayfish.alarms</groupId>
         <artifactId>crayfish-alarms-akka</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
