@@ -153,7 +153,8 @@ public class TimeRangeHolder<M,R> {
     }
 
     /**
-     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout, has been exhausted at the current time
+     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout,
+     * has been exhausted at the current time
      * @return true if completed or false otherwise
      */
     public boolean isComplete() {
@@ -161,7 +162,8 @@ public class TimeRangeHolder<M,R> {
     }
 
     /**
-     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout, has been exhausted for the passed time point
+     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout,
+     * has been exhausted for the passed time point
      * @param instant point in time at which the check is made
      * @return true if completed or false otherwise
      */
@@ -176,7 +178,7 @@ public class TimeRangeHolder<M,R> {
      * @param elements collection of added elements
      * @return list of ignored elements
      */
-    public Collection<M> addElements(@Nonnull Collection<M> elements) {
+    public @Nonnull Collection<M> addElements(@Nonnull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
         List<M> excludes = new ArrayList<>();
         //noinspection ConstantConditions
@@ -205,7 +207,8 @@ public class TimeRangeHolder<M,R> {
     }
 
     /**
-     * Extracting from the saved elements those that, according to the temporary marker, are considered to have worked at the current moment
+     * Extracting from the saved elements those that, according to the temporary marker, are considered
+     * to have worked at the current moment
      * @return List of triggered elements
      */
     public @Nonnull Collection<R> extractFiredElements() {
@@ -214,7 +217,8 @@ public class TimeRangeHolder<M,R> {
     }
 
     /**
-     * Extracting from the saved elements those that, according to the time marker, are considered to have worked at the time passed by the parameter
+     * Extracting from the saved elements those that, according to the time marker, are considered
+     * to have worked at the time passed by the parameter
      * @param instant point in time at which the check is made
      * @return List of triggered elements
      */
@@ -283,7 +287,7 @@ public class TimeRangeHolder<M,R> {
      * @param now point in time for which we calculate the value
      * @return timeout to the nearest event, taking into account delay
      */
-    public Duration duration(@Nonnull Instant now) {
+    public @Nonnull Duration duration(@Nonnull Instant now) {
         // If the time is before the start of the range
         if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
@@ -303,7 +307,7 @@ public class TimeRangeHolder<M,R> {
      * either startInstant or lastInstant + completeDuration
      * @return timeout to the nearest event, taking into account the delay from the current moment
      */
-    public Duration duration() {
+    public @Nonnull Duration duration() {
         return duration(Instant.now());
     }
 
