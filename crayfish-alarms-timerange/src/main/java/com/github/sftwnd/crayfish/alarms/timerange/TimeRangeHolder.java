@@ -38,7 +38,7 @@ import static java.util.Optional.ofNullable;
  * @param <M> Element type when added
  * @param <R> Element type when retrieving
  */
-public class TimeRangeHolder<M,R> {
+public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
 
     /**
      * Transformation of nonnull element to nonnull value
