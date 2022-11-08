@@ -447,8 +447,8 @@ _The values are either the name of the bean that implements the corresponding in
 ### Demonstration example 
 
 ```java
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.TimeRangeWakedUp;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.TimeRangeWakedUp;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.service.TimeRangeService;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;

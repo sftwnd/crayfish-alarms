@@ -53,9 +53,9 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * Typed Akka Actor protocol interface for TimeRange for registering alarms and processing them
+ * Typed Akka Actor protocol interface for TimeRangeProcessor for registering alarms and processing them
  */
-public interface TimeRange {
+public interface TimeRangeProcessor {
 
     /*
         Used Sonar warnings:
@@ -270,9 +270,9 @@ public interface TimeRange {
     static <M> void addElements(
             @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nullable CompletableFuture<Collection<M>> completableFuture
     ) {
-        Objects.requireNonNull(timeRangeActor, "TimeRange::addElements - timeRangeActor is null");
+        Objects.requireNonNull(timeRangeActor, "TimeRangeProcessor::addElements - timeRangeActor is null");
         CompletableFuture<Collection<M>> future = Optional.ofNullable(completableFuture).orElseGet(CompletableFuture::new);
-        of(Objects.requireNonNull(elements, "TimeRange::addElements - elements is null"))
+        of(Objects.requireNonNull(elements, "TimeRangeProcessor::addElements - elements is null"))
                 .filter(Predicate.not(Collection::isEmpty))
                 .filter(ignore -> !future.isDone())
                 .map(data -> new AddCommand<>(data, future))
@@ -306,7 +306,7 @@ public interface TimeRange {
     static <M> void addElements(
             @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull Consumer<Collection<M>> onCompleteWithReject
     ) {
-        addElements(timeRangeActor, elements).thenAccept(Objects.requireNonNull(onCompleteWithReject, "TimeRange::addElements - onCompleteWithReject is null"));
+        addElements(timeRangeActor, elements).thenAccept(Objects.requireNonNull(onCompleteWithReject, "TimeRangeProcessor::addElements - onCompleteWithReject is null"));
     }
 
     /**
@@ -320,13 +320,13 @@ public interface TimeRange {
     static <M> void addElements(
             @Nonnull ActorRef<Command<M>> timeRangeActor, @Nonnull Collection<M> elements, @Nonnull Consumer<Collection<M>> onCompleteWithReject, @Nonnull Consumer<Throwable> onThrow
     ) {
-        Objects.requireNonNull(onCompleteWithReject, "TimeRange::addElements - onCompleteWithReject is null");
-        Objects.requireNonNull(onThrow, "TimeRange::addElements - onThrow is null");
+        Objects.requireNonNull(onCompleteWithReject, "TimeRangeProcessor::addElements - onCompleteWithReject is null");
+        Objects.requireNonNull(onThrow, "TimeRangeProcessor::addElements - onThrow is null");
         addElements(timeRangeActor, elements).whenComplete((rejected, throwable) -> ofNullable(throwable).ifPresentOrElse(onThrow, () -> onCompleteWithReject.accept(rejected)));
     }
 
     /**
-     * Send TimeRange actor Graceful Stop event
+     * Send TimeRangeProcessor actor Graceful Stop event
      * @param timeRangeActor actor - time period handler
      * @param <M> the type of message being sent
      * @return Completion Stage of the response (wait for stop)
@@ -369,7 +369,7 @@ public interface TimeRange {
             @Nullable final Duration initialTimeout,
             @Nullable final Duration completeTimeout
     ) {
-        Objects.requireNonNull(rangeActor, "TimeRange::deadLetterSubscriber - rangeActor is null");
+        Objects.requireNonNull(rangeActor, "TimeRangeProcessor::deadLetterSubscriber - rangeActor is null");
         final Predicate<ActorPath> checkPath = new Predicate<>() {
             @Override
             public boolean test(ActorPath actorPath) {
@@ -435,13 +435,13 @@ public interface TimeRange {
         private final Map<String, ActorRef<Command<M>>> timeRangeActors = new HashMap<>();
 
         /**
-         * Alarm processor with TimeRange auto-raise, parallelization and informing about TimeRange creation
+         * Alarm processor with TimeRangeProcessor auto-raise, parallelization and informing about TimeRangeProcessor creation
          *
          * @param context AKKA ActorContext
          * @param timeRangeConfig config to describe region settings
-         * @param firedConsumer consumer that implements a reaction to the rise of TimeRange elements
+         * @param firedConsumer consumer that implements a reaction to the rise of TimeRangeProcessor elements
          * @param withCheckDuration an interval that allows you to react to events in advance or with a delay
-         * @param rangeDepth the depth to which TimeRange rises at moments in the future
+         * @param rangeDepth the depth to which TimeRangeProcessor rises at moments in the future
          * @param nrOfInstances number of TimeRegion actors per time interval
          * @param timeRangeWakedUp consumer informing about the rise of interval processing
          */
@@ -468,7 +468,7 @@ public interface TimeRange {
         }
 
         private void startDeadLetterWatching() {
-            ActorRef<DeadLetter> deadLetterActor = getContext().spawn(TimeRange.deadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
+            ActorRef<DeadLetter> deadLetterActor = getContext().spawn(TimeRangeProcessor.deadLetterSubscriber(getContext().getSelf()), DEAD_ADD_COMMAND_ACTOR);
             getContext()
                     .getSystem()
                     .eventStream()
@@ -530,7 +530,7 @@ public interface TimeRange {
             return FIRED_RANGE_ID.equals(regionId) ? fireData(data)
                     // If the set has a child actor, we send elements to it and return a CompletableFuture for them
                     : ofNullable(timeRangeActors.get(regionId))
-                    .map(timeRangeActor -> Commands.<Collection<M>>completableFuture(future -> TimeRange.addElements(timeRangeActor, data, future)))
+                    .map(timeRangeActor -> Commands.<Collection<M>>completableFuture(future -> TimeRangeProcessor.addElements(timeRangeActor, data, future)))
                     .orElseGet(() -> Commands.completableFuture(completableFuture -> completableFuture.complete(data)));
         }
 
@@ -655,21 +655,21 @@ public interface TimeRange {
     class Mailbox extends UnboundedStablePriorityMailbox {
 
         @SuppressWarnings("java:S1172")
-        public Mailbox(Settings settings, Config config) {
+        public Mailbox(Settings ignoreSettings, Config ignoreConfig) {
             super(new PriorityGenerator() {
                 @Override
                 public int gen(Object msg) {
                     if (msg instanceof akka.actor.Terminated || msg instanceof akka.actor.typed.Terminated) {
                         return 1;
-                    } else if (msg instanceof TimeRange.GracefulStop) {
+                    } else if (msg instanceof TimeRangeProcessor.GracefulStop) {
                         return 2;
                     } else if (msg instanceof Signal) {
                         return 3;
-                    } else if (msg instanceof TimeRange.Timeout) {
+                    } else if (msg instanceof TimeRangeProcessor.Timeout) {
                         return 4;
-                    }  else if (msg instanceof TimeRange.AddCommand) {
+                    }  else if (msg instanceof TimeRangeProcessor.AddCommand) {
                         return 5;
-                    } else if (msg instanceof TimeRange.Command) {
+                    } else if (msg instanceof TimeRangeProcessor.Command) {
                         return 6;
                     }
                     return 0;

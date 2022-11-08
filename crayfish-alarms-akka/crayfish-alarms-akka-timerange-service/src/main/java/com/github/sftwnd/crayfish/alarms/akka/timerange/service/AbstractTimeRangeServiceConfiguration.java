@@ -1,7 +1,7 @@
 package com.github.sftwnd.crayfish.alarms.akka.timerange.service;
 
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.FiredElementsConsumer;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.TimeRangeWakedUp;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.FiredElementsConsumer;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.TimeRangeWakedUp;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder.ResultTransformer;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.typesafe.config.Config;

@@ -1,6 +1,6 @@
 package com.github.sftwnd.crayfish.alarms.spring.boot.timerange.starter;
 
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.typesafe.config.Config;
@@ -19,7 +19,7 @@ import java.util.Optional;
 public class TimeRangeServiceConfigurationApplication {
 
     @Bean("test-regionListener")
-    TimeRange.TimeRangeWakedUp regionListener() {
+    TimeRangeProcessor.TimeRangeWakedUp regionListener() {
         return (start,end) -> {};
     }
 
@@ -29,7 +29,7 @@ public class TimeRangeServiceConfigurationApplication {
     }
 
     @Bean("test-firedElementsConsumer")
-    TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer() {
+    TimeRangeProcessor.FiredElementsConsumer<Instant> firedElementsConsumer() {
         return elements -> {};
     }
 

@@ -1,6 +1,6 @@
 package com.github.sftwnd.crayfish.alarms.spring.boot.timerange.starter;
 
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.service.TimeRangeService;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
@@ -34,18 +34,18 @@ import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER
 class TimeRangeServiceStarterConfigurationPojoTest {
 
     private final TimeRangeServiceStarterConfiguration serviceConfig;
-    private final TimeRange.TimeRangeWakedUp regionListener;
+    private final TimeRangeProcessor.TimeRangeWakedUp regionListener;
     private final Expectation<Instant, Instant> expectation;
-    private final TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer;
+    private final TimeRangeProcessor.FiredElementsConsumer<Instant> firedElementsConsumer;
     private final TimeRangeHolder.ResultTransformer<Instant,Instant> extractor;
     private final Comparator<Instant> comparator;
     private final Config akkaConfig;
 
     public TimeRangeServiceStarterConfigurationPojoTest(
             @Autowired TimeRangeServiceStarterConfiguration serviceConfig,
-            @Autowired @Qualifier("test-regionListener") TimeRange.TimeRangeWakedUp regionListener,
+            @Autowired @Qualifier("test-regionListener") TimeRangeProcessor.TimeRangeWakedUp regionListener,
             @Autowired @Qualifier("test-expectation") Expectation<Instant, Instant> expectation,
-            @Autowired @Qualifier("test-firedElementsConsumer") TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer,
+            @Autowired @Qualifier("test-firedElementsConsumer") TimeRangeProcessor.FiredElementsConsumer<Instant> firedElementsConsumer,
             @Autowired @Qualifier("test-extractor") TimeRangeHolder.ResultTransformer<Instant,Instant> extractor,
             @Autowired @Qualifier("test-comparator") Comparator<Instant> comparator,
             @Autowired @Qualifier("test-akkaConfig") Config akkaConfig

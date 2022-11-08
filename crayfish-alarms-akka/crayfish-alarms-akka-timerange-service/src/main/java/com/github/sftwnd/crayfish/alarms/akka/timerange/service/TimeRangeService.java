@@ -10,8 +10,8 @@ import akka.actor.typed.javadsl.AbstractBehavior;
 import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.Command;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.Command;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
@@ -48,25 +48,25 @@ public interface TimeRangeService<M> extends AutoCloseable {
     @Nonnull CompletionStage<Collection<M>> addElements(@Nonnull Collection<M> elements);
 
     /**
-     * Getting the CompletionStage to be executed after the TimeRange Service is stopped
+     * Getting the CompletionStage to be executed after the TimeRangeProcessor Service is stopped
      * @return CompletionStage of the stop of Service processing
      */
     @Nonnull CompletionStage<Void> stopStage();
 
     /**
-     * Getting the CompletionStage to be executed after the TimeRange Service and DeadLetter processing are stopped
+     * Getting the CompletionStage to be executed after the TimeRangeProcessor Service and DeadLetter processing are stopped
      * @return CompletionStage of the stop of Service and DeadLetter processing
      */
     @Nonnull CompletionStage<Void> completionStage();
 
     /**
-     * Stop the TimeRange processing
+     * Stop the TimeRangeProcessor processing
      * @return CompletionStage of the stop of Service processing
      */
     @Nonnull CompletionStage<Void> stop();
 
     /**
-     * Stop the TimeRange Service and DeadLetter processing
+     * Stop the TimeRangeProcessor Service and DeadLetter processing
      * @return CompletionStage of the stop of Service and DeadLetter processing
      */
     @Nonnull default CompletionStage<Void> complete() {
@@ -75,7 +75,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
     }
 
     /**
-     * Complete TimeRange Service and DeadLetter processing and wait for completion
+     * Complete TimeRangeProcessor Service and DeadLetter processing and wait for completion
      */
     @Override default void close() {
         complete().toCompletableFuture().join();
@@ -112,13 +112,13 @@ public interface TimeRangeService<M> extends AutoCloseable {
         Duration getDeadLetterTimeout();
         Duration getDeadLetterCompleteTimeout();
 
-        TimeRange.TimeRangeWakedUp getRegionListener();
+        TimeRangeProcessor.TimeRangeWakedUp getRegionListener();
         Config getAkkaConfig();
 
         <M,T extends TemporalAccessor> Expectation<M,T> getExpectation();
         <M> Comparator<M> getComparator();
         <M,R> TimeRangeHolder.ResultTransformer<M,R> getExtractor();
-        <R> TimeRange.FiredElementsConsumer<R> getFiredConsumer();
+        <R> TimeRangeProcessor.FiredElementsConsumer<R> getFiredConsumer();
 
         default boolean isCompleted() {
             try {
@@ -196,8 +196,8 @@ public interface TimeRangeService<M> extends AutoCloseable {
             final int timeRangeDepth = ofNullable(serviceConfig.getTimeRangeDepth()).orElse(DEFAULT_TIME_RANGE_DEPTH);
             final int nrOfInstances = ofNullable(serviceConfig.getNrOfInstances()).orElse(DEFAULT_NR_OF_INSTANCES);
             final Duration withCheckDuration = ofNullable(serviceConfig.getWithCheckDuration()).orElse(DEFAULT_WITH_CHECK_DURATION);
-            final TimeRange.TimeRangeWakedUp regionListener = Objects.requireNonNull(serviceConfig.getRegionListener(), "ServiceDescription::timeRangeService - regionListener is null");
-            final TimeRange.FiredElementsConsumer<R> alarmsConsumer = Objects.requireNonNull(serviceConfig.getFiredConsumer(), "ServiceDescription::timeRangeService - alarmsConsumer is null");
+            final TimeRangeProcessor.TimeRangeWakedUp regionListener = Objects.requireNonNull(serviceConfig.getRegionListener(), "ServiceDescription::timeRangeService - regionListener is null");
+            final TimeRangeProcessor.FiredElementsConsumer<R> alarmsConsumer = Objects.requireNonNull(serviceConfig.getFiredConsumer(), "ServiceDescription::timeRangeService - alarmsConsumer is null");
             final Duration deadLetterTimeout = ofNullable(serviceConfig.getDeadLetterTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_TIMEOUT);
             final Duration deadLetterCompleteTimeout = ofNullable(serviceConfig.getDeadLetterCompleteTimeout()).filter(Predicate.not(Duration::isNegative)).orElse(DEFAULT_DEAD_LETTER_COMPLETE_TIMEOUT);
             return Behaviors.setup(context ->
@@ -233,11 +233,11 @@ public interface TimeRangeService<M> extends AutoCloseable {
             @SuppressWarnings("java:S107")
             private TimeRangeServiceBehavior(@Nonnull ActorContext<TimeRangeServiceCommand> actorContext,
                                              @Nonnull TimeRangeConfig<M, R> timeRangeConfig,
-                                             @Nonnull TimeRange.FiredElementsConsumer<R> firedConsumer,
+                                             @Nonnull TimeRangeProcessor.FiredElementsConsumer<R> firedConsumer,
                                              @Nonnull Duration withCheckDuration,
                                              int rangeDepth,
                                              int nrOfInstances,
-                                             @Nonnull TimeRange.TimeRangeWakedUp regionListener,
+                                             @Nonnull TimeRangeProcessor.TimeRangeWakedUp regionListener,
                                              @Nonnull Duration deadLetterTimeout,
                                              @Nonnull Duration deadLetterCompleteTimeout,
                                              @Nonnull CompletableFuture<Function<Collection<M>,CompletionStage<Collection<M>>>> addElementsFunctionFuture,
@@ -246,8 +246,8 @@ public interface TimeRangeService<M> extends AutoCloseable {
                 super(actorContext);
                 this.deadLetterTimeout = deadLetterTimeout;
                 this.deadLetterCompleteTimeout = deadLetterCompleteTimeout;
-                // take TimeRange Service behavior
-                Behavior<Command<M>> timeRangeServiceBehavior = Behaviors.setup(context -> TimeRange.service(
+                // take TimeRangeProcessor Service behavior
+                Behavior<Command<M>> timeRangeServiceBehavior = Behaviors.setup(context -> TimeRangeProcessor.service(
                         context,
                         timeRangeConfig,
                         firedConsumer,
@@ -264,7 +264,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
 
             private CompletionStage<Collection<M>> addElements(@Nonnull Collection<M> elements) {
                 if (active.get()) {
-                    return TimeRange.addElements(this.timeRangeServiceActor, elements);
+                    return TimeRangeProcessor.addElements(this.timeRangeServiceActor, elements);
                 } else {
                     CompletableFuture<Collection<M>> rejectFuture = new CompletableFuture<>();
                     rejectFuture.complete(elements);
@@ -294,7 +294,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
             private Behavior<TimeRangeServiceCommand> onStopService() {
                 final ActorRef<TimeRangeServiceCommand> self = getContext().getSelf();
                 self.tell(TimeRangeServiceCommand.SERVICE_STOPPED);
-                TimeRange.stop(this.timeRangeServiceActor).thenAccept(ignore -> this.stopFuture.complete(null));
+                TimeRangeProcessor.stop(this.timeRangeServiceActor).thenAccept(ignore -> this.stopFuture.complete(null));
                 return Behaviors.same();
             }
 
@@ -303,7 +303,7 @@ public interface TimeRangeService<M> extends AutoCloseable {
                     Optional.of(stopFuture).filter(Predicate.not(CompletableFuture::isDone)).ifPresent(future -> future.complete(null));
                     // create dead-letter actor for timeRangeServiceActor
                     ActorRef<DeadLetter> deadLetterActor = getContext().spawn(
-                            TimeRange.deadLetterSubscriber(this.timeRangeServiceActor, this.deadLetterTimeout, this.deadLetterCompleteTimeout),
+                            TimeRangeProcessor.deadLetterSubscriber(this.timeRangeServiceActor, this.deadLetterTimeout, this.deadLetterCompleteTimeout),
                             DEAD_LETTER_ACTOR_NAME
                     );
                     getContext().watch(deadLetterActor); // GracefulStop on deadLetter death

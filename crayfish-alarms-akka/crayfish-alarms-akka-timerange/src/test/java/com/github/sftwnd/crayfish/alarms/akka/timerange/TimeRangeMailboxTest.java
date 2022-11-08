@@ -1,6 +1,7 @@
 package com.github.sftwnd.crayfish.alarms.akka.timerange;
 
 import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
 import akka.actor.Terminated;
 import akka.actor.typed.Signal;
 import akka.dispatch.Envelope;
@@ -12,7 +13,7 @@ import org.mockito.Mockito;
 
 class TimeRangeMailboxTest {
 
-    static TimeRange.Mailbox mailbox;
+    static TimeRangeProcessor.Mailbox mailbox;
     static Envelope envelopeObject;
     static Envelope envelopeTerminated;
     static Envelope envelopeGracefulStop;
@@ -53,15 +54,16 @@ class TimeRangeMailboxTest {
 
     @BeforeAll
     static void startUp() {
-        mailbox = new TimeRange.Mailbox(null, null);
+        mailbox = new TimeRangeProcessor.Mailbox(null, null);
+        ActorSystem actorSystem = Mockito.mock(ActorSystem.class);
         ActorRef actorRef = Mockito.mock(ActorRef.class);
-        envelopeObject = Envelope.apply(Mockito.mock(Object.class), actorRef);
-        envelopeTerminated = Envelope.apply(Terminated.apply(actorRef, false, false), actorRef);
-        envelopeGracefulStop = Envelope.apply(Mockito.mock(TimeRange.GracefulStop.class), actorRef);
-        envelopeSignal = Envelope.apply(Mockito.mock(Signal.class), actorRef);
-        envelopeTimeout = Envelope.apply(Mockito.mock(TimeRange.Timeout.class), actorRef);
-        envelopeAddCommand = Envelope.apply(Mockito.mock(TimeRange.AddCommand.class), actorRef);
-        envelopeCommand = Envelope.apply(Mockito.mock(TimeRange.Command.class), actorRef);
+        envelopeObject = Envelope.apply(Mockito.mock(Object.class), actorRef, actorSystem);
+        envelopeTerminated = Envelope.apply(Terminated.apply(actorRef, false, false), actorRef, actorSystem);
+        envelopeGracefulStop = Envelope.apply(Mockito.mock(TimeRangeProcessor.GracefulStop.class), actorRef, actorSystem);
+        envelopeSignal = Envelope.apply(Mockito.mock(Signal.class), actorRef, actorSystem);
+        envelopeTimeout = Envelope.apply(Mockito.mock(TimeRangeProcessor.Timeout.class), actorRef, actorSystem);
+        envelopeAddCommand = Envelope.apply(Mockito.mock(TimeRangeProcessor.AddCommand.class), actorRef, actorSystem);
+        envelopeCommand = Envelope.apply(Mockito.mock(TimeRangeProcessor.Command.class), actorRef, actorSystem);
     }
 
     @AfterAll

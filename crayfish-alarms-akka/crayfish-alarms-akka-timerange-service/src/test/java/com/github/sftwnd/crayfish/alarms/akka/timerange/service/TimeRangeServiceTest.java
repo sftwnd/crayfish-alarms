@@ -1,6 +1,6 @@
 package com.github.sftwnd.crayfish.alarms.akka.timerange.service;
 
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import org.junit.jupiter.api.AfterEach;
@@ -62,8 +62,8 @@ class TimeRangeServiceTest {
         this.regionListenerLatch = new CountDownLatch(4);
         Expectation<Instant,Instant> expectation = instant -> instant;
         TimeRangeHolder.ResultTransformer<Instant, Instant> extractor = instant -> instant;
-        TimeRange.FiredElementsConsumer<Instant> firedElementsConsumer = elements -> { firedElements.addAll(elements); firedElementsLatch.countDown(); };
-        TimeRange.TimeRangeWakedUp regionListener = (start, end) -> regionListenerLatch.countDown();
+        TimeRangeProcessor.FiredElementsConsumer<Instant> firedElementsConsumer = elements -> { firedElements.addAll(elements); firedElementsLatch.countDown(); };
+        TimeRangeProcessor.TimeRangeWakedUp regionListener = (start, end) -> regionListenerLatch.countDown();
         this.configuration = config(expectation, extractor, firedElementsConsumer, regionListener);
         this.timeRangeServiceFactory = TimeRangeService.serviceFactory(configuration);
     }
@@ -83,8 +83,8 @@ class TimeRangeServiceTest {
     <M, R> TimeRangeService.Configuration config(
             @Nonnull Expectation<Instant,Instant> expectation,
             @Nonnull TimeRangeHolder.ResultTransformer<M, R> extractor,
-            @Nonnull TimeRange.FiredElementsConsumer<R> firedElementsConsumer,
-            @Nonnull TimeRange.TimeRangeWakedUp regionListener
+            @Nonnull TimeRangeProcessor.FiredElementsConsumer<R> firedElementsConsumer,
+            @Nonnull TimeRangeProcessor.TimeRangeWakedUp regionListener
             ) {
         TimeRangeServiceConfiguration config = new TimeRangeServiceConfiguration();
         config.setDuration(Duration.ofSeconds(30));

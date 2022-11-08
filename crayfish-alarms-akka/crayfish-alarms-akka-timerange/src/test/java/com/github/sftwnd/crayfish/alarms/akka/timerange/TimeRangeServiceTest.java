@@ -3,7 +3,7 @@ package com.github.sftwnd.crayfish.alarms.akka.timerange;
 import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.javadsl.Behaviors;
-import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRange.FiredElementsConsumer;
+import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.FiredElementsConsumer;
 import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,13 +33,13 @@ class TimeRangeServiceTest {
     @Test
     void testRegionReject() throws InterruptedException {
         @SuppressWarnings("unchecked")
-        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
-                Behaviors.setup(context -> TimeRange.service(context, config, Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, Mockito.mock(TimeRange.TimeRangeWakedUp.class)))
+        ActorRef<TimeRangeProcessor.Command<Instant>> service = actorTestKit.spawn(
+                Behaviors.setup(context -> TimeRangeProcessor.service(context, config, Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, Mockito.mock(TimeRangeProcessor.TimeRangeWakedUp.class)))
                 , "testRegionReject");
         Instant instant = Instant.now().plus(1, ChronoUnit.HOURS);
         CountDownLatch cdl = new CountDownLatch(1);
         List<Instant> rejects = new ArrayList<>();
-        TimeRange.addElements(service, List.of(instant)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
+        TimeRangeProcessor.addElements(service, List.of(instant)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
         assertTrue(cdl.await(1, TimeUnit.SECONDS), "command has to pe processed");
         assertEquals(List.of(instant), rejects, "all commands has to be rejected");
     }
@@ -50,15 +50,15 @@ class TimeRangeServiceTest {
         Instant now = Instant.now();
         AtomicBoolean firstBefore = new AtomicBoolean(false);
         CountDownLatch countDownLatch = new CountDownLatch(2);
-        TimeRange.TimeRangeWakedUp timeRangeWakedUp = (start, end) -> {
+        TimeRangeProcessor.TimeRangeWakedUp timeRangeWakedUp = (start, end) -> {
             assertTrue(end.isAfter(now), "timeRangeWakedUp has to be after now");
             if (!start.isAfter(now)) {
                 assertTrue(firstBefore.compareAndSet(false, true), "just one region before now has to be started" );
             }
             countDownLatch.countDown();
         };
-        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
-                Behaviors.setup(context -> TimeRange.service(context, config, Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, timeRangeWakedUp))
+        ActorRef<TimeRangeProcessor.Command<Instant>> ignore = actorTestKit.spawn(
+                Behaviors.setup(context -> TimeRangeProcessor.service(context, config, Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, timeRangeWakedUp))
                 , "testStartRegion");
         assertTrue(countDownLatch.await(1, TimeUnit.SECONDS), "two timeRangeWakedUp calls has to be produced");
     }
@@ -68,12 +68,12 @@ class TimeRangeServiceTest {
     void testFiredCallback() throws InterruptedException {
         FiredElementsConsumer<Instant> firedElementsConsumer = Mockito.mock(FiredElementsConsumer.class);
         Instant now = Instant.now();
-        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
-                Behaviors.setup(context -> TimeRange.service(context, config, firedElementsConsumer, Duration.ZERO, 1, 1, Mockito.mock(TimeRange.TimeRangeWakedUp.class)))
+        ActorRef<TimeRangeProcessor.Command<Instant>> service = actorTestKit.spawn(
+                Behaviors.setup(context -> TimeRangeProcessor.service(context, config, firedElementsConsumer, Duration.ZERO, 1, 1, Mockito.mock(TimeRangeProcessor.TimeRangeWakedUp.class)))
                 , "testFiredCallback");
         CountDownLatch cdl = new CountDownLatch(1);
         List<Instant> rejects = new ArrayList<>();
-        TimeRange.addElements(service, List.of(now)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
+        TimeRangeProcessor.addElements(service, List.of(now)).thenAccept(elements -> { rejects.addAll(elements); cdl.countDown(); });
         assertTrue(cdl.await(1, TimeUnit.SECONDS), "command has to pe processed");
         assertTrue(rejects.isEmpty(), "no one command has to be rejected");
         @SuppressWarnings("unchecked")
@@ -85,9 +85,9 @@ class TimeRangeServiceTest {
     @SuppressWarnings("unchecked")
     void testStartAfterTermination() throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(3);
-        TimeRange.TimeRangeWakedUp timeRangeWakedUp = (start, end) -> countDownLatch.countDown();
-        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
-                Behaviors.setup( context -> TimeRange.service(
+        TimeRangeProcessor.TimeRangeWakedUp timeRangeWakedUp = (start, end) -> countDownLatch.countDown();
+        ActorRef<TimeRangeProcessor.Command<Instant>> ignore = actorTestKit.spawn(
+                Behaviors.setup( context -> TimeRangeProcessor.service(
                         context,
                         TimeRangeConfig.create(Duration.ofMillis(125), Duration.ofMillis(50), Duration.ofMillis(1), Duration.ofMillis(25), i->i, null, i->i),
                         Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, timeRangeWakedUp))
@@ -98,19 +98,18 @@ class TimeRangeServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void testServiceStop() throws InterruptedException {
-        ActorRef<TimeRange.Command<Instant>> service = actorTestKit.spawn(
-                Behaviors.setup( context -> TimeRange.service(
+        ActorRef<TimeRangeProcessor.Command<Instant>> service = actorTestKit.spawn(
+                Behaviors.setup( context -> TimeRangeProcessor.service(
                         context,
                         TimeRangeConfig.create(Duration.ofMillis(125), Duration.ofMillis(50), Duration.ofMillis(1), Duration.ofMillis(25), i->i, null, i->i),
                         Mockito.mock(FiredElementsConsumer.class), Duration.ZERO, 1, 1, (start, end) -> {}))
                 , "testServiceStop");
         CountDownLatch cdl = new CountDownLatch(1);
-        TimeRange.stop(service).thenAccept(ignore -> cdl.countDown());
-        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRange has to be stopped");
+        TimeRangeProcessor.stop(service).thenAccept(ignore -> cdl.countDown());
+        assertTrue(cdl.await(500, TimeUnit.MILLISECONDS), "TimeRangeProcessor has to be stopped");
     }
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
         config = TimeRangeConfig.create(Duration.ofSeconds(10), Duration.ofMillis(100), Duration.ofMillis(5), Duration.ofMillis(100), i->i, null, i->i);
         actorTestKit = ActorTestKit.create("timeRangeServiceTest");
