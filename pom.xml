@@ -50,18 +50,18 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <crayfish-common-expectation.version>1.0.1</crayfish-common-expectation.version>
         <scala.binary.version>2.13</scala.binary.version>
-        <akka-actor.version>2.6.18</akka-actor.version>
-        <spring-boot.version>2.6.3</spring-boot.version>
-        <lombok.version>1.18.22</lombok.version>
-        <junit.version>5.8.2</junit.version>
-        <mockito.version>4.3.1</mockito.version>
-        <slf4j.version>1.7.35</slf4j.version>
+        <akka-actor.version>2.7.0</akka-actor.version>
+        <spring-boot.version>2.7.5</spring-boot.version>
+        <lombok.version>1.18.24</lombok.version>
+        <junit.version>5.9.1</junit.version>
+        <mockito.version>4.8.1</mockito.version>
+        <slf4j.version>2.0.3</slf4j.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
-        <maven-compiler-plugin.version>3.9.0</maven-compiler-plugin.version>
+        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <maven-javadoc-plugin.version>3.3.1</maven-javadoc-plugin.version>
+        <maven-javadoc-plugin.version>3.4.1</maven-javadoc-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-        <jacoco-maven-plugin.version>0.8.7</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
     </properties>
 
     <distributionManagement>
@@ -248,6 +248,16 @@
                 <version>${spring-boot.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>jul-to-slf4j</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-test</artifactId>
                 <version>${spring-boot.version}</version>
@@ -286,6 +296,12 @@
             <dependency>
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
                 <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
