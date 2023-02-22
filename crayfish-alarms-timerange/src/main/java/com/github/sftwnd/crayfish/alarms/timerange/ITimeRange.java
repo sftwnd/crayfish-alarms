@@ -23,25 +23,6 @@ public interface ITimeRange<M,R> {
     @Nonnull Instant getLastInstant();
 
     /**
-     * How long does it take to determine when an alarm goes off?
-     * @return alarm accuracy
-     */
-    @Nonnull Duration getInterval();
-
-    /**
-     * Allows you to calculate the alarm trigger time with a specified offset relative to the current time
-     * @return offset relative to now
-     */
-    @Nonnull Duration getDelay();
-
-    /**
-     * The time interval that is maintained after the end of the current range of alarms for processing the remaining ones
-     * (in this interval, alarms can be added to the range - they will immediately be set on fire)
-     * @return range interval extension time
-     */
-    @Nonnull Duration getCompleteTimeout();
-
-    /**
      * The time interval taking into account completeTimeout has been exhausted by the current moment
      * @return true if exhausted or false otherwise
      */

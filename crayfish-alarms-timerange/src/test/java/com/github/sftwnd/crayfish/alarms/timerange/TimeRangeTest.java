@@ -27,7 +27,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 
 class TimeRangeTest {
-    
+
+    private static final Duration DELAY = Duration.ofMillis(250);
+    private static final Duration INTERVAL = Duration.ofSeconds(15);
+    private static final Duration COMPLETE_TIMEOUT = Duration.ofSeconds(10);
+
     private Instant now;
     private Duration completeTimeout;
     private ITimeRange<ExpectedTest, ExpectedTest> timeRange;
@@ -57,10 +61,10 @@ class TimeRangeTest {
 
     @Test
     void isExpiredNowCompleteTest() {
-        ITimeRangeConfig<ExpectedTest,?,ExpectedTest> timeRangeFactoryConfig = new ImmutableTimeRangeConfig<>(
+        ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.create(
                 Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
-                ITimeRange.Transformer.identity(), Expected::getTick, ITimeRange.Transformer.identity(), null);
-        TimeRange<ExpectedTest,?,ExpectedTest> timeRange = new TimeRange<>(now.minus(1,ChronoUnit.HOURS), timeRangeFactoryConfig);
+                ITimeRange.Transformer.identity(), ExpectedTest::getTick, ITimeRange.Transformer.identity(), null);
+        ITimeRange<ExpectedTest,ExpectedTest> timeRange = timeRangeFactory.timeRange(now.minus(1,ChronoUnit.HOURS));
         assertTrue(timeRange.isExpired(), "TimeRange has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRange has got to be expired on Instant.now()");
     }
@@ -172,7 +176,7 @@ class TimeRangeTest {
     void durationAfterFirstElementTest() {
         addElements();
         Instant tick = timeRange.getLastInstant().minusSeconds(1);
-        assertEquals(this.timeRange.getDelay(), this.timeRange.duration(tick),
+        assertEquals(DELAY, this.timeRange.duration(tick),
                 "Duration after first element of timeRange has to be equals delay");
     }
 
@@ -203,17 +207,17 @@ class TimeRangeTest {
 
     @Test
     void getIntervalTest() {
-        assertEquals(Duration.ofSeconds(15), timeRange.getInterval(), "TimeRange::getInterval - wrong result");
+        assertEquals(Duration.ofSeconds(15), INTERVAL, "TimeRange::getInterval - wrong result");
     }
 
     @Test
     void getActiveDelayTest() {
-        assertEquals(Duration.ofMillis(250), timeRange.getDelay(), "TimeRange::getActiveDelay - wrong result");
+        assertEquals(Duration.ofMillis(250), DELAY, "TimeRange::getActiveDelay - wrong result");
     }
 
     @Test
     void getCompleteTimeoutTest() {
-        assertEquals(this.completeTimeout, timeRange.getCompleteTimeout(), "TimeRange::getCompleteTimeout - wrong result");
+        assertEquals(this.completeTimeout, COMPLETE_TIMEOUT, "TimeRange::getCompleteTimeout - wrong result");
     }
 
     @Test
@@ -232,7 +236,7 @@ class TimeRangeTest {
     @Test
     void constructPackableTest() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
-        this.completeTimeout = Duration.ofSeconds(10);
+        this.completeTimeout = COMPLETE_TIMEOUT;
         ITimeRangeFactory<String,String> timeRangeFactory = ITimeRangeFactory.packable(
                 Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250),
                 completeTimeout, Instant::parse, null);
@@ -258,7 +262,7 @@ class TimeRangeTest {
     void startUp() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.expected(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, null);
+        ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.expected(Duration.ofMinutes(-1L), INTERVAL, DELAY, COMPLETE_TIMEOUT, null);
         this.timeRange = timeRangeFactory.timeRange(now);
         this.elementA = expected(now.minusSeconds(40));
         this.elementB = expected(now.minusSeconds(5));

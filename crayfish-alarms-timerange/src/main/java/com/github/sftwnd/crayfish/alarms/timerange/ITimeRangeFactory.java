@@ -11,8 +11,6 @@ import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
-import java.util.Objects;
-import java.util.Optional;
 
 @FunctionalInterface
 public interface ITimeRangeFactory<M,R> {
@@ -51,18 +49,17 @@ public interface ITimeRangeFactory<M,R> {
             @Nonnull  Transformer<S,R> reducer,
             @Nullable Comparator<? super S> comparator
     ) {
-        return time -> new TimeRange<>(
+        return time -> new TimeRange<> (
                 time,
-                new ImmutableTimeRangeConfig<>(
-                        Objects.requireNonNull(duration, "ITimeRangeFactory::create - duration is null"),
-                        Objects.requireNonNull(interval, "ITimeRangeFactory::create - interval is null"),
-                        Optional.ofNullable(delay).orElse(Duration.ZERO),
-                        Objects.requireNonNull(completeTimeout, "ITimeRangeFactory::create - completeTimeout is null"),
-                        Objects.requireNonNull(preserver, "ITimeRangeFactory::create - preserver is null"),
-                        Objects.requireNonNull(expectation, "ITimeRangeFactory::create - expectation is null"),
-                        Objects.requireNonNull(reducer, "ITimeRangeFactory::create - reducer is null"),
-                        comparator
-                ));
+                duration,
+                interval,
+                delay,
+                completeTimeout,
+                preserver,
+                expectation,
+                reducer,
+                comparator
+        );
     }
 
     /**
@@ -104,7 +101,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param <S> the type of internal object (extend ExpectedPackage)
      * @return TimeRange.ITimeRangeFactory instance
      */
-    static <E, T extends TemporalAccessor, S extends ExpectedPackage<E,T>> @Nonnull ITimeRangeFactory<E,E> packable(
+    static <E, T extends TemporalAccessor> @Nonnull ITimeRangeFactory<E,E> packable(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
