@@ -78,17 +78,4 @@ public interface ITimeRangeConfig<M,S,R> {
         return ImmutableTimeRangeConfig.fromConfig(this);
     }
 
-    default @Nonnull ITimeRangeFactory<M, R> timeRangeFactory() {
-        return ITimeRangeFactory.create(
-                this.getDuration(),
-                this.getInterval(),
-                this.getDelay(),
-                this.getCompleteTimeout(),
-                this.getPreserver(),
-                this.getExpectation(),
-                this.getReducer(),
-                this.getComparator()
-        );
-    }
-
 }
