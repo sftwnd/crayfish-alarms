@@ -50,14 +50,14 @@ class TimeRangeTest {
     void isNotExpiredCompleteNowTest() {
         TimeRange<ExpectedTest,ExpectedTest> timeRange = new TimeRange<>(
                 now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
-                Expected::getTick, null, TimeRange.ResultTransformer.identity());
+                Expected::getTick, TimeRange.ResultTransformer.identity(), null);
         assertFalse(timeRange.isExpired(), "TimeRange hasn't got to be expired on Instant.now()");
         assertFalse(timeRange.isComplete(), "TimeRange hasn't got to be expired on Instant.now()");
     }
 
     @Test
     void isExpiredNowCompleteTest() {
-        ITimeRangeFactoryConfig<ExpectedTest,ExpectedTest> timeRangeFactoryConfig = new ImmutableTimeRangeFactoryConfig<>(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null, null, null);
+        ITimeRangeConfig<ExpectedTest,ExpectedTest> timeRangeFactoryConfig = new ImmutableTimeRangeConfig<>(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null, null, null);
         TimeRange<ExpectedTest,ExpectedTest> timeRange = new TimeRange<>(now.minus(1,ChronoUnit.HOURS), timeRangeFactoryConfig);
         assertTrue(timeRange.isExpired(), "TimeRange has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRange has got to be expired on Instant.now()");

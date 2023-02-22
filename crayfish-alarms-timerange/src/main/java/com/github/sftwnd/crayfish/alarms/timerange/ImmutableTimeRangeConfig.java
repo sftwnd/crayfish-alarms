@@ -16,21 +16,21 @@ import java.util.Comparator;
 import java.util.Objects;
 
 @AllArgsConstructor
-final class ImmutableTimeRangeFactoryConfig<M,R> implements ITimeRangeFactoryConfig<M,R> {
+final class ImmutableTimeRangeConfig<M,R> implements ITimeRangeConfig<M,R> {
 
     @Getter private final Duration duration;
     @Getter private final Duration interval;
     @Getter private final Duration delay;
     @Getter private final Duration completeTimeout;
     @Getter private final Expectation<M,? extends TemporalAccessor> expectation;
-    @Getter private final Comparator<? super M> comparator;
     @Getter private final TimeRange.ResultTransformer<M,R> extractor;
+    @Getter private final Comparator<? super M> comparator;
 
-    static <M,R> ITimeRangeFactoryConfig<M,R> fromConfig(@Nonnull ITimeRangeFactoryConfig<M,R> config) {
-        return Objects.requireNonNull(config, "ImmutableTimeRangeFactoryConfig::new - config is null") instanceof ImmutableTimeRangeFactoryConfig ? config
-             : new ImmutableTimeRangeFactoryConfig<>(
+    static <M,R> ITimeRangeConfig<M,R> fromConfig(@Nonnull ITimeRangeConfig<M,R> config) {
+        return Objects.requireNonNull(config, "ImmutableTimeRangeConfig::new - config is null") instanceof ImmutableTimeRangeConfig ? config
+             : new ImmutableTimeRangeConfig<>(
                 config.getDuration(), config.getInterval(), config.getDelay(), config.getCompleteTimeout(),
-                config.getExpectation(), config.getComparator(), config.getExtractor());
+                config.getExpectation(), config.getExtractor(), config.getComparator());
     }
 
 }

@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Optional;
 
 @FunctionalInterface
 public interface ITimeRangeFactory<M,R> {
@@ -29,8 +30,8 @@ public interface ITimeRangeFactory<M,R> {
      * @param delay Intervals for checking for the operation of existing Expected objects
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param expectation Getting timestamp from incoming element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
      * @param extractor Method for converting an input element into a result element
+     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
      * @param <M> input element type
      * @param <R> the type of the returned element
      * @return TimeRange.ITimeRangeFactory instance
@@ -42,19 +43,19 @@ public interface ITimeRangeFactory<M,R> {
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
             @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
-            @Nullable Comparator<? super M> comparator,
-            @Nonnull  TimeRange.ResultTransformer<M,R> extractor
+            @Nonnull  TimeRange.ResultTransformer<M,R> extractor,
+            @Nullable Comparator<? super M> comparator
     ) {
         return time -> new TimeRange<>(
                 time,
-                new ImmutableTimeRangeFactoryConfig<>(
+                new ImmutableTimeRangeConfig<>(
                         Objects.requireNonNull(duration, "ITimeRangeFactory::create - duration is null"),
                         Objects.requireNonNull(interval, "ITimeRangeFactory::create - interval is null"),
-                        delay,
+                        Optional.ofNullable(delay).orElse(Duration.ZERO),
                         Objects.requireNonNull(completeTimeout, "ITimeRangeFactory::create - completeTimeout is null"),
                         Objects.requireNonNull(expectation, "ITimeRangeFactory::create - expectation is null"),
-                        comparator,
-                        Objects.requireNonNull(extractor, "ITimeRangeFactory::create - extractor is null")
+                        Objects.requireNonNull(extractor, "ITimeRangeFactory::create - extractor is null"),
+                        comparator
                 ));
     }
 
@@ -79,7 +80,7 @@ public interface ITimeRangeFactory<M,R> {
             @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, delay, completeTimeout, expectation, comparator, TimeRange.ResultTransformer.identity());
+        return create(duration, interval, delay, completeTimeout, expectation, TimeRange.ResultTransformer.identity(), comparator);
     }
 
     /**
@@ -101,9 +102,8 @@ public interface ITimeRangeFactory<M,R> {
             @Nonnull  Duration completeTimeout,
             @Nullable Comparator<? super R> comparator
     ) {
-        return create(duration, interval, delay, completeTimeout, ExpectedPackage::getTick,
-                comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()),
-                ExpectedPackage::getElement);
+        return create( duration, interval, delay, completeTimeout, ExpectedPackage::getTick, ExpectedPackage::getElement,
+                comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()) );
     }
 
     /**
@@ -124,7 +124,7 @@ public interface ITimeRangeFactory<M,R> {
             @Nonnull  Duration completeTimeout,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, delay, completeTimeout, Expected::getTick, comparator, TimeRange.ResultTransformer.identity());
+        return create(duration, interval, delay, completeTimeout, Expected::getTick, TimeRange.ResultTransformer.identity(), comparator);
     }
 
 }

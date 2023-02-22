@@ -43,7 +43,9 @@ public interface ITimeRange<M,R> {
      * The time interval taking into account completeTimeout has been exhausted by the current moment
      * @return true if exhausted or false otherwise
      */
-    boolean isExpired();
+    default boolean isExpired() {
+        return isExpired(Instant.now());
+    }
 
     /**
      * The time interval, taking into account completeTimeout, has been exhausted by the transmitted moment
@@ -57,7 +59,9 @@ public interface ITimeRange<M,R> {
      * has been exhausted at the current time
      * @return true if completed or false otherwise
      */
-    boolean isComplete();
+    default boolean isComplete() {
+        return isComplete(Instant.now());
+    }
 
     /**
      * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout,
@@ -81,7 +85,9 @@ public interface ITimeRange<M,R> {
      * worked at the current moment
      * @return List of triggered elements
      */
-    @Nonnull Collection<R> extractFiredElements();
+    default @Nonnull Collection<R> extractFiredElements() {
+        return extractFiredElements( Instant.now() );
+    }
 
     /**
      * Extracting from the saved elements those that, according to the time marker, are considered to have worked
@@ -94,16 +100,18 @@ public interface ITimeRange<M,R> {
     /**
      * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
      * either startInstant or lastInstant + completeDuration
-     * @param now point in time for which we calculate the value
-     * @return timeout to the nearest event, taking into account delay
+     * @return timeout to the nearest event, taking into account the delay from the current moment
      */
-    @Nonnull Duration duration(@Nonnull Instant now);
+    default @Nonnull Duration duration() {
+        return duration( Instant.now() );
+    }
 
     /**
      * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
      * either startInstant or lastInstant + completeDuration
-     * @return timeout to the nearest event, taking into account the delay from the current moment
+     * @param now point in time for which we calculate the value
+     * @return timeout to the nearest event, taking into account delay
      */
-    @Nonnull Duration duration();
+    @Nonnull Duration duration(@Nonnull Instant now);
 
 }

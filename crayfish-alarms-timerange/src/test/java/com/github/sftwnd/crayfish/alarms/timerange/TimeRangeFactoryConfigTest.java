@@ -24,7 +24,7 @@ class TimeRangeFactoryConfigTest {
     private static final Comparator<Instant> COMPARATOR = Instant::compareTo;
     private static final TimeRange.ResultTransformer<Instant,Instant> EXTRACTOR = instant -> instant;
 
-    private static ITimeRangeFactoryConfig<Instant, Instant> config;
+    private static ITimeRangeConfig<Instant, Instant> config;
     @Test
     void getDurationTest() {
         assertEquals(DURATION, config.getDuration(), "duration has wrong value");
@@ -70,20 +70,22 @@ class TimeRangeFactoryConfigTest {
 
     @Test
     void fromConfig() {
-        ITimeRangeFactoryConfig<?,?> config = TimeRangeFactoryConfigTest.config.immutable();
+        ITimeRangeConfig<?,?> config = TimeRangeFactoryConfigTest.config.immutable();
         assertNotNull(config, "immutable() result has to be not null");
-        assertEquals(ImmutableTimeRangeFactoryConfig.class, config.getClass(), "Config class has to be ImmutableTimeRangeFactoryConfig");
+        assertEquals(ImmutableTimeRangeConfig.class, config.getClass(), "Config class has to be ImmutableTimeRangeConfig");
     }
     @Test
     void fromImmutableConfig() {
-        ITimeRangeFactoryConfig<?,?> immutableConfig = TimeRangeFactoryConfigTest.config.immutable();
+        ITimeRangeConfig<?,?> immutableConfig = TimeRangeFactoryConfigTest.config.immutable();
         assertNotNull(config, "immutable() result has to be not null");
-        assertSame(immutableConfig, immutableConfig.immutable(), "immutable() for ImmutableTimeRangeFactoryConfig has o return same object");
+        assertSame(immutableConfig, immutableConfig.immutable(), "immutable() for ImmutableTimeRangeConfig has o return same object");
     }
 
     @BeforeAll
     static void startUp() {
-        config = new TimeRangeFactoryConfig<>(DURATION, INTERVAL, DELAY, COMPLETE_TIMEOUT, EXPECTATION, COMPARATOR, TimeRange.ResultTransformer.identity());
+        config = new TimeRangeConfig<>(
+                DURATION, INTERVAL, DELAY, COMPLETE_TIMEOUT, EXPECTATION, TimeRange.ResultTransformer.identity(), COMPARATOR
+        );
     }
 
     @AfterAll

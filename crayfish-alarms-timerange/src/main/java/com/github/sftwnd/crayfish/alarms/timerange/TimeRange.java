@@ -66,7 +66,7 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
             java:S3864 "Stream.peek" should be used with caution
      */
     // Basic settings
-    private final ITimeRangeFactoryConfig<M,R> timeRangeConfig;
+    private final ITimeRangeConfig<M,R> timeRangeConfig;
     // Beginning of the region validity period
     private final Instant startInstant;
     // Upper limit of the interval (exclude...)
@@ -103,10 +103,10 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
             @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
-            @Nullable Comparator<? super M> comparator,
-            @Nonnull  ResultTransformer<M,R> extractor
+            @Nonnull  ResultTransformer<M,R> extractor,
+            @Nullable Comparator<? super M> comparator
     ) {
-        this(instant, new ImmutableTimeRangeFactoryConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+        this(instant, new ImmutableTimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, extractor, comparator));
     }
 
     /**
@@ -117,7 +117,7 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
      */
     public TimeRange(
             @Nonnull TemporalAccessor time,
-            @Nonnull ITimeRangeFactoryConfig<M,R> timeRangeConfig
+            @Nonnull ITimeRangeConfig<M,R> timeRangeConfig
     ) {
         Objects.requireNonNull(time, "TimeRange::new - time is null");
         this.timeRangeConfig = Objects.requireNonNull(timeRangeConfig, "TimeRange::new - timeRangeConfig is null").immutable();
@@ -134,14 +134,6 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
     @Nonnull public Duration getCompleteTimeout() { return timeRangeConfig.getCompleteTimeout(); }
 
     /**
-     * The time interval taking into account completeTimeout has been exhausted by the current moment
-     * @return true if exhausted or false otherwise
-     */
-    public boolean isExpired() {
-        return isExpired(Instant.now());
-    }
-
-    /**
      * The time interval, taking into account completeTimeout, has been exhausted by the transmitted moment
      * @param instant point in time at which the check is made
      * @return true if exhausted or false otherwise
@@ -149,15 +141,6 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
     public boolean isExpired(@Nullable Instant instant) {
         return !ofNullable(instant).orElseGet(Instant::now)
                 .isBefore(this.lastInstant.plus(timeRangeConfig.getCompleteTimeout()));
-    }
-
-    /**
-     * It is checked that the structure does not contain elements and the interval, taking into account completeTimeout,
-     * has been exhausted at the current time
-     * @return true if completed or false otherwise
-     */
-    public boolean isComplete() {
-        return isComplete(Instant.now());
     }
 
     /**
@@ -203,16 +186,6 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
                                 , () -> this.expectedMap.put(key, value))
                 );
         return excludes;
-    }
-
-    /**
-     * Extracting from the saved elements those that, according to the temporary marker, are considered
-     * to have worked at the current moment
-     * @return List of triggered elements
-     */
-    public @Nonnull Collection<R> extractFiredElements() {
-        // Looking for current moment
-        return extractFiredElements(Instant.now());
     }
 
     /**
@@ -299,15 +272,6 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
         } else {
             return Duration.ZERO;
         }
-    }
-
-    /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
-     * @return timeout to the nearest event, taking into account the delay from the current moment
-     */
-    public @Nonnull Duration duration() {
-        return duration(Instant.now());
     }
 
     // Time until the moment after lastInstant by completeTimeout duration. If after this point we are in COMPLETE,
