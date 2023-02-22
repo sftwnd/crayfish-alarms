@@ -1,8 +1,10 @@
 package com.github.sftwnd.crayfish.alarms.timerange;
 
+import com.github.sftwnd.crayfish.alarms.timerange.ITimeRange.Transformer;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
+import com.github.sftwnd.crayfish.common.expectation.TimeExtractor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,22 +31,25 @@ public interface ITimeRangeFactory<M,R> {
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
      * @param delay Intervals for checking for the operation of existing Expected objects
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-     * @param expectation Getting timestamp from incoming element
-     * @param extractor Method for converting an input element into a result element
+     * @param preserver Constructor for the internal storage object from the incoming element
+     * @param expectation Getting timestamp from internal element
+     * @param reducer Method for converting an internal element into a result element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
      * @param <M> input element type
+     * @param <S> internal element type
      * @param <R> the type of the returned element
-     * @return TimeRange.ITimeRangeFactory instance
+     * @return ITimeRangeFactory instance
      */
     @SuppressWarnings("java:S107")
-    static @Nonnull <M,R> ITimeRangeFactory<M,R> create(
+    static <M,S,R>  @Nonnull ITimeRangeFactory<M,R> create(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
-            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
-            @Nonnull  TimeRange.ResultTransformer<M,R> extractor,
-            @Nullable Comparator<? super M> comparator
+            @Nonnull  Transformer<M,S> preserver,
+            @Nonnull  Expectation<S,? extends TemporalAccessor> expectation,
+            @Nonnull  Transformer<S,R> reducer,
+            @Nullable Comparator<? super S> comparator
     ) {
         return time -> new TimeRange<>(
                 time,
@@ -53,26 +58,28 @@ public interface ITimeRangeFactory<M,R> {
                         Objects.requireNonNull(interval, "ITimeRangeFactory::create - interval is null"),
                         Optional.ofNullable(delay).orElse(Duration.ZERO),
                         Objects.requireNonNull(completeTimeout, "ITimeRangeFactory::create - completeTimeout is null"),
+                        Objects.requireNonNull(preserver, "ITimeRangeFactory::create - preserver is null"),
                         Objects.requireNonNull(expectation, "ITimeRangeFactory::create - expectation is null"),
-                        Objects.requireNonNull(extractor, "ITimeRangeFactory::create - extractor is null"),
+                        Objects.requireNonNull(reducer, "ITimeRangeFactory::create - reducer is null"),
                         comparator
                 ));
     }
 
     /**
+     *
      * Creating a TimeRange ITimeRangeFactory as the Type of Registered Items
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
      * @param delay Intervals for checking for the operation of existing Expected objects
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-     * @param expectation Getting timestamp from incoming element
+     * @param expectation Getting timestamp from internal element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-     * @param <M> input and returned elements type
      * @return TimeRange.ITimeRangeFactory instance
+     * @param <M> input element type
      */
     @SuppressWarnings("java:S107")
-    static @Nonnull <M> ITimeRangeFactory<M,M> create(
+    static <M> @Nonnull ITimeRangeFactory<M,M> create(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
@@ -80,7 +87,7 @@ public interface ITimeRangeFactory<M,R> {
             @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, delay, completeTimeout, expectation, TimeRange.ResultTransformer.identity(), comparator);
+        return create(duration, interval, delay, completeTimeout, Transformer.identity(), expectation, Transformer.identity(), comparator);
     }
 
     /**
@@ -90,20 +97,27 @@ public interface ITimeRangeFactory<M,R> {
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
      * @param delay Intervals for checking for the operation of existing Expected objects
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param timeExtractor Extractor of temporal accessor from input element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-     * @param <M> input element type
-     * @param <R> the type of the returned element
+     * @param <E> input element type
+     * @param <T> the type of temporal accessor value
+     * @param <S> the type of internal object (extend ExpectedPackage)
      * @return TimeRange.ITimeRangeFactory instance
      */
-    static @Nonnull <R, M extends ExpectedPackage<R,? extends TemporalAccessor>> ITimeRangeFactory<M,R> packable(
+    static <E, T extends TemporalAccessor, S extends ExpectedPackage<E,T>> @Nonnull ITimeRangeFactory<E,E> packable(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
-            @Nullable Comparator<? super R> comparator
+            @Nonnull  TimeExtractor<E,T> timeExtractor,
+            @Nullable Comparator<? super E> comparator
     ) {
-        return create( duration, interval, delay, completeTimeout, ExpectedPackage::getTick, ExpectedPackage::getElement,
-                comparator == null ? null : (left, right) -> comparator.compare(left.getElement(), right.getElement()) );
+        return create(
+                duration, interval, delay, completeTimeout,
+                source -> ExpectedPackage.extract(source, timeExtractor),
+                ExpectedPackage::getTick,
+                ExpectedPackage::getElement,
+                comparator == null ? null : (o1, o2) -> comparator.compare(o1.getElement(), o2.getElement()));
     }
 
     /**
@@ -117,14 +131,14 @@ public interface ITimeRangeFactory<M,R> {
      * @param <M> input element type
      * @return TimeRange.ITimeRangeFactory instance
      */
-    static @Nonnull <M extends Expected<? extends TemporalAccessor>> ITimeRangeFactory<M,M> expected(
+    static <M extends Expected<? extends TemporalAccessor>> @Nonnull ITimeRangeFactory<M,M> expected(
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, delay, completeTimeout, Expected::getTick, TimeRange.ResultTransformer.identity(), comparator);
+        return create(duration, interval, delay, completeTimeout, M::getTick, comparator);
     }
 
 }

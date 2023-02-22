@@ -5,8 +5,11 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,9 +25,9 @@ class TimeRangeFactoryConfigTest {
 
     private static final Expectation<Instant,Instant> EXPECTATION = instant -> instant;
     private static final Comparator<Instant> COMPARATOR = Instant::compareTo;
-    private static final TimeRange.ResultTransformer<Instant,Instant> EXTRACTOR = instant -> instant;
+    private static final ITimeRange.Transformer<Instant,Instant> REDUCER = instant -> instant;
 
-    private static ITimeRangeConfig<Instant, Instant> config;
+    private static ITimeRangeConfig<Instant, Instant, Instant> config;
     @Test
     void getDurationTest() {
         assertEquals(DURATION, config.getDuration(), "duration has wrong value");
@@ -53,10 +56,10 @@ class TimeRangeFactoryConfigTest {
     }
 
     @Test
-    void getExtractorTest() {
+    void getReducerTest() {
         Instant instant = Instant.now().plus(DURATION).minusSeconds(13);
-        assertSame(EXTRACTOR.apply(instant), config.getExtractor().apply(instant), "getExtractor has return function with same result");
-        assertEquals(instant, config.getExtractor().apply(instant), "extractor has produce wrong value");
+        assertSame(REDUCER.apply(instant), config.getReducer().apply(instant), "getReducer has return function with same result");
+        assertEquals(instant, config.getReducer().apply(instant), "reducer has produce wrong value");
     }
 
     @Test
@@ -70,22 +73,29 @@ class TimeRangeFactoryConfigTest {
 
     @Test
     void fromConfig() {
-        ITimeRangeConfig<?,?> config = TimeRangeFactoryConfigTest.config.immutable();
+        ITimeRangeConfig<?,?,?> config = TimeRangeFactoryConfigTest.config.immutable();
         assertNotNull(config, "immutable() result has to be not null");
         assertEquals(ImmutableTimeRangeConfig.class, config.getClass(), "Config class has to be ImmutableTimeRangeConfig");
     }
     @Test
     void fromImmutableConfig() {
-        ITimeRangeConfig<?,?> immutableConfig = TimeRangeFactoryConfigTest.config.immutable();
+        ITimeRangeConfig<?,?,?> immutableConfig = TimeRangeFactoryConfigTest.config.immutable();
         assertNotNull(config, "immutable() result has to be not null");
         assertSame(immutableConfig, immutableConfig.immutable(), "immutable() for ImmutableTimeRangeConfig has o return same object");
     }
 
     @BeforeAll
     static void startUp() {
-        config = new TimeRangeConfig<>(
-                DURATION, INTERVAL, DELAY, COMPLETE_TIMEOUT, EXPECTATION, TimeRange.ResultTransformer.identity(), COMPARATOR
-        );
+        config = new ITimeRangeConfig<>() {
+            @Nonnull @Override public Duration getDuration() { return DURATION;  }
+            @Nonnull @Override public Duration getInterval() { return INTERVAL; }
+            @Nonnull @Override public Duration getDelay() { return DELAY; }
+            @Nonnull @Override public Duration getCompleteTimeout() { return COMPLETE_TIMEOUT; }
+            @Nonnull @Override public ITimeRange.Transformer<Instant, Instant> getPreserver() { return ITimeRange.Transformer.identity(); }
+            @Nonnull @Override public Expectation<Instant, ? extends TemporalAccessor> getExpectation() { return EXPECTATION; }
+            @Nonnull @Override public ITimeRange.Transformer<Instant, Instant> getReducer() { return ITimeRange.Transformer.identity(); }
+            @Nullable @Override public Comparator<? super Instant> getComparator() { return COMPARATOR; }
+        };
     }
 
     @AfterAll

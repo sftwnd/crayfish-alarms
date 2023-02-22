@@ -5,6 +5,7 @@
  */
 package com.github.sftwnd.crayfish.alarms.timerange;
 
+import com.github.sftwnd.crayfish.alarms.timerange.ITimeRange.Transformer;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 
 import javax.annotation.Nonnull;
@@ -13,7 +14,15 @@ import java.time.Duration;
 import java.time.temporal.TemporalAccessor;
 import java.util.Comparator;
 
-public interface ITimeRangeConfig<M,R> {
+/**
+ *
+ * Time Range Configuration
+ *
+ * @param <M> Incoming alarm description class
+ * @param <S> Storage class
+ * @param <R> Result alarm class
+ */
+public interface ITimeRangeConfig<M,S,R> {
 
     /**
      * The duration of the described interval
@@ -43,34 +52,41 @@ public interface ITimeRangeConfig<M,R> {
     @Nonnull Duration getCompleteTimeout();
 
     /**
-     * Getting the date from the logged message
-     * @return expectation getter for alarm
+     * Constructor for the internal storage object from the incoming element
+     * @return storage preserver transformation for incoming alarm description
      */
-    @Nonnull Expectation<M,? extends TemporalAccessor> getExpectation();
+    @Nonnull Transformer<M,S> getPreserver();
 
     /**
-     * Getting result element from registered
+     * Getting the date from the preserved element
+     * @return expectation getter for the stored alarm
+     */
+    @Nonnull Expectation<S,? extends TemporalAccessor> getExpectation();
+
+    /**
+     * Getting result element from internal storage
      * @return usefully data from alarm envelope
      */
-    @Nonnull TimeRange.ResultTransformer<M,R> getExtractor();
+    @Nonnull Transformer<S,R> getReducer();
     /**
-     * Comparison of two registered objects
-     * @return compare function for two alarm objects
+     * Comparison of two internal elements objects
+     * @return compare function for two internal objects
      */
-    @Nullable Comparator<? super M> getComparator();
+    @Nullable Comparator<? super S> getComparator();
 
-    default @Nonnull ITimeRangeConfig<M,R> immutable() {
+    default @Nonnull ITimeRangeConfig<M,S,R> immutable() {
         return ImmutableTimeRangeConfig.fromConfig(this);
     }
 
-    default @Nonnull ITimeRangeFactory<M,R> timeRangeFactory() {
+    default @Nonnull ITimeRangeFactory<M, R> timeRangeFactory() {
         return ITimeRangeFactory.create(
                 this.getDuration(),
                 this.getInterval(),
                 this.getDelay(),
                 this.getCompleteTimeout(),
+                this.getPreserver(),
                 this.getExpectation(),
-                this.getExtractor(),
+                this.getReducer(),
                 this.getComparator()
         );
     }

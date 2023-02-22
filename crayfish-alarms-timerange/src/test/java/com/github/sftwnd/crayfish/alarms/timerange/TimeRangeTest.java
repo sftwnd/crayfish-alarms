@@ -1,7 +1,6 @@
 package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.Expected;
-import com.github.sftwnd.crayfish.common.expectation.ExpectedPackage;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.junit.jupiter.api.AfterEach;
@@ -13,6 +12,7 @@ import org.mockito.Mockito;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -48,17 +48,19 @@ class TimeRangeTest {
 
     @Test
     void isNotExpiredCompleteNowTest() {
-        TimeRange<ExpectedTest,ExpectedTest> timeRange = new TimeRange<>(
+        TimeRange<ExpectedTest,?,ExpectedTest> timeRange = new TimeRange<>(
                 now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
-                Expected::getTick, TimeRange.ResultTransformer.identity(), null);
+                ITimeRange.Transformer.identity(), Expected::getTick, ITimeRange.Transformer.identity(), null);
         assertFalse(timeRange.isExpired(), "TimeRange hasn't got to be expired on Instant.now()");
         assertFalse(timeRange.isComplete(), "TimeRange hasn't got to be expired on Instant.now()");
     }
 
     @Test
     void isExpiredNowCompleteTest() {
-        ITimeRangeConfig<ExpectedTest,ExpectedTest> timeRangeFactoryConfig = new ImmutableTimeRangeConfig<>(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout, null, null, null);
-        TimeRange<ExpectedTest,ExpectedTest> timeRange = new TimeRange<>(now.minus(1,ChronoUnit.HOURS), timeRangeFactoryConfig);
+        ITimeRangeConfig<ExpectedTest,?,ExpectedTest> timeRangeFactoryConfig = new ImmutableTimeRangeConfig<>(
+                Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
+                ITimeRange.Transformer.identity(), Expected::getTick, ITimeRange.Transformer.identity(), null);
+        TimeRange<ExpectedTest,?,ExpectedTest> timeRange = new TimeRange<>(now.minus(1,ChronoUnit.HOURS), timeRangeFactoryConfig);
         assertTrue(timeRange.isExpired(), "TimeRange has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRange has got to be expired on Instant.now()");
     }
@@ -231,22 +233,19 @@ class TimeRangeTest {
     void constructPackableTest() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        ITimeRangeFactory<ExpectedPackage<String,Instant>,String> timeRangeFactory = ITimeRangeFactory.packable(Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250), completeTimeout, String::compareTo);
-        ITimeRange<ExpectedPackage<String,Instant>,String> timeRange = timeRangeFactory.timeRange(now);
-        String strA="A";
-        String strB="B";
-        String strC="C";
-        String strD="D";
-        String strE="E";
-        Collection<ExpectedPackage<String,Instant>> rejected = timeRange.addElements(
-                List.of(ExpectedPackage.pack(strA, now.minusSeconds(2)),
-                        ExpectedPackage.pack(strB, now.minusSeconds(1)),
-                        ExpectedPackage.pack(strC, now.minusMillis(2)),
-                        ExpectedPackage.pack(strD, now.minusMillis(1)),
-                        ExpectedPackage.pack(strE, now)));
-        assertEquals(List.of(strE), rejected.stream().map(ExpectedPackage::getElement).collect(Collectors.toList()), "timeRange.addElements has to reject strD");
+        ITimeRangeFactory<String,String> timeRangeFactory = ITimeRangeFactory.packable(
+                Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250),
+                completeTimeout, Instant::parse, null);
+        ITimeRange<String,String> timeRange = timeRangeFactory.timeRange(now);
+        String strA = now.minusSeconds(2).toString();
+        String strB = now.minusSeconds(1).toString();
+        String strC = now.minusMillis(2).toString();
+        String strD = now.minusMillis(1).toString();
+        String strE = now.toString();
+        Collection<String> rejected = timeRange.addElements(List.of(strA, strB, strC, strD, strE));
+        assertEquals(List.of(strE), new ArrayList<>(rejected), "timeRange.addElements has to reject strD");
         assertEquals( Stream.of(strA,strB,strC).sorted().collect(Collectors.toList()),
-                      timeRange.extractFiredElements(now.minusMillis(2)).stream().sorted().collect(Collectors.toList()),
+                timeRange.extractFiredElements(now.minusMillis(2)).stream().sorted().collect(Collectors.toList()),
                 "constructPackable has to return three elements on now");
         assertEquals(List.of(strD), timeRange.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
     }

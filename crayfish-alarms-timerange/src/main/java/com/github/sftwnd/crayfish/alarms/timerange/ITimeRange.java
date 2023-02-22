@@ -5,6 +5,8 @@ import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Objects;
+import java.util.function.Function;
 
 public interface ITimeRange<M,R> {
 
@@ -113,5 +115,25 @@ public interface ITimeRange<M,R> {
      * @return timeout to the nearest event, taking into account delay
      */
     @Nonnull Duration duration(@Nonnull Instant now);
+
+    /**
+     * Transformation of nonnull element to nonnull value
+     * @param <S> source element type
+     * @param <T> target element type
+     */
+    @FunctionalInterface
+    interface Transformer<S,T> extends Function<S,T> {
+        /**
+         * Transform element from one type to other
+         *
+         * @param source the source element
+         * @return target element
+         */
+        @Nonnull T apply(@Nonnull S source);
+        static <T> Transformer<T, T> identity() {
+            return element -> Objects.requireNonNull(element, "Transformer::apply - element is null");
+        }
+    }
+
 
 }

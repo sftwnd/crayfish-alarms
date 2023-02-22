@@ -17,6 +17,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,7 +25,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,26 +38,7 @@ import static java.util.Optional.ofNullable;
  * @param <M> Element type when added
  * @param <R> Element type when retrieving
  */
-public class TimeRange<M,R> implements ITimeRange<M,R> {
-
-    /**
-     * Transformation of nonnull element to nonnull value
-     * @param <M> source element type
-     * @param <R> target element type
-     */
-    @FunctionalInterface
-    public interface ResultTransformer<M,R> extends Function<M,R> {
-        /**
-         * Transform element from one type to other
-         *
-         * @param element the source element
-         * @return target element
-         */
-        @Nonnull R apply(@Nonnull M element);
-        static <T> ResultTransformer<T, T> identity() {
-            return t -> t;
-        }
-    }
+public class TimeRange<M,S,R> implements ITimeRange<M,R> {
 
     /*
         Used sonar warnings:
@@ -66,13 +47,19 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
             java:S3864 "Stream.peek" should be used with caution
      */
     // Basic settings
-    private final ITimeRangeConfig<M,R> timeRangeConfig;
+    private final ITimeRangeConfig<M,S,R> timeRangeConfig;
+    // Message to internal store class preserver
+    private final Transformer<M,S> preserver;
+    // Message from internal store class to result reducer
+    private final Transformer<S,R> reducer;
+
+
     // Beginning of the region validity period
     private final Instant startInstant;
     // Upper limit of the interval (exclude...)
     private final Instant lastInstant;
     // Comparison of two registered objects
-    private final Comparator<? super M> comparator;
+    private final Comparator<? super S> comparator;
     // The moment of the nearest element. In case of absence - null
     @Setter(value = AccessLevel.PRIVATE)
     private Instant nearestInstant = null;
@@ -80,7 +67,7 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
     // TreeMap storage structure that guarantees ascending traversal order
     // The internal elements are contained in a TreeSet, which also guarantees order.
     // Here we specify not the interface, but the implementation deliberately!!!
-    private final TreeMap<Instant, TreeSet<M>> expectedMap = new TreeMap<>();
+    private final TreeMap<Instant, TreeSet<S>> expectedMap = new TreeMap<>();
     private final Instant lastDelayedInstant;
 
     /**
@@ -91,9 +78,10 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
      * @param delay Intervals for checking for the operation of existing Expected objects
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param preserver Method for converting an input element into an internal element
      * @param expectation Getting timestamp from incoming element
+     * @param reducer Method for converting an internal element into a result element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
-     * @param extractor Method for converting an input element into a result element
      */
     @SuppressWarnings("java:S107")
     public TimeRange(
@@ -102,11 +90,12 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
             @Nonnull  Duration interval,
             @Nullable Duration delay,
             @Nonnull  Duration completeTimeout,
-            @Nonnull  Expectation<M,? extends TemporalAccessor> expectation,
-            @Nonnull  ResultTransformer<M,R> extractor,
-            @Nullable Comparator<? super M> comparator
+            @Nonnull  Transformer<M,S> preserver,
+            @Nonnull  Expectation<S,? extends TemporalAccessor> expectation,
+            @Nonnull  Transformer<S,R> reducer,
+            @Nullable Comparator<? super S> comparator
     ) {
-        this(instant, new ImmutableTimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, extractor, comparator));
+        this(instant, new ImmutableTimeRangeConfig<>(duration, interval, delay, completeTimeout, preserver,expectation, reducer, comparator));
     }
 
     /**
@@ -117,10 +106,12 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
      */
     public TimeRange(
             @Nonnull TemporalAccessor time,
-            @Nonnull ITimeRangeConfig<M,R> timeRangeConfig
+            @Nonnull ITimeRangeConfig<M,S,R> timeRangeConfig
     ) {
         Objects.requireNonNull(time, "TimeRange::new - time is null");
         this.timeRangeConfig = Objects.requireNonNull(timeRangeConfig, "TimeRange::new - timeRangeConfig is null").immutable();
+        this.preserver = timeRangeConfig.getPreserver();
+        this.reducer = timeRangeConfig.getReducer();
         this.startInstant = Optional.of(this.timeRangeConfig.getDuration()).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.lastInstant = Optional.of(this.timeRangeConfig.getDuration()).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.comparator = ofNullable(this.timeRangeConfig.getComparator()).orElse(this::compareObjects);
@@ -162,14 +153,32 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
      */
     public @Nonnull Collection<M> addElements(@Nonnull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
-        List<M> excludes = new ArrayList<>();
+        List<M> excludes = new LinkedList<>();
         //noinspection ConstantConditions
-        elements.stream().filter(Objects::nonNull)
+        addElements(
+                elements.stream()
                 // Checking for range
-                .filter(element -> checkRange(element) || !excludes.add(element))
-                // If the element is the earliest, then mark it with Instant
-                // P.S. Due to the presence of the terminal operator, peek will work for every element that has passed through it.
-                .peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
+                .map(element -> {
+                    if (element != null) { // If element is not null
+                        S storeElement = this.preserver.apply(element); // Transform element to internal store format
+                        if (checkRange(storeElement)) {
+                            return storeElement;
+                        } else {
+                            excludes.add(element);
+                        }
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+        );
+        return excludes;
+    }
+
+    // Add or return back elements in the internal format to the time range storage
+    private void addElements(@Nonnull Stream<S> stream) {
+        // If the element is the earliest, then mark it with Instant
+        // P.S. Due to the presence of the terminal operator, peek will work for every element that has passed through it.
+        stream.peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
                         .filter(inst -> inst.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX)))
                         .ifPresent(this::setNearestInstant))
                 // Grouping by instantKey ranges
@@ -185,7 +194,6 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
                                 // If missing, add
                                 , () -> this.expectedMap.put(key, value))
                 );
-        return excludes;
     }
 
     /**
@@ -217,10 +225,10 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
         return result;
     }
 
-    private void addCollectionOnProcess(@Nonnull Collection<M> elements) {
+    private void addCollectionOnProcess(@Nonnull Collection<S> elements) {
         // At the time of the call, rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
-        addElements(elements);
+        addElements(elements.stream());
     }
 
     private Instant findNearestInstant() {
@@ -231,16 +239,16 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
                 .orElse(null);
     }
 
-    private Stream<M> processKey(Set<M> elements, Instant now, boolean complete, List<R> result) {
+    private Stream<S> processKey(Set<S> elements, Instant now, boolean complete, List<R> result) {
         return complete ? processComplete(elements, result) : processIncomplete(elements, now, result);
     }
 
-    private Stream<M> processComplete(Set<M> elements, List<R> result) {
-        elements.stream().map(timeRangeConfig.getExtractor()).forEach(result::add);
+    private Stream<S> processComplete(Set<S> elements, List<R> result) {
+        elements.stream().map(timeRangeConfig.getReducer()).forEach(result::add);
         return Stream.empty();
     }
 
-    private Stream<M> processIncomplete(Set<M> elements, Instant now, List<R> result) {
+    private Stream<S> processIncomplete(Set<S> elements, Instant now, List<R> result) {
         return elements
                 .stream()
                 .collect(Collectors.partitioningBy(element -> happened(element,now), Collectors.toSet()))
@@ -314,7 +322,7 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
                 : Duration.ZERO;
     }
 
-    private boolean checkRange(@Nonnull M element) {
+    private boolean checkRange(@Nonnull S element) {
         return Optional.of(element)
                 .map(this::instant)
                 .filter(Predicate.not(this.startInstant::isAfter))
@@ -336,11 +344,11 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
     }
 
     /**
-     * This function compares two existing objects. If their trigger times do not match, then the result of the comparison
+     * This function compares two existing internal objects. If their trigger times do not match, then the result of the comparison
      * is the same as the result of comparing the trigger times of the objects.
      * Otherwise, the order is taken according to the result of comparing both objects by the registered comparator
      */
-    private int compare(@Nonnull M first, @Nonnull M second) {
+    private int compare(@Nonnull S first, @Nonnull S second) {
         return first == second ? 0
              : Optional.of(instant(first).compareTo(instant(second)))
                 .filter(result -> result != 0)
@@ -352,11 +360,13 @@ public class TimeRange<M,R> implements ITimeRange<M,R> {
         return Integer.compare(first.hashCode(), second.hashCode());
     }
 
-    private boolean happened(@Nonnull M element, @Nonnull Instant now) {
+    // Check that element event occurs for now
+    private boolean happened(@Nonnull S element, @Nonnull Instant now) {
         return !instant(element).isAfter(now);
     }
 
-    private @Nonnull Instant instant(@Nonnull M element) {
+    // Extract instant from internal element
+    private @Nonnull Instant instant(@Nonnull S element) {
         return Instant.from(timeRangeConfig.getExpectation().apply(element));
     }
     
