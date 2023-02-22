@@ -79,11 +79,11 @@ This method also defines the **expectation** and **extractor** parameters itself
 ### TimeRangeHolder&lt;M,R&gt;
 The creation of a physical region is implemented by the TimeRangeHolder class.
 #### Creation of TimeRegionHolder
-The TimeRangeHolder instance is created by the [timeRangeHolder(TemporalAccessor)](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L77-L79) method. Those a time point is taken and, depending on the sign of the Duration parameter, the physical time range is described to the left or right of the time point using the TimeRangeConfig described above
+The TimeRangeHolder instance is created by the [timeRange(TemporalAccessor)](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRangeConfig.java#L77-L79) method. Those a time point is taken and, depending on the sign of the Duration parameter, the physical time range is described to the left or right of the time point using the TimeRangeConfig described above
 
 ```java
     TimeRangeConfig<MyObject, NewObject> config = ...
-    TimeRangeHolder<MyObject, NewObject> timeRange = config.timeRangeHolder(Instant.now);
+    TimeRangeHolder<MyObject, NewObject> timeRange = config.timeRange(Instant.now);
 ```
 
 #### TimeRegionHolder attributes
@@ -450,7 +450,7 @@ _The values are either the name of the bean that implements the corresponding in
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.TimeRangeProcessor.TimeRangeWakedUp;
 import com.github.sftwnd.crayfish.alarms.akka.timerange.service.TimeRangeService;
-import com.github.sftwnd.crayfish.alarms.timerange.TimeRangeHolder;
+import com.github.sftwnd.crayfish.alarms.timerange.TimeRange;
 import com.github.sftwnd.crayfish.common.expectation.Expectation;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

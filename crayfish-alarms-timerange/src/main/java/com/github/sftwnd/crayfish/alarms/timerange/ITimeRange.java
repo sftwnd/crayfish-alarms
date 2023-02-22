@@ -6,7 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 
-public interface ITimeRangeHolder<M,R> {
+public interface ITimeRange<M,R> {
 
     /**
      * Point in time that is the start of the time range

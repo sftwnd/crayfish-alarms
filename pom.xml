@@ -7,7 +7,7 @@
 
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
 
     <name>CrayFish :: ALARMS</name>
 
@@ -42,24 +42,20 @@
 
     <modules>
         <module>crayfish-alarms-timerange</module>
-        <module>crayfish-alarms-akka</module>
-        <module>crayfish-alarms-spring-boot</module>
     </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <crayfish-common-expectation.version>1.0.1</crayfish-common-expectation.version>
-        <scala.binary.version>2.13</scala.binary.version>
-        <akka-actor.version>2.7.0</akka-actor.version>
-        <spring-boot.version>2.7.5</spring-boot.version>
-        <lombok.version>1.18.24</lombok.version>
-        <junit.version>5.9.1</junit.version>
-        <mockito.version>4.8.1</mockito.version>
-        <slf4j.version>2.0.3</slf4j.version>
+        <lombok.version>1.18.26</lombok.version>
+        <jsr305.version>3.0.2</jsr305.version>
+        <junit.version>5.9.2</junit.version>
+        <mockito.version>5.1.1</mockito.version>
+        <slf4j.version>2.0.6</slf4j.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
         <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <maven-javadoc-plugin.version>3.4.1</maven-javadoc-plugin.version>
+        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
     </properties>
@@ -196,58 +192,6 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-                <artifactId>crayfish-alarms-akka-timerange</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-                <artifactId>crayfish-alarms-akka-timerange-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-                <artifactId>crayfish-alarms-spring-boot</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-                <artifactId>crayfish-alarms-spring-boot-timerange-service-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-actor-typed_${scala.binary.version}</artifactId>
-                <version>${akka-actor.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-slf4j_${scala.binary.version}</artifactId>
-                <version>${akka-actor.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter</artifactId>
-                <version>${spring-boot.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>ch.qos.logback</groupId>
-                        <artifactId>logback-classic</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-autoconfigure</artifactId>
-                <version>${spring-boot.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-configuration-processor</artifactId>
-                <optional>true</optional>
-                <version>${spring-boot.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
                 <version>${slf4j.version}</version>
@@ -258,18 +202,6 @@
                 <version>${slf4j.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-test</artifactId>
-                <version>${spring-boot.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-test</artifactId>
-                <version>${spring-boot.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
@@ -278,7 +210,7 @@
             <dependency>
                 <groupId>com.google.code.findbugs</groupId>
                 <artifactId>jsr305</artifactId>
-                <version>3.0.2</version>
+                <version>${jsr305.version}</version>
                 <scope>compile</scope>
             </dependency>
             <dependency>
@@ -309,12 +241,6 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-nop</artifactId>
                 <version>${slf4j.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-actor-testkit-typed_${scala.binary.version}</artifactId>
-                <version>${akka-actor.version}</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>

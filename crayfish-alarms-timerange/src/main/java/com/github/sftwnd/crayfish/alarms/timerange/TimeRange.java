@@ -38,7 +38,7 @@ import static java.util.Optional.ofNullable;
  * @param <M> Element type when added
  * @param <R> Element type when retrieving
  */
-public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
+public class TimeRange<M,R> implements ITimeRange<M,R> {
 
     /**
      * Transformation of nonnull element to nonnull value
@@ -66,7 +66,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
             java:S3864 "Stream.peek" should be used with caution
      */
     // Basic settings
-    private final TimeRangeConfig<M,R> timeRangeConfig;
+    private final ITimeRangeFactoryConfig<M,R> timeRangeConfig;
     // Beginning of the region validity period
     private final Instant startInstant;
     // Upper limit of the interval (exclude...)
@@ -96,7 +96,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
      * @param extractor Method for converting an input element into a result element
      */
     @SuppressWarnings("java:S107")
-    public TimeRangeHolder(
+    public TimeRange(
             @Nonnull  Instant  instant,
             @Nonnull  Duration duration,
             @Nonnull  Duration interval,
@@ -106,7 +106,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
             @Nullable Comparator<? super M> comparator,
             @Nonnull  ResultTransformer<M,R> extractor
     ) {
-        this(instant, new TimeRangeConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
+        this(instant, new ImmutableTimeRangeFactoryConfig<>(duration, interval, delay, completeTimeout, expectation, comparator, extractor));
     }
 
     /**
@@ -115,24 +115,23 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
      * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param timeRangeConfig Configuration for constructor parameters
      */
-    public TimeRangeHolder(
+    public TimeRange(
             @Nonnull TemporalAccessor time,
-            @Nonnull TimeRangeConfig<M,R> timeRangeConfig
+            @Nonnull ITimeRangeFactoryConfig<M,R> timeRangeConfig
     ) {
-        Objects.requireNonNull(time, "TimeRangeHolder::new - time is null");
-        Objects.requireNonNull(timeRangeConfig, "TimeRangeHolder::new - timeRangeConfig is null");
-        this.timeRangeConfig = timeRangeConfig;
-        this.startInstant = Optional.of(timeRangeConfig.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
-        this.lastInstant = Optional.of(timeRangeConfig.duration).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
-        this.comparator = ofNullable(timeRangeConfig.comparator).orElse(this::compareObjects);
-        this.lastDelayedInstant = this.lastInstant.minus(timeRangeConfig.delay);
+        Objects.requireNonNull(time, "TimeRange::new - time is null");
+        this.timeRangeConfig = Objects.requireNonNull(timeRangeConfig, "TimeRange::new - timeRangeConfig is null").immutable();
+        this.startInstant = Optional.of(this.timeRangeConfig.getDuration()).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.lastInstant = Optional.of(this.timeRangeConfig.getDuration()).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.comparator = ofNullable(this.timeRangeConfig.getComparator()).orElse(this::compareObjects);
+        this.lastDelayedInstant = this.lastInstant.minus(this.timeRangeConfig.getDelay());
     }
 
     @Nonnull public Instant getStartInstant() { return this.startInstant; }
     @Nonnull public Instant getLastInstant() { return this.lastInstant; }
-    @Nonnull public Duration getInterval() { return timeRangeConfig.interval; }
-    @Nonnull public Duration getDelay() { return timeRangeConfig.delay; }
-    @Nonnull public Duration getCompleteTimeout() { return timeRangeConfig.completeTimeout; }
+    @Nonnull public Duration getInterval() { return timeRangeConfig.getInterval(); }
+    @Nonnull public Duration getDelay() { return timeRangeConfig.getDelay(); }
+    @Nonnull public Duration getCompleteTimeout() { return timeRangeConfig.getCompleteTimeout(); }
 
     /**
      * The time interval taking into account completeTimeout has been exhausted by the current moment
@@ -149,7 +148,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
      */
     public boolean isExpired(@Nullable Instant instant) {
         return !ofNullable(instant).orElseGet(Instant::now)
-                .isBefore(this.lastInstant.plus(timeRangeConfig.completeTimeout));
+                .isBefore(this.lastInstant.plus(timeRangeConfig.getCompleteTimeout()));
     }
 
     /**
@@ -186,7 +185,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
                 // Checking for range
                 .filter(element -> checkRange(element) || !excludes.add(element))
                 // If the element is the earliest, then mark it with Instant
-                // P.S.> Due to the presence of the terminal operator, peek will work for every element that has passed through it.
+                // P.S. Due to the presence of the terminal operator, peek will work for every element that has passed through it.
                 .peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
                         .filter(inst -> inst.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX)))
                         .ifPresent(this::setNearestInstant))
@@ -264,7 +263,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
     }
 
     private Stream<M> processComplete(Set<M> elements, List<R> result) {
-        elements.stream().map(timeRangeConfig.extractor).forEach(result::add);
+        elements.stream().map(timeRangeConfig.getExtractor()).forEach(result::add);
         return Stream.empty();
     }
 
@@ -316,7 +315,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
     // This time is given by AKKA System to deliver the message with the processing order to us. The fact is that it is not
     // supposed to receive tasks for processing after the moment of their occurrence. This actor only accepts messages for the future
     private @Nonnull Duration durationToStop(Instant now) {
-        return durationTo(this.lastInstant.plus(timeRangeConfig.completeTimeout), now);
+        return durationTo(this.lastInstant.plus(timeRangeConfig.getCompleteTimeout()), now);
     }
 
     // The time from the specified moment until the first element fires, and in case of absence - until the end of the range of the current key
@@ -330,10 +329,10 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
                                 .orElse(this.lastInstant),
                         now))
                 // Check if it exceeds delay
-                .filter(d -> d.compareTo(timeRangeConfig.delay) >= 0)
+                .filter(d -> d.compareTo(timeRangeConfig.getDelay()) >= 0)
                 // If it does not exceed, then when hitting lastDelayedInstant we return delay, otherwise - the remaining time to lastInstant
                 .orElseGet(() -> now.isAfter(this.lastInstant) ? Duration.ZERO
-                        : now.isBefore(this.lastDelayedInstant) ? timeRangeConfig.delay // NOSONAR java:S3358 Ternary operators should not be nested
+                        : now.isBefore(this.lastDelayedInstant) ? timeRangeConfig.getDelay() // NOSONAR java:S3358 Ternary operators should not be nested
                         : Duration.between(now, this.lastInstant));
     }
 
@@ -365,7 +364,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
      * @return moment describing the range of the polling period
      */
     private Instant getInstantKey(@Nonnull Instant instant) {
-        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % timeRangeConfig.interval.toMillis());
+        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % timeRangeConfig.getInterval().toMillis());
     }
 
     private Instant getTemporalKey(@Nullable TemporalAccessor temporalAccessor) {
@@ -394,7 +393,7 @@ public class TimeRangeHolder<M,R> implements ITimeRangeHolder<M,R> {
     }
 
     private @Nonnull Instant instant(@Nonnull M element) {
-        return Instant.from(timeRangeConfig.expectation.apply(element));
+        return Instant.from(timeRangeConfig.getExpectation().apply(element));
     }
     
 }

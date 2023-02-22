@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.github.sftwnd.crayfish.alarms</groupId>
         <artifactId>crayfish-alarms</artifactId>
-        <version>0.0.2-SNAPSHOT</version>
+        <version>0.1.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>crayfish-alarms-timerange</artifactId>
