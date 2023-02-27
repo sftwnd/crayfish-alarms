@@ -1,5 +1,5 @@
 executors:
-  openjdk8:
+  openjdk11:
     docker:
       - image: 'cimg/openjdk:11.0'
 orbs:
