@@ -1,5 +1,7 @@
-package com.github.sftwnd.crayfish.alarms.timerange;
+package com.github.sftwnd.crayfish.alarms.timerange.test;
 
+import com.github.sftwnd.crayfish.alarms.timerange.ITimeRange;
+import com.github.sftwnd.crayfish.alarms.timerange.ITimeRangeFactory;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,20 +17,23 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 
 class TimeRangeTest {
 
-    private static final Duration DELAY = Duration.ofMillis(250);
     private static final Duration INTERVAL = Duration.ofSeconds(15);
     private static final Duration COMPLETE_TIMEOUT = Duration.ofSeconds(10);
 
@@ -52,9 +57,15 @@ class TimeRangeTest {
 
     @Test
     void isNotExpiredCompleteNowTest() {
-        TimeRange<ExpectedTest,?,ExpectedTest> timeRange = new TimeRange<>(
-                now.plus(1, ChronoUnit.HOURS), Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
-                ITimeRange.Transformer.identity(), Expected::getTick, ITimeRange.Transformer.identity(), null);
+        ITimeRangeFactory<Expected<Instant>, Expected<Instant>> timeRangeFactory =
+                ITimeRangeFactory.expected(
+                        Duration.ofMinutes(-1L),
+                        Duration.ofSeconds(15),
+                        completeTimeout,
+                        Comparator.comparing(Expected::getTick)
+                );
+        ITimeRange<Expected<Instant>,Expected<Instant>> timeRange =
+                timeRangeFactory.timeRange(now.plus(1, ChronoUnit.HOURS));
         assertFalse(timeRange.isExpired(), "TimeRange hasn't got to be expired on Instant.now()");
         assertFalse(timeRange.isComplete(), "TimeRange hasn't got to be expired on Instant.now()");
     }
@@ -62,11 +73,22 @@ class TimeRangeTest {
     @Test
     void isExpiredNowCompleteTest() {
         ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.create(
-                Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ZERO, completeTimeout,
+                Duration.ofMinutes(-1L), Duration.ofSeconds(15), completeTimeout,
                 ITimeRange.Transformer.identity(), ExpectedTest::getTick, ITimeRange.Transformer.identity(), null);
         ITimeRange<ExpectedTest,ExpectedTest> timeRange = timeRangeFactory.timeRange(now.minus(1,ChronoUnit.HOURS));
         assertTrue(timeRange.isExpired(), "TimeRange has got to be expired on Instant.now()");
         assertTrue(timeRange.isComplete(), "TimeRange has got to be expired on Instant.now()");
+    }
+
+    @Test
+    void temporalFactoryTest() {
+        ITimeRangeFactory<Instant,Instant> timeRangeFactory = ITimeRangeFactory.temporal(
+                Duration.ofMinutes(1), Duration.ofSeconds(1), completeTimeout, null);
+        ITimeRange<Instant,Instant> timeRange = timeRangeFactory.timeRange(now.minus(15,ChronoUnit.SECONDS));
+        timeRange.addElement(timeRange.getStartInstant());
+        LockSupport.parkNanos(1);
+        Collection<Instant> fired = timeRange.extractFiredElements();
+        assertEquals(List.of(timeRange.getStartInstant()), fired, "TimeRange has to return added instant");
     }
 
     @Test
@@ -79,7 +101,19 @@ class TimeRangeTest {
     void nonEmptyCompleteTest() {
         addElements();
         assertFalse(timeRange.isComplete(now), "empty TimeRange has to be incomplete on now");
-        assertFalse(timeRange.isComplete(now.plus(completeTimeout)), "empty TimeRange has to be complete on now");    }
+        assertFalse(timeRange.isComplete(now.plus(completeTimeout)), "empty TimeRange has to be complete on now");
+    }
+
+    @Test
+    void addElementsWithNullTest() {
+        Collection<ExpectedTest> elements = new LinkedList<>();
+        ExpectedTest rejected = new ExpectedTest(Instant.now().plus(30, ChronoUnit.DAYS));
+        elements.add(null);
+        elements.add(rejected);
+        Collection<?> rejects = timeRange.addElements(elements);
+        assertNotNull(rejects, "result for timeRange.addElement(null) has to be not null collection");
+        assertEquals(List.of(rejected), rejects,"result for timeRange.addElements({ null, element }) has to return one not null element");
+    }
 
     @Test
     void addAndFiredElementsTest() {
@@ -173,14 +207,6 @@ class TimeRangeTest {
     }
 
     @Test
-    void durationAfterFirstElementTest() {
-        addElements();
-        Instant tick = timeRange.getLastInstant().minusSeconds(1);
-        assertEquals(DELAY, this.timeRange.duration(tick),
-                "Duration after first element of timeRange has to be equals delay");
-    }
-
-    @Test
     void durationNoElementsBeforeLastTimeTest() {
         Instant tick = timeRange.getLastInstant().minusSeconds(1);
         assertEquals(Duration.ofSeconds(1).plus(completeTimeout), this.timeRange.duration(tick),
@@ -191,7 +217,7 @@ class TimeRangeTest {
     void durationToExpectAfterLastElementTest() {
         Instant tick = timeRange.getLastInstant().minusMillis(200);
         this.timeRange.addElements(List.of(expected(tick.plusMillis(100))));
-        assertEquals(Duration.ofMillis(200), this.timeRange.duration(tick),
+        assertEquals(Duration.ofMillis(100), this.timeRange.duration(tick),
                 "Duration on the end of timeRange has to be equals duration to the end plus completion");
     }
 
@@ -207,17 +233,12 @@ class TimeRangeTest {
 
     @Test
     void getIntervalTest() {
-        assertEquals(Duration.ofSeconds(15), INTERVAL, "TimeRange::getInterval - wrong result");
-    }
-
-    @Test
-    void getActiveDelayTest() {
-        assertEquals(Duration.ofMillis(250), DELAY, "TimeRange::getActiveDelay - wrong result");
+        assertEquals(INTERVAL, Duration.ofSeconds(15),"TimeRange::getInterval - wrong result");
     }
 
     @Test
     void getCompleteTimeoutTest() {
-        assertEquals(this.completeTimeout, COMPLETE_TIMEOUT, "TimeRange::getCompleteTimeout - wrong result");
+        assertEquals(COMPLETE_TIMEOUT, this.completeTimeout, "TimeRange::getCompleteTimeout - wrong result");
     }
 
     @Test
@@ -238,8 +259,9 @@ class TimeRangeTest {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = COMPLETE_TIMEOUT;
         ITimeRangeFactory<String,String> timeRangeFactory = ITimeRangeFactory.packable(
-                Duration.ofMinutes(-1L), Duration.ofSeconds(15), Duration.ofMillis(250),
-                completeTimeout, Instant::parse, null);
+                Duration.ofMinutes(-1L), Duration.ofSeconds(15),
+                completeTimeout, Instant::parse,
+                Comparator.comparing(Instant::parse));
         ITimeRange<String,String> timeRange = timeRangeFactory.timeRange(now);
         String strA = now.minusSeconds(2).toString();
         String strB = now.minusSeconds(1).toString();
@@ -262,7 +284,7 @@ class TimeRangeTest {
     void startUp() {
         this.now = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         this.completeTimeout = Duration.ofSeconds(10);
-        ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.expected(Duration.ofMinutes(-1L), INTERVAL, DELAY, COMPLETE_TIMEOUT, null);
+        ITimeRangeFactory<ExpectedTest,ExpectedTest> timeRangeFactory = ITimeRangeFactory.expected(Duration.ofMinutes(-1L), INTERVAL, COMPLETE_TIMEOUT, null);
         this.timeRange = timeRangeFactory.timeRange(now);
         this.elementA = expected(now.minusSeconds(40));
         this.elementB = expected(now.minusSeconds(5));

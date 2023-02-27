@@ -1,26 +1,38 @@
+/*
+ * Copyright © 2017-2023 Andrey D. Shindarev. All rights reserved.
+ * This program is made available under the terms of the BSD 3-Clause License.
+ * Contacts: ashindarev@gmail.com
+ */
 package com.github.sftwnd.crayfish.alarms.timerange;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-public interface ITimeRange<M,R> {
+/**
+ * TimeRange alarms holder
+ * @param <M> incoming alarm description type
+ * @param <R> resulting alarm event type
+ */
+public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
 
     /**
      * Point in time that is the start of the time range
      * @return start of time range
      */
-    @Nonnull Instant getStartInstant();
+    @NonNull Instant getStartInstant();
 
     /**
      * Point in time that is the end of a time range
      * @return after of time range
      */
-    @Nonnull Instant getLastInstant();
+    @NonNull Instant getLastInstant();
 
     /**
      * The time interval taking into account completeTimeout has been exhausted by the current moment
@@ -61,14 +73,24 @@ public interface ITimeRange<M,R> {
      * @param elements collection of added elements
      * @return list of ignored elements
      */
-    @Nonnull Collection<M> addElements(@Nonnull Collection<M> elements);
+    @Override
+    @NonNull Collection<M> addElements(@NonNull Collection<M> elements);
+
+    /**
+     * Add just one element to the range map
+     * @param element element to add
+     * @return list of ignored elements (just zero or one element)
+     */
+    default @NonNull Collection<M> addElement(@NonNull M element) {
+        return addElements(List.of(element));
+    }
 
     /**
      * Extracting from the saved elements those that, according to the temporary marker, are considered to have
      * worked at the current moment
      * @return List of triggered elements
      */
-    default @Nonnull Collection<R> extractFiredElements() {
+    default @NonNull Collection<R> extractFiredElements() {
         return extractFiredElements( Instant.now() );
     }
 
@@ -78,15 +100,25 @@ public interface ITimeRange<M,R> {
      * @param instant point in time at which the check is made
      * @return List of triggered elements
      */
-    @Nonnull Collection<R> extractFiredElements(@Nullable Instant instant);
+    @NonNull Collection<R> extractFiredElements(@Nullable Instant instant);
 
     /**
      * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
      * either startInstant or lastInstant + completeDuration
      * @return timeout to the nearest event, taking into account the delay from the current moment
      */
-    default @Nonnull Duration duration() {
-        return duration( Instant.now() );
+    default @NonNull Duration duration() {
+        return duration( Duration.ZERO );
+    }
+
+    /**
+     * Timeout until the nearest available Expected, but not less than delay from now, and if not, until the next
+     * time limit - either startInstant or lastInstant + completeDuration
+     * @param delay point in time with delay from now for which we calculate the value
+     * @return timeout to the nearest event, taking into account the delay from the current moment
+     */
+    default @NonNull Duration duration(Duration delay) {
+        return duration( Instant.now().plus(delay) );
     }
 
     /**
@@ -95,7 +127,7 @@ public interface ITimeRange<M,R> {
      * @param now point in time for which we calculate the value
      * @return timeout to the nearest event, taking into account delay
      */
-    @Nonnull Duration duration(@Nonnull Instant now);
+    @NonNull Duration duration(@NonNull Instant now);
 
     /**
      * Transformation of nonnull element to nonnull value
@@ -110,7 +142,13 @@ public interface ITimeRange<M,R> {
          * @param source the source element
          * @return target element
          */
-        @Nonnull T apply(@Nonnull S source);
+        @NonNull T apply(@NonNull S source);
+
+        /**
+         * Returns a transformer that always returns its input argument.
+         * @return a transformer that always returns its input argument
+         * @param <T> type of element
+         */
         static <T> Transformer<T, T> identity() {
             return element -> Objects.requireNonNull(element, "Transformer::apply - element is null");
         }
