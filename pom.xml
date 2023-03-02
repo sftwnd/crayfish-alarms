@@ -40,6 +40,7 @@
 
     <modules>
         <module>crayfish-alarms-timerange</module>
+        <module>crayfish-alarms-service</module>
     </modules>
 
     <properties>
@@ -48,7 +49,9 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <crayfish-common-expectation.version>1.3.0</crayfish-common-expectation.version>
+        <crayfish-alarms-timerange.version>${project.version}</crayfish-alarms-timerange.version>
         <lombok.version>1.18.26</lombok.version>
+        <slf4j.version>2.0.6</slf4j.version>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
         <mockito.version>5.1.1</mockito.version>
@@ -225,8 +228,13 @@
             </dependency>
             <dependency>
                 <groupId>com.github.sftwnd.crayfish.alarms</groupId>
-                <artifactId>crayfish-alarms-timerange</artifactId>
+                <artifactId>crayfish-alarms-service</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+                <artifactId>crayfish-alarms-timerange</artifactId>
+                <version>${crayfish-alarms-timerange.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
