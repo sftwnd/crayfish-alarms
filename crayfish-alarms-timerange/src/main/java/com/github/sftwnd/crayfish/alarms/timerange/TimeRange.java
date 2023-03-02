@@ -7,10 +7,10 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 
 import com.github.sftwnd.crayfish.common.expectation.TemporalExtractor;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.AccessLevel;
 import lombok.Setter;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
