@@ -27,7 +27,7 @@ public class AlarmTimeRangeService<M,R> extends AlarmService<M, R> {
     private final ITimeRange<M,R> timeRange;
 
     /**
-     * Construct IAlarmService / IAlarmServiceWithOffset for just one ITimeRange
+     * Construct IAlarmService for just one ITimeRange
      * @param timeRange predefined ITimeRange
      * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait
      */

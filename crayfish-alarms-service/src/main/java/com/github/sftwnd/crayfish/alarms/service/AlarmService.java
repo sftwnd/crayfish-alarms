@@ -38,12 +38,10 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     private final long minimalWaitNanos;
 
     /**
-     * Construct IAlarmService / IAlarmServiceWithOffset
+     * Construct IAlarmService
      * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait
      */
-    public AlarmService(
-            @Nullable Duration minimalWait
-    ) {
+    protected AlarmService(@Nullable Duration minimalWait) {
         this.minimalWaitNanos = Optional.ofNullable(minimalWait)
                 .map(Duration::toNanos)
                 .map(nanos -> Math.max(0L, nanos))
