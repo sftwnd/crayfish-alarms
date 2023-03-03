@@ -1,4 +1,3 @@
-@SuppressWarnings("all")
 open module crayfish.alarms.timerange.test {
     requires crayfish.alarms.timerange;
     requires lombok;
