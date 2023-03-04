@@ -5,7 +5,7 @@
 
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 
     <name>CrayFish :: ALARMS</name>
 
@@ -35,7 +35,7 @@
         <url>https://github.com/sftwnd/crayfish-alarms</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
-        <tag>crayfish-alarms-1.0.1</tag>
+        <tag>crayfish-alarms-1.0.2</tag>
     </scm>
 
     <modules>
@@ -48,9 +48,8 @@
         <java.version>11</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <crayfish-common-expectation.version>1.3.0</crayfish-common-expectation.version>
+        <crayfish-common-expectation.version>1.3.1</crayfish-common-expectation.version>
         <lombok.version>1.18.26</lombok.version>
-        <slf4j.version>2.0.6</slf4j.version>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
         <mockito.version>5.1.1</mockito.version>
@@ -121,7 +120,7 @@
                         </path>
                     </annotationProcessorPaths>
                     <compilerArgs>
-                        <arg>-Xlint:all,-module</arg>
+                        <arg>-Xlint:all</arg>
                         <arg>-Xlint:-processing</arg>
                         <arg>-Xlint:-requires-automatic</arg>
                     </compilerArgs>
