@@ -89,7 +89,7 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
         try {
             processLoop(consumer);
         } catch (InterruptedException itrex) {
-            logger.log(Level.WARNING, "AlarmService::process is terminated by cause: {}", Optional.ofNullable(itrex.getLocalizedMessage()).orElseGet(() -> String.valueOf(itrex)));
+            logger.log(Level.WARNING, "AlarmService::process is terminated by cause: {0}", Optional.ofNullable(itrex.getLocalizedMessage()).orElseGet(() -> String.valueOf(itrex)));
             Thread.currentThread().interrupt();
         } finally {
             this.registrationQueue.forEach(RegistrationRequest::reject);
