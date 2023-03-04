@@ -1,7 +1,7 @@
 @SuppressWarnings("requires-transitive-automatic")
-open module crayfish.alarms.timerange {
+open module com.github.sftwnd.crayfish_alarms_timerange {
     requires transitive com.github.spotbugs.annotations;
-    requires transitive crayfish.common.expectation;
+    requires transitive com.github.sftwnd.crayfish_common_expectation;
     requires lombok;
     exports com.github.sftwnd.crayfish.alarms.timerange;
 }
