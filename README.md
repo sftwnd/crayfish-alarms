@@ -54,7 +54,7 @@ This is the most general method. When calling it, you must specify the **duratio
 ```
 
 #### method [packable](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L106-L119)
-This method allows you to create a TimeRangeConfig described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
+This method allows you to create a ITimeRangeFactory described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
 In this case, the **expectation** and **extractor** parameters are missing
 
 ```java
@@ -72,12 +72,24 @@ In this case, the **expectation** and **extractor** parameters are missing
 This method also defines the **expectation** and **extractor** parameters itself and creates a [ITimeRangeFactory&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java) that has the same object at the input and output that implements the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface.
 
 ```java
-    TimeRangeConfig<Expected<Instant>, Expected<Instant>> config = TimeRangeConfig.expected(
+    ITimeRangeFactory<Expected<Instant>, Expected<Instant>> timeRangeFactory = TimeRangeConfig.expected(
         Duration.ofSeconds(10),
         Duration.ofMillis(1000),
         Duration.ofMillis(100),
         Duration.ofSeconds(3),
         null
+    );
+```
+
+#### method [temporal](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L150-L157)
+This method creates a [ITimeRangeFactory&lt;M,M&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java) that has the same object at the input and output that reilize the &lt;M extends TemporalAccessor&gt; class.
+
+```java
+    ITimeRangeFactory<Instant,Instant> timeRangeFactory = ITimeRangeFactory.temporal (
+            Duration.ofSeconds(SECONDS),
+            Duration.ofMillis(333),
+            Duration.ofSeconds(1),
+            Instant::compareTo
     );
 ```
 
