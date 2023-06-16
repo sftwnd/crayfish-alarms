@@ -5,7 +5,7 @@
 
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms</artifactId>
-    <version>1.0.3-SNAPSHOT</version>
+    <version>1.0.3</version>
 
     <name>CrayFish :: ALARMS</name>
 
@@ -35,7 +35,7 @@
         <url>https://github.com/sftwnd/crayfish-alarms</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
-        <tag>crayfish-alarms-1.0.2</tag>
+        <tag>crayfish-alarms-1.0.3</tag>
     </scm>
 
     <modules>
