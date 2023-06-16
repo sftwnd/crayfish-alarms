@@ -289,6 +289,14 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         }
     }
 
+    /**
+     * Remove all alarms from the TimeRange
+     */
+    @Override
+    public void clean() {
+        this.expectedMap.clear();
+    }
+
     // Time until the moment after lastInstant by completeTimeout duration. If after this point we are in COMPLETE,
     // then the actor ends.
     // This time is given by AKKA System to deliver the message with the processing order to us. The fact is that it is not

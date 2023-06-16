@@ -29,7 +29,7 @@ When accessing TimeRange, you can get information about the interval until the n
 The implemented library allows you to store elements that have a time marker inside the TimeRange and retrieve at each moment of time those objects that have a time marker earlier than the current moment. A temporary marker can be attached to an object in three ways:
 1) An implementation of the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, where the token is obtained by calling the getTick() method
 2) Packing the element into an object that implements the [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) interface, which also supports the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, and the element itself is obtained by calling the getElemen() method
-3) A description of two methods that implement the interfaces [Expectation&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [ITimeRangeFactory.Transformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRange.java#L105-L117) to get the resulting object from the original one.
+3) A description of two methods that implement the interfaces [Expectation&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expectation.java) to get the temporary marker from the object and [ITimeRangeFactory.Transformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRange.java#L138-L155) to get the resulting object from the original one.
 
 ### Uniqueness Constraint
 There is one TimeRange limitation: you cannot describe two objects at the same time that, when cast to the resulting object, will turn out to be equal.
@@ -37,7 +37,7 @@ To implement this restriction, the Comparator&lt;&gt; of the resulting object is
 
 ### Creation of ITimeRangeFactory&lt;M,R&gt;
 The **create**, **packable**, and **expected** factory methods are used to instantiate the [ITimeRangeFactory&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java) description.
-#### method [create](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L42-L63)
+#### method [create](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L50-L69)
 This is the most general method. When calling it, you must specify the **duration**, **interval**, **delay**, **completeTimeout**, **expectation**, **comparator** and **extractor** parameters described above.
 
 ```java
@@ -53,8 +53,8 @@ This is the most general method. When calling it, you must specify the **duratio
     );
 ```
 
-#### method [packable](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L104-L118)
-This method allows you to create a TimeRangeConfig described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
+#### method [packable](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L106-L119)
+This method allows you to create a ITimeRangeFactory described the TimeRange that takes [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) as input elements, and the element contained in the specified package as result elements.
 In this case, the **expectation** and **extractor** parameters are missing
 
 ```java
@@ -68,16 +68,28 @@ In this case, the **expectation** and **extractor** parameters are missing
     );
 ```
 
-#### method [expected](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L131-L139)
+#### method [expected](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L131-L138)
 This method also defines the **expectation** and **extractor** parameters itself and creates a [ITimeRangeFactory&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java) that has the same object at the input and output that implements the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.0.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface.
 
 ```java
-    TimeRangeConfig<Expected<Instant>, Expected<Instant>> config = TimeRangeConfig.expected(
+    ITimeRangeFactory<Expected<Instant>, Expected<Instant>> timeRangeFactory = TimeRangeConfig.expected(
         Duration.ofSeconds(10),
         Duration.ofMillis(1000),
         Duration.ofMillis(100),
         Duration.ofSeconds(3),
         null
+    );
+```
+
+#### method [temporal](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L150-L157)
+This method creates a [ITimeRangeFactory&lt;M,M&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java) that has the same object at the input and output that reilize the &lt;M extends TemporalAccessor&gt; class.
+
+```java
+    ITimeRangeFactory<Instant,Instant> timeRangeFactory = ITimeRangeFactory.temporal (
+            Duration.ofSeconds(SECONDS),
+            Duration.ofMillis(333),
+            Duration.ofSeconds(1),
+            Instant::compareTo
     );
 ```
 
@@ -87,7 +99,7 @@ The creation of a physical region is implemented in the ITimeRangeFactory class.
 
 #### Creation of ITimeRange
 
-The ITimeRange instance is created by the [timeRange(TemporalAccessor)](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L23) method. Those a time point is taken and, depending on the sign of the Duration parameter, the physical time range is described to the left or right of the time point using the TimeRangeConfig described above
+The ITimeRange instance is created by the [timeRange(TemporalAccessor)](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRangeFactory.java#L32) method. Those a time point is taken and, depending on the sign of the Duration parameter, the physical time range is described to the left or right of the time point using the TimeRangeConfig described above
 
 ```java
     ITimeRange<MyObject, NewObject> timeRange = timeRangeFactory.timeRange(Instant.now);
@@ -107,7 +119,7 @@ There are also three additional methods:
 * duration() - get time interval until the next event occurs from the moment specified by the parameter, or from the current moment if the parameter is not set
 
 #### Adding new elements to the holder
-To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#176#L177-L196) method:
+To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#176#L185-L204) method:
 
 ```java
     List<MyObject> elements=getElements();
@@ -117,7 +129,7 @@ To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/
 If any elements do not fall within the specified region (excluding the right border), then these elements will be returned by the adElements method as not processed (rejected)
 
 #### Getting triggered (fired) elements from a holder
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L227-L248) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L212-L233) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements (unique if the timestamp matches).
 
 ```java
