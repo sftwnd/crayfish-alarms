@@ -5,7 +5,7 @@
 
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3-SNAPSHOT</version>
 
     <name>CrayFish :: ALARMS</name>
 
@@ -45,20 +45,21 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.plugin.validation>BRIEF</maven.plugin.validation>
         <java.version>11</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <crayfish-common-expectation.version>1.3.1</crayfish-common-expectation.version>
-        <lombok.version>1.18.26</lombok.version>
+        <lombok.version>1.18.28</lombok.version>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
-        <junit.version>5.9.2</junit.version>
-        <mockito.version>5.1.1</mockito.version>
-        <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
-        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
-        <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
+        <junit.version>5.9.3</junit.version>
+        <mockito.version>5.3.1</mockito.version>
+        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.10</jacoco-maven-plugin.version>
     </properties>
 
     <distributionManagement>
