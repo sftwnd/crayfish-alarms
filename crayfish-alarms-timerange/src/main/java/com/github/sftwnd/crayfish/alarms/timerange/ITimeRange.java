@@ -130,6 +130,11 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
     @NonNull Duration duration(@NonNull Instant now);
 
     /**
+     * Remove all alarms from the TimeRange
+     */
+    void clean();
+
+    /**
      * Transformation of nonnull element to nonnull value
      * @param <S> source element type
      * @param <T> target element type

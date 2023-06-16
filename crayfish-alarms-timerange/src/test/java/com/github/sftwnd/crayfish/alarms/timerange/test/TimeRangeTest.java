@@ -222,6 +222,17 @@ class TimeRangeTest {
     }
 
     @Test
+    void cleanTest() {
+        addElements();
+        Instant limit = Instant.now().plus(Duration.ofDays(1));
+        var elements = timeRange.extractFiredElements(limit);
+        assertFalse(elements.isEmpty(), "Collection has to be filled");
+        timeRange.addElements(elements);
+        timeRange.clean();
+        assertTrue(timeRange.extractFiredElements(limit).isEmpty(), "Collection has to be empty after clean() call");
+    }
+
+    @Test
     void getStartInstantTest() {
         assertEquals(now.minus(1, ChronoUnit.MINUTES), timeRange.getStartInstant(), "TimeRange::getStartInstant - wrong result");
     }
