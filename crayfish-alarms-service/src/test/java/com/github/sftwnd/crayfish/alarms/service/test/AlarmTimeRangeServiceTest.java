@@ -267,7 +267,10 @@ class AlarmTimeRangeServiceTest {
         serviceThread.start();
         serviceCdl.countDown();
         assertTrue(processCdl.await(1, TimeUnit.SECONDS), "AlarmService process thread has to be started");
-        Instant instant = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(3);
+        // three seconds after the second the range was created in: inside the range, which ends a second later,
+        // whenever the test gets here (a new reading of the clock may be in the next second); without the time offset
+        // of three seconds the alarm would fire two to three seconds later
+        Instant instant = timeRange.getStartInstant().plusSeconds(4);
         alarmService.addElement(instant);
         assertDoesNotThrow(() -> firedFuture.get(1, TimeUnit.SECONDS), "AlarmService has to fire alarm");
         assertTrue(Duration.between(instant, firedFuture.get()).toMillis() < -500L, "AlarmService has to fire alarm with timeOffset");
