@@ -221,9 +221,9 @@ class TimeRangeTest {
     void cleanTest() {
         addElements();
         Instant limit = Instant.now().plus(Duration.ofDays(1));
-        Collection<ExpectedTest> elements = timeRange.extractFiredElements(limit);
-        assertFalse(elements.isEmpty(), "Collection has to be filled");
-        timeRange.addElements(elements);
+        Collection<ExpectedTest> fired = timeRange.extractFiredElements(limit);
+        assertFalse(fired.isEmpty(), "Collection has to be filled");
+        timeRange.addElements(fired);
         timeRange.clean();
         assertTrue(timeRange.extractFiredElements(limit).isEmpty(), "Collection has to be empty after clean() call");
     }
