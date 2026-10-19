@@ -170,5 +170,20 @@ The module descriptors are in `META-INF/versions/9` of the multi-release jars, s
 have their sources at the same place. The SpotBugs annotations of the API (`NonNull`, `Nullable`) have CLASS retention:
 their dependency is optional and `requires static`, a consumer needs them neither to compile nor to run.
 
+## Building
+
+The project builds with the Maven Wrapper (Maven 3.10.0) on JDK 8 to 25:
+
+```shell
+./mvnw verify
+```
+
+The classes are compiled for Java 8 on every JDK; the module descriptors are built on JDK 9+ only, so a release has to be
+built on JDK 9+. The dependencies and the plugins come from Maven Central: `.mvn/maven.config` gives Maven the settings
+of `.mvn/settings.xml` instead of `~/.m2/settings.xml`.
+
+Two builds of the same sources on the same JDK give the same jars byte for byte: `project.build.outputTimestamp` gives
+their entries a fixed time, which `release:prepare` sets to the time of the release.
+
 ---
 Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
