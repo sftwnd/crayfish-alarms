@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
-         child.project.url.inherit.append.path="false">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" child.project.url.inherit.append.path="false">
     <!-- the modules have the url and the scm of the repository, without their artifactId appended
-         (child.*.inherit.append.path): the headers Bundle-DocURL and Bundle-SCM of their bundles name the repository -->
+         (child.*.inherit.append.path): the headers Bundle-DocURL and Bundle-SCM of their bundles name the repository.
+         The start tags of project and scm stay on one line each, as release:prepare writes them -->
     <modelVersion>4.0.0</modelVersion>
     <packaging>pom</packaging>
 
@@ -34,8 +34,7 @@
         </developer>
     </developers>
 
-    <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false"
-         child.scm.url.inherit.append.path="false">
+    <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false" child.scm.url.inherit.append.path="false">
         <url>https://github.com/sftwnd/crayfish-alarms</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
@@ -71,11 +70,11 @@
         <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
         <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
         <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
-        <!-- the signing of a release changes with the move from OSSRH to the Central Publisher Portal -->
-        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
         <maven-install-plugin.version>3.2.0</maven-install-plugin.version>
         <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-release-plugin.version>3.3.1</maven-release-plugin.version>
         <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
         <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
         <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
@@ -85,20 +84,11 @@
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
         <!-- bnd 7 requires Java 17, the build runs on Java 8 -->
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
+        <!-- the best practices of maven-gpg-plugin: the passphrase of the signing key comes from gpg-agent (or from
+             MAVEN_GPG_PASSPHRASE), not from a server of the settings, see the profile sign-artifacts -->
+        <gpg.bestPractices>true</gpg.bestPractices>
     </properties>
-
-    <distributionManagement>
-        <repository>
-            <id>sonatype-nexus-staging</id>
-            <name>Nexus Release Repository</name>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-        <snapshotRepository>
-            <id>sonatype-nexus-snapshots</id>
-            <name>Sonatype Nexus Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
 
     <dependencies>
         <!-- optional: NonNull/Nullable are CLASS-retention marker annotations, consumers need neither this jar
@@ -259,6 +249,30 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <configuration>
+                    <mavenExecutorId>forked-path</mavenExecutorId>
+                    <!-- the release profile of the super POM is not used: useReleaseProfile (deprecated) is false by
+                         default -->
+                    <releaseProfiles>sign-artifacts</releaseProfiles>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- deploy publishes to the Central Publisher Portal (server id "central" with a Portal user token in
+                     settings.xml): one deployment of the parent POM and both modules, which stays VALIDATED until it is
+                     published by hand (autoPublish is false by default) -->
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <!-- the name of the project, not ${project.artifactId}: the plugin uploads the deployment from the last
+                         module of the reactor -->
+                    <deploymentName>crayfish-alarms-${project.version}</deploymentName>
+                </configuration>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
@@ -278,6 +292,8 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                     <version>${maven-dependency-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <!-- the version of the default lifecycle, whose execution the extension of central-publishing removes,
+                         and of the release profile of the super POM of Maven 3.9 (-DperformRelease=true) -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>${maven-deploy-plugin.version}</version>
@@ -319,6 +335,11 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                     <version>${maven-gpg-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-release-plugin</artifactId>
+                    <version>${maven-release-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>${jacoco-maven-plugin.version}</version>
@@ -327,6 +348,11 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                     <groupId>biz.aQute.bnd</groupId>
                     <artifactId>bnd-maven-plugin</artifactId>
                     <version>${bnd-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>${central-publishing-maven-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <!-- SonarCloud analysis in the GitHub Actions workflow -->
@@ -478,15 +504,11 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
-                                <configuration>
-                                    <useAgent>true</useAgent>
-                                    <passphrase>${gpg.passphrase}</passphrase>
-                                    <gpgArguments>
-                                        <arg>--batch</arg>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
-                                </configuration>
+                                <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
+                                     with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
+                                     In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
+                                     without a prompt. -Dgpg.bestPractices=false takes the passphrase of the server
+                                     gpg.passphrase of the settings instead -->
                             </execution>
                         </executions>
                     </plugin>
