@@ -53,23 +53,31 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <crayfish-common-expectation.version>1.4.0</crayfish-common-expectation.version>
-        <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
-        <junit.version>5.9.3</junit.version>
+        <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
+        <!-- JUnit 6 requires Java 17: the tests run on Java 8 as well -->
+        <junit.version>5.14.4</junit.version>
         <!-- the sources jar is built by maven-jar-plugin (the execution attach-sources): maven-source-plugin, which the
              release profile of the super POM of Maven 3.9 (-DperformRelease=true) uses as well, is skipped, so that it
              attaches no sources jar of its own -->
         <maven.source.skip>true</maven.source.skip>
-        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptors in src/main/java9 -->
-        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
-        <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
-        <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
-        <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
-        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
-        <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+        <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+        <!-- dependency:build-classpath of .github/scripts/check-modular-jar.sh -->
+        <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
+        <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
         <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+        <!-- the signing of a release changes with the move from OSSRH to the Central Publisher Portal -->
+        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <maven-install-plugin.version>3.2.0</maven-install-plugin.version>
+        <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
+        <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
         <!-- 0.8.14+: the tests run on JDK 25 as well -->
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+        <!-- the scanner of the job SonarCloud of the CI, which runs on Java 21 -->
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
     </properties>
 
@@ -220,8 +228,28 @@
             <plugins>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>${maven-clean-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${maven-compiler-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>${maven-dependency-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <version>${maven-deploy-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-install-plugin</artifactId>
+                    <version>${maven-install-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <!-- skipped (maven.source.skip); the version for the release profile of the super POM of Maven 3.9 -->

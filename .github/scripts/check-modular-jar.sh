@@ -74,7 +74,7 @@ check_sources crayfish-alarms-service "$SERVICE_JAR"
 # the dependency of both jars that a consumer needs: crayfish-common-expectation, without the optional spotbugs
 # annotations and their jsr305
 "${MAVEN[@]}" -B -q -ntp -f crayfish-alarms-timerange/pom.xml \
-    org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath \
+    dependency:build-classpath \
     -DincludeScope=runtime -DexcludeGroupIds=com.github.spotbugs,com.google.code.findbugs \
     -Dmdep.outputFile="$WORK/dependencies"
 DEPENDENCIES=$(cat "$WORK/dependencies")
