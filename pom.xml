@@ -45,6 +45,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- the time of the entries of the jars, for reproducible builds: maven-release-plugin sets the time of the
+             release at release:prepare; without the property the super POM of Maven 3.10 sets 1980-02-01 -->
+        <project.build.outputTimestamp>2023-06-16T16:04:02Z</project.build.outputTimestamp>
         <maven.plugin.validation>BRIEF</maven.plugin.validation>
         <!-- the classes are compiled for Java 8, the module descriptors (src/main/java9) for Java 9+ -->
         <maven.compiler.source>1.8</maven.compiler.source>
