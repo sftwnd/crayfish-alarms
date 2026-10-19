@@ -1,6 +1,6 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_alarms&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_alarms)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_alarms&metric=coverage)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_alarms)
-[![TravisCI-build](https://app.travis-ci.com/sftwnd/crayfish-alarms.svg?branch=master)](https://app.travis-ci.com/github/sftwnd/crayfish-alarms/logscans)
+[![Build](https://github.com/sftwnd/crayfish-alarms/actions/workflows/build.yml/badge.svg)](https://github.com/sftwnd/crayfish-alarms/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://github.com/sftwnd/crayfish-alarms/blob/master/LICENSE)
 
 # CrayFish Alarms
