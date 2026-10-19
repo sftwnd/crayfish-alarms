@@ -2,7 +2,6 @@ package com.github.sftwnd.crayfish.alarms.service;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import lombok.extern.java.Log;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -11,8 +10,18 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-@Log
+/**
+ * The base of the alarm processors: the time offset of the process
+ * @param <R> type of fired alarm
+ */
 public abstract class AbstractAlarmProcessor<R> implements IAlarmProcessor<R> {
+
+    /**
+     * Construct the processor without a time offset: the process sets it
+     */
+    protected AbstractAlarmProcessor() {
+        // the time offset is set by process
+    }
 
     @Override
     public void process(@NonNull Consumer<Collection<R>> consumer, @Nullable Supplier<Duration> timeOffset) {

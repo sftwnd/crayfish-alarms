@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -82,7 +82,7 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
      * @return list of ignored elements (just zero or one element)
      */
     default @NonNull Collection<M> addElement(@NonNull M element) {
-        return addElements(List.of(element));
+        return addElements(Collections.singletonList(Objects.requireNonNull(element, "ITimeRange::addElement - element is null")));
     }
 
     /**

@@ -3,7 +3,7 @@ package com.github.sftwnd.crayfish.alarms.service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 
@@ -26,7 +26,7 @@ public interface IAlarmConsumer<E> {
      * @return CompletionStage with value in the case of rejection
      */
     default CompletionStage<E> addElement(@NonNull E element) {
-        return addElements(List.of(Objects.requireNonNull(element, "IAlarmConsumer::addElement - element is null")))
+        return addElements(Collections.singletonList(Objects.requireNonNull(element, "IAlarmConsumer::addElement - element is null")))
                 .thenApply(reject -> reject.stream().findFirst().orElse(null));
     }
 

@@ -8,8 +8,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 import com.github.sftwnd.crayfish.common.expectation.TemporalExtractor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import lombok.AccessLevel;
-import lombok.Setter;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -80,7 +77,6 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     private final Instant completeInstant;
 
     // The moment of the nearest element. In case of absence - null
-    @Setter(value = AccessLevel.PRIVATE)
     private Instant nearestInstant = null;
     // A set of elements distributed over ranges of size interval
     // TreeMap storage structure that guarantees ascending traversal order
@@ -118,9 +114,9 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         this.expectation = Objects.requireNonNull(expectation, "TimeRange::new - expectation is null");
         this.reducer = Objects.requireNonNull(reducer, "TimeRange::new - reducer is null");
         this.startInstant = Optional.of(this.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
-        this.lastInstant = Optional.of(this.duration).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.lastInstant = Optional.of(this.duration).filter(value -> !value.isNegative()).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.comparator = ofNullable(comparator).orElse(this::compareObjects);
-        this.completeInstant = this.lastInstant.plus(Optional.ofNullable(completeTimeout).filter(Predicate.not(Duration::isNegative)).orElse(Duration.ZERO));
+        this.completeInstant = this.lastInstant.plus(Optional.ofNullable(completeTimeout).filter(value -> !value.isNegative()).orElse(Duration.ZERO));
     }
 
     @NonNull public Instant getStartInstant() {
@@ -194,13 +190,11 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
                                 elm -> getTemporalKey(instant(elm)),
                                 Collectors.toCollection(() -> new TreeSet<>(this::compare))
                         )
-                ).forEach((key,value) -> ofNullable(this.expectedMap.get(key))
-                        .ifPresentOrElse(
-                                // If present, expand
-                                set -> set.addAll(value)
-                                // If missing, add
-                                , () -> this.expectedMap.put(key, value))
-                );
+                ).forEach((key,value) -> this.expectedMap.merge(key, value, (set, added) -> {
+                    // If present, expand (if missing, the set is added)
+                    set.addAll(added);
+                    return set;
+                }));
     }
 
     /**
@@ -216,13 +210,13 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         List<R> result = new ArrayList<>();
         addCollectionOnProcess(
                 this.expectedMap
-                        .entrySet()
+                        // Since TreeMap, the head map goes in ascending order of the instantKey key, and we process all records
+                        // that have instantKey <= nowKey
+                        .headMap(nowKey, true)
+                        .keySet()
                         .stream()
-                        // Since TreeMap, the order goes in ascending order of the instantKey key, and we process all records that have
-                        // instantKey < nextKey
-                        .takeWhile(entry -> !entry.getKey().isAfter(nowKey))
                         // We collect all the keys in a set (so that you can modify the primary TreeMap
-                        .map(Map.Entry::getKey).collect(Collectors.toSet())
+                        .collect(Collectors.toSet())
                         // For all keys that may contain triggered elements
                         .stream()
                         // We call the processing of a set removed from the primary Map
@@ -236,6 +230,10 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // At the time of the call, rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
         addElements(elements.stream());
+    }
+
+    private void setNearestInstant(@Nullable Instant nearestInstant) {
+        this.nearestInstant = nearestInstant;
     }
 
     private Instant findNearestInstant() {
@@ -332,7 +330,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     private boolean checkRange(@NonNull S element) {
         return Optional.of(element)
                 .map(this::instant)
-                .filter(Predicate.not(this.startInstant::isAfter))
+                .filter(instant -> !this.startInstant.isAfter(instant))
                 .filter(this.lastInstant::isAfter)
                 .isPresent();
     }
