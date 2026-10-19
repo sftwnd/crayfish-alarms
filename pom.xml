@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         child.project.url.inherit.append.path="false">
+    <!-- the modules have the url and the scm of the repository, without their artifactId appended
+         (child.*.inherit.append.path): the headers Bundle-DocURL and Bundle-SCM of their bundles name the repository -->
     <modelVersion>4.0.0</modelVersion>
     <packaging>pom</packaging>
 
@@ -31,7 +34,8 @@
         </developer>
     </developers>
 
-    <scm>
+    <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false"
+         child.scm.url.inherit.append.path="false">
         <url>https://github.com/sftwnd/crayfish-alarms</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
@@ -79,6 +83,8 @@
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <!-- the scanner of the job SonarCloud of the CI, which runs on Java 21 -->
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+        <!-- bnd 7 requires Java 17, the build runs on Java 8 -->
+        <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
     </properties>
 
     <distributionManagement>
@@ -181,16 +187,46 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- OSGi bundle headers -->
+                <groupId>biz.aQute.bnd</groupId>
+                <artifactId>bnd-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>bnd-process</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- not in target/classes: there its Automatic-Module-Name makes javac take target/classes for the module
+                         when it compiles module-info.java in an incremental build -->
+                    <manifestPath>${project.build.directory}/bnd/MANIFEST.MF</manifestPath>
+                    <bnd><![CDATA[
+Bundle-SymbolicName: ${bundleSymbolicName}
+Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
+# the name of the module of a jar built on JDK 8, which has no module descriptor
+Automatic-Module-Name: ${javaModuleName}
+Multi-Release: true
+# bnd 6 does not know multi-release jars and takes the module descriptor of META-INF/versions/9 for a class in the
+# wrong directory
+-fixupmessages: "Classes found in the wrong directory: *META-INF/versions/9/*";restrict:=error;is:=ignore
+# the package of the bundle has the name of the bundle and the version of the release; the CLASS-retention SpotBugs
+# annotations are not imported
+Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
+-noextraheaders: true
+# snapshot builds get the version qualifier SNAPSHOT instead of a timestamp, so that they are reproducible
+-snapshot: SNAPSHOT
+]]></bnd>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
-                        <manifestEntries>
-                            <!-- the name of the module of a jar built on JDK 8, which has no module descriptor -->
-                            <Automatic-Module-Name>${javaModuleName}</Automatic-Module-Name>
-                            <!-- the module descriptor in META-INF/versions/9 -->
-                            <Multi-Release>true</Multi-Release>
-                        </manifestEntries>
+                        <!-- the manifest of bnd-maven-plugin: the headers of the bundle, Automatic-Module-Name and
+                             Multi-Release -->
+                        <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
                 <executions>
@@ -286,6 +322,11 @@
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>${jacoco-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>biz.aQute.bnd</groupId>
+                    <artifactId>bnd-maven-plugin</artifactId>
+                    <version>${bnd-maven-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <!-- SonarCloud analysis in the GitHub Actions workflow -->
