@@ -11,6 +11,8 @@ import java.util.Collection;
 
 /**
  *  Alarm consumer
+ * @param <M> type of the added elements
+ * @param <R> type of the result object constructed from the ignored elements
  */
 public interface ITimeRangeConsumer<M,R> {
 

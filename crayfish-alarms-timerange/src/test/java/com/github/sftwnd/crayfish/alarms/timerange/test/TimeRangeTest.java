@@ -3,18 +3,15 @@ package com.github.sftwnd.crayfish.alarms.timerange.test;
 import com.github.sftwnd.crayfish.alarms.timerange.ITimeRange;
 import com.github.sftwnd.crayfish.alarms.timerange.ITimeRangeFactory;
 import com.github.sftwnd.crayfish.common.expectation.Expected;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -30,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.times;
 
 class TimeRangeTest {
 
@@ -88,7 +84,7 @@ class TimeRangeTest {
         timeRange.addElement(timeRange.getStartInstant());
         LockSupport.parkNanos(1);
         Collection<Instant> fired = timeRange.extractFiredElements();
-        assertEquals(List.of(timeRange.getStartInstant()), fired, "TimeRange has to return added instant");
+        assertEquals(Collections.singletonList(timeRange.getStartInstant()), fired, "TimeRange has to return added instant");
     }
 
     @Test
@@ -112,7 +108,7 @@ class TimeRangeTest {
         elements.add(rejected);
         Collection<?> rejects = timeRange.addElements(elements);
         assertNotNull(rejects, "result for timeRange.addElement(null) has to be not null collection");
-        assertEquals(List.of(rejected), rejects,"result for timeRange.addElements({ null, element }) has to return one not null element");
+        assertEquals(Collections.singletonList(rejected), rejects,"result for timeRange.addElements({ null, element }) has to return one not null element");
     }
 
     @Test
@@ -125,7 +121,7 @@ class TimeRangeTest {
 
     @Test
     void addSkipOthersElementsTest() {
-        List<ExpectedTest> exclude = List.of(
+        List<ExpectedTest> exclude = Arrays.asList(
                 expected(this.now.plus(this.completeTimeout).plus(1, ChronoUnit.MILLIS)),
                 expected(this.timeRange.getStartInstant().plus(-1, ChronoUnit.MILLIS))
         );
@@ -137,7 +133,7 @@ class TimeRangeTest {
     void addFirstFiredInstantElementTest() {
         addElements();
         Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(elementA.getTick()));
-        assertEquals(Set.of(elementA), new HashSet<>(elements), "TimeRange has to return first element");
+        assertEquals(Collections.singleton(elementA), new HashSet<>(elements), "TimeRange has to return first element");
     }
 
     @Test
@@ -145,7 +141,7 @@ class TimeRangeTest {
         addElements();
         this.timeRange.extractFiredElements(elementA.getTick());
         Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(elementB.getTick()));
-        assertEquals(Set.of(elementB), elements, "TimeRange has to return second element");
+        assertEquals(Collections.singleton(elementB), elements, "TimeRange has to return second element");
     }
 
     @Test
@@ -153,13 +149,13 @@ class TimeRangeTest {
         addElements();
         this.timeRange.extractFiredElements(elementA.getTick());
         Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements(now));
-        assertEquals(Set.of(elementB,elementC), elements, "TimeRange has to return second and third element");
+        assertEquals(new HashSet<>(Arrays.asList(elementB,elementC)), elements, "TimeRange has to return second and third element");
     }
 
     @Test
     void addDupElementTest() {
-        this.timeRange.addElements(List.of(elementA, elementC));
-        this.timeRange.addElements(List.of(elementA, elementB));
+        this.timeRange.addElements(Arrays.asList(elementA, elementC));
+        this.timeRange.addElements(Arrays.asList(elementA, elementB));
         Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements());
         assertEquals(new HashSet<>(this.elements), elements, "TimeRange has to return second element");
     }
@@ -167,13 +163,13 @@ class TimeRangeTest {
     @Test
     void addSameInstantElementsTest() {
         Instant instant = this.timeRange.getStartInstant().plusMillis(1);
-        this.timeRange.addElements(List.of(expected(instant), expected(instant), expected(instant)));
+        this.timeRange.addElements(Arrays.asList(expected(instant), expected(instant), expected(instant)));
         assertEquals(3, this.timeRange.extractFiredElements().size(), "TimeRange has to return three elements on the same instant");
     }
 
     @Test
     void addListWithDupElementTest() {
-        this.timeRange.addElements(List.of(elementA, elementC, elementA, elementB, elementC, elementB));
+        this.timeRange.addElements(Arrays.asList(elementA, elementC, elementA, elementB, elementC, elementB));
         Set<ExpectedTest> elements = new HashSet<>(this.timeRange.extractFiredElements());
         assertEquals(new HashSet<>(this.elements), elements, "TimeRange after non unique list add has to return distinct elements");
     }
@@ -216,7 +212,7 @@ class TimeRangeTest {
     @Test
     void durationToExpectAfterLastElementTest() {
         Instant tick = timeRange.getLastInstant().minusMillis(200);
-        this.timeRange.addElements(List.of(expected(tick.plusMillis(100))));
+        this.timeRange.addElements(Collections.singletonList(expected(tick.plusMillis(100))));
         assertEquals(Duration.ofMillis(100), this.timeRange.duration(tick),
                 "Duration on the end of timeRange has to be equals duration to the end plus completion");
     }
@@ -225,7 +221,7 @@ class TimeRangeTest {
     void cleanTest() {
         addElements();
         Instant limit = Instant.now().plus(Duration.ofDays(1));
-        var elements = timeRange.extractFiredElements(limit);
+        Collection<ExpectedTest> elements = timeRange.extractFiredElements(limit);
         assertFalse(elements.isEmpty(), "Collection has to be filled");
         timeRange.addElements(elements);
         timeRange.clean();
@@ -254,13 +250,12 @@ class TimeRangeTest {
 
     @Test
     void durationZeroTest() {
-        ITimeRange<ExpectedTest,ExpectedTest> mock = Mockito.spy(this.timeRange);
+        Recording<ExpectedTest,ExpectedTest> spy = new Recording<>(this.timeRange);
         Instant firstTick = Instant.now().minusNanos(1);
-        ArgumentCaptor<Instant> argument = ArgumentCaptor.forClass(Instant.class);
-        mock.duration();
+        spy.duration();
         Instant nextTick = Instant.now().plusNanos(1);
-        Mockito.verify(mock, times(1)).duration(argument.capture());
-        Instant instant = argument.getValue();
+        assertEquals(1, spy.durationArguments.size(), "TimeRange::duration() has to call duration(Instant) once");
+        Instant instant = spy.durationArguments.get(0);
         assertTrue(firstTick.isBefore(instant),"TimeRange::duration has to use instant after firstTick");
         assertTrue(nextTick.isAfter(instant),"TimeRange::duration has to use instant before nextTick");
     }
@@ -279,12 +274,12 @@ class TimeRangeTest {
         String strC = now.minusMillis(2).toString();
         String strD = now.minusMillis(1).toString();
         String strE = now.toString();
-        Collection<String> rejected = timeRange.addElements(List.of(strA, strB, strC, strD, strE));
-        assertEquals(List.of(strE), new ArrayList<>(rejected), "timeRange.addElements has to reject strD");
+        Collection<String> rejected = timeRange.addElements(Arrays.asList(strA, strB, strC, strD, strE));
+        assertEquals(Collections.singletonList(strE), new ArrayList<>(rejected), "timeRange.addElements has to reject strD");
         assertEquals( Stream.of(strA,strB,strC).sorted().collect(Collectors.toList()),
                 timeRange.extractFiredElements(now.minusMillis(2)).stream().sorted().collect(Collectors.toList()),
                 "constructPackable has to return three elements on now");
-        assertEquals(List.of(strD), timeRange.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
+        assertEquals(Collections.singletonList(strD), timeRange.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
     }
 
     void addElements() {
@@ -300,7 +295,7 @@ class TimeRangeTest {
         this.elementA = expected(now.minusSeconds(40));
         this.elementB = expected(now.minusSeconds(5));
         this.elementC = expected(now.minusSeconds(4));
-        elements = List.of(elementA, elementB, elementC);
+        elements = Arrays.asList(elementA, elementB, elementC);
     }
 
     @AfterEach
@@ -313,10 +308,17 @@ class TimeRangeTest {
         this.elements = null;
     }
 
-    @AllArgsConstructor
     static class ExpectedTest implements Expected<Instant>, Comparable<ExpectedTest> {
-        @Getter
         private final Instant tick;
+
+        ExpectedTest(Instant tick) {
+            this.tick = tick;
+        }
+
+        @Override
+        public Instant getTick() {
+            return tick;
+        }
 
         @Override
         public int compareTo(ExpectedTest expectedTest) {
@@ -326,6 +328,57 @@ class TimeRangeTest {
 
     static ExpectedTest expected(Instant instant) {
         return new ExpectedTest(instant);
+    }
+
+    // records the arguments of duration(Instant), the other calls go to the range
+    static class Recording<M,R> implements ITimeRange<M,R> {
+        private final ITimeRange<M,R> timeRange;
+        final List<Instant> durationArguments = new ArrayList<>();
+
+        Recording(ITimeRange<M,R> timeRange) {
+            this.timeRange = timeRange;
+        }
+
+        @Override
+        public Instant getStartInstant() {
+            return timeRange.getStartInstant();
+        }
+
+        @Override
+        public Instant getLastInstant() {
+            return timeRange.getLastInstant();
+        }
+
+        @Override
+        public boolean isExpired(Instant instant) {
+            return timeRange.isExpired(instant);
+        }
+
+        @Override
+        public boolean isComplete(Instant instant) {
+            return timeRange.isComplete(instant);
+        }
+
+        @Override
+        public Collection<M> addElements(Collection<M> elements) {
+            return timeRange.addElements(elements);
+        }
+
+        @Override
+        public Collection<R> extractFiredElements(Instant instant) {
+            return timeRange.extractFiredElements(instant);
+        }
+
+        @Override
+        public void clean() {
+            timeRange.clean();
+        }
+
+        @Override
+        public Duration duration(Instant now) {
+            durationArguments.add(now);
+            return timeRange.duration(now);
+        }
     }
 
 }

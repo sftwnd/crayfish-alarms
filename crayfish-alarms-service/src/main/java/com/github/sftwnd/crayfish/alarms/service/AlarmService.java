@@ -2,11 +2,6 @@ package com.github.sftwnd.crayfish.alarms.service;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.SneakyThrows;
-import lombok.extern.java.Log;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -19,8 +14,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * The service allows you to register alarm clocks for operation according to a schedule and sets them
@@ -30,9 +27,9 @@ import java.util.logging.Level;
  *
  * P.S. SonarCube: <a href="https://sonarcloud.io/organizations/sftwnd-github/rules?open=java%3AS2274&amp;rule_key=java%3AS2274">java:S2274</a>
  */
-@Log
 public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implements IAlarmService<M,R> {
 
+    private static final Logger logger = Logger.getLogger(AlarmService.class.getName());
     private static final long DEFAULT_MINIMAL_WAIT_NANOS = Duration.ofMillis(75).toNanos();
     private final ConcurrentLinkedQueue<RegistrationRequest> registrationQueue = new ConcurrentLinkedQueue<>();
     private final long minimalWaitNanos;
@@ -62,16 +59,14 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
                     if (syncFlag.compareAndSet(true, false)) {
                         registrationQueue.add(registrationRequest);
                         registrationQueue.notifyAll();
-                        return registrationRequest.getCompletableFuture().minimalCompletionStage();
+                        return registrationRequest.getCompletionStage();
                     }
                 }
             }
             registrationQueue.add(registrationRequest);
-            return registrationRequest.getCompletableFuture().minimalCompletionStage();
+            return registrationRequest.getCompletionStage();
         } else {
-            CompletableFuture<Collection<M>> result = new CompletableFuture<>();
-            result.complete(Collections.emptyList());
-            return result.minimalCompletionStage();
+            return CompletableFuture.completedFuture(Collections.emptyList());
         }
     }
 
@@ -80,7 +75,6 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
      * @param consumer Handler for a set of triggered alarms
      */
     @Override
-    @SneakyThrows
     public final void process(@NonNull Consumer<Collection<R>> consumer, @Nullable Supplier<Duration> timeOffset) {
         if (!processFlag.compareAndSet(false, true)) {
             throw new IllegalStateException("AlarmTimeRangeService already in process");
@@ -173,10 +167,17 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
 
     private final AtomicBoolean processFlag = new AtomicBoolean(false);
 
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
     private class RegistrationRequest {
-        private final @Getter CompletableFuture<Collection<M>> completableFuture;
-        private final @Getter Collection<M> elements;
+        private final CompletableFuture<Collection<M>> completableFuture;
+        private final Collection<M> elements;
+        private RegistrationRequest(CompletableFuture<Collection<M>> completableFuture, Collection<M> elements) {
+            this.completableFuture = completableFuture;
+            this.elements = elements;
+        }
+        // A stage that depends on the future of the request: the caller cannot complete the request with it
+        private CompletionStage<Collection<M>> getCompletionStage() {
+            return completableFuture.thenApply(Function.identity());
+        }
         private boolean apply() {
             Collection<M> rejected = registerElements(elements);
             completableFuture.complete(rejected);

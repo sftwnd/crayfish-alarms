@@ -134,7 +134,11 @@ public interface ITimeRangeFactory<M,R> {
             @Nullable Duration completeTimeout,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, completeTimeout, M::getTick, comparator);
+        // a lambda, not the method reference M::getTick: javac 8 rejects it with "bad return type in method reference",
+        // it does not convert the return type ? extends TemporalAccessor to TemporalAccessor
+        @SuppressWarnings("java:S1612")
+        TemporalExtractor<M, TemporalAccessor> expectation = element -> element.getTick();
+        return create(duration, interval, completeTimeout, expectation, comparator);
     }
 
     /**

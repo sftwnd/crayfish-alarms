@@ -9,6 +9,10 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * The interface implements the firing of the alarms at their time
+ * @param <R> type of fired alarm
+ */
 public interface IAlarmProcessor<R> {
 
     /**
