@@ -63,7 +63,7 @@ SERVICE_JAR=$(jar_of crayfish-alarms-service)
 check_descriptor "$TIMERANGE_JAR" "$TIMERANGE@" \
     "exports com.github.sftwnd.crayfish.alarms.timerange" \
     "requires com.github.sftwnd.crayfish_common_expectation transitive" \
-    "requires com.github.spotbugs.annotations transitive"
+    "requires com.github.spotbugs.annotations static"
 check_descriptor "$SERVICE_JAR" "$SERVICE@" \
     "exports com.github.sftwnd.crayfish.alarms.service" \
     "requires $TIMERANGE transitive" \
@@ -71,11 +71,16 @@ check_descriptor "$SERVICE_JAR" "$SERVICE@" \
 check_sources crayfish-alarms-timerange "$TIMERANGE_JAR"
 check_sources crayfish-alarms-service "$SERVICE_JAR"
 
-# the dependencies of both jars: crayfish-common-expectation and the spotbugs annotations
+# the dependency of both jars that a consumer needs: crayfish-common-expectation, without the optional spotbugs
+# annotations and their jsr305
 "${MAVEN[@]}" -B -q -ntp -f crayfish-alarms-timerange/pom.xml \
     org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath \
-    -Dmdep.includeScope=runtime -Dmdep.outputFile="$WORK/dependencies"
-LIBRARY="$SERVICE_JAR:$TIMERANGE_JAR:$(cat "$WORK/dependencies")"
+    -DincludeScope=runtime -DexcludeGroupIds=com.github.spotbugs,com.google.code.findbugs \
+    -Dmdep.outputFile="$WORK/dependencies"
+DEPENDENCIES=$(cat "$WORK/dependencies")
+[[ "$DEPENDENCIES" != *:* && "$DEPENDENCIES" == */crayfish-common-expectation-*.jar ]] \
+    || fail "expected crayfish-common-expectation as the only dependency: $DEPENDENCIES"
+LIBRARY="$SERVICE_JAR:$TIMERANGE_JAR:$DEPENDENCIES"
 
 # an alarm at the start of the range, added before the service runs, fires at once
 mkdir -p "$WORK/modular/alarms.check/alarms/check" "$WORK/plain/alarms/check" "$WORK/plain/out"
@@ -146,7 +151,7 @@ public class Main {
 }
 JAVA
 
-# named modules on the module path
+# named modules on the module path, without the optional spotbugs annotations
 EXPECTED="$SERVICE named $TIMERANGE named com.github.sftwnd.crayfish_common_expectation named fired"
 "$JAVA_HOME/bin/javac" -d "$WORK/modular/out" --module-path "$LIBRARY" \
     --module-source-path "$WORK/modular" --module alarms.check
@@ -155,7 +160,7 @@ OUT=$("$JAVA_HOME/bin/java" --module-path "$LIBRARY:$WORK/modular/out/alarms.che
 echo "module path: $OUT"
 [[ "$OUT" = "$EXPECTED" ]] || fail "expected '$EXPECTED' on the module path"
 
-# Java 8 ignores the descriptors
+# Java 8 ignores the descriptors; the class path has no spotbugs annotations either
 if [[ -n "$JAVA8_HOME" ]]; then
     "$JAVA8_HOME/bin/javac" -d "$WORK/plain/out" -cp "$LIBRARY" "$WORK/plain/alarms/check/Main.java"
     OUT=$("$JAVA8_HOME/bin/java" -cp "$LIBRARY:$WORK/plain/out" alarms.check.Main)

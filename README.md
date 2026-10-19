@@ -167,7 +167,8 @@ module my.application {
 ```
 
 The module descriptors are in `META-INF/versions/9` of the multi-release jars, so Java 8 ignores them. The sources jars
-have their sources at the same place.
+have their sources at the same place. The SpotBugs annotations of the API (`NonNull`, `Nullable`) have CLASS retention:
+their dependency is optional and `requires static`, a consumer needs them neither to compile nor to run.
 
 ---
 Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
