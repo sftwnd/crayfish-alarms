@@ -27,7 +27,8 @@ fail() {
 
 # the jar of a module, not its sources or javadoc jar, with the absolute path
 jar_of() {
-    ls "$PWD/$1"/target/"$1"-*.jar | grep -vE -- '-(sources|javadoc)\.jar$'
+    local module=$1
+    ls "$PWD/$module"/target/"$module"-*.jar | grep -vE -- '-(sources|javadoc)\.jar$'
 }
 
 # the module descriptor, in META-INF/versions/9 of a multi-release jar, has the lines
