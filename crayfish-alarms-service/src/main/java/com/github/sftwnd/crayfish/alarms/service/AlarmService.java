@@ -54,16 +54,14 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     public CompletionStage<Collection<M>> addElements(@NonNull Collection<M> elements) {
         if (!elements.isEmpty()) {
             RegistrationRequest registrationRequest = registrationRequest(elements);
+            // queued before the flag of the waiting process is read: a process that sets the flag later finds the
+            // request when it polls the queue under the lock, and a process that waits already is notified under it
+            registrationQueue.add(registrationRequest);
             if (syncFlag.get()) {
                 synchronized (registrationQueue) {
-                    if (syncFlag.compareAndSet(true, false)) {
-                        registrationQueue.add(registrationRequest);
-                        registrationQueue.notifyAll();
-                        return registrationRequest.getCompletionStage();
-                    }
+                    registrationQueue.notifyAll();
                 }
             }
-            registrationQueue.add(registrationRequest);
             return registrationRequest.getCompletionStage();
         } else {
             return CompletableFuture.completedFuture(Collections.emptyList());

@@ -184,6 +184,29 @@ class AlarmTimeRangeServiceTest {
     }
 
     @Test
+    void wakeUpOnEveryRegistration() {
+        // without a registration the process waits for the end of the range, an hour
+        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofHours(1), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(Instant.now());
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        Thread thread = new Thread(() -> alarmService.process(ignore -> {}));
+        thread.start();
+        // an element before the range is rejected when it is registered: the process waits again right after every
+        // request, while the next request comes
+        Instant instant = timeRange.getStartInstant().minusSeconds(1);
+        try {
+            for (int request = 1; request <= 10_000; request++) {
+                CompletableFuture<Instant> completableFuture = alarmService.addElement(instant).toCompletableFuture();
+                int number = request;
+                assertDoesNotThrow(() -> completableFuture.get(2, TimeUnit.SECONDS),
+                        () -> "AlarmService has to register the request " + number + " at once");
+            }
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
     void rejectTest() throws InterruptedException, ExecutionException {
         ITimeRange<Instant, Instant> timeRange = timeRangeFactory
                 .timeRange(Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1));
