@@ -35,7 +35,7 @@ jobs:
         run: ./mvnw -B -ntp verify
 
   module:
-    name: Modular jar
+    name: Modular jar and OSGi bundles
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -54,6 +54,8 @@ jobs:
         run: ./mvnw -B -ntp package -DskipTests
       - name: Check the module descriptors, the sources jars, the module path and Java 8
         run: .github/scripts/check-modular-jar.sh "$JAVA_HOME_8_X64"
+      - name: Check the OSGi bundles in Apache Felix on Java 21 and Java 8
+        run: .github/scripts/check-osgi-bundle.sh "$JAVA_HOME_8_X64"
 
   sonar:
     name: SonarCloud

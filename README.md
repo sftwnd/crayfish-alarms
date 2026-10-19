@@ -170,6 +170,26 @@ The module descriptors are in `META-INF/versions/9` of the multi-release jars, s
 have their sources at the same place. The SpotBugs annotations of the API (`NonNull`, `Nullable`) have CLASS retention:
 their dependency is optional and `requires static`, a consumer needs them neither to compile nor to run.
 
+## OSGi
+
+The jars are OSGi bundles. `com.github.sftwnd.crayfish.alarms.timerange` and `com.github.sftwnd.crayfish.alarms.service`
+export their packages with the version of the release and import those of `crayfish-common-expectation` and of the time
+range. They do not import the SpotBugs annotations, which are not needed at run time, and require Java 8 (`osgi.ee`
+JavaSE 1.8):
+
+```text
+Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.timerange
+Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.1.0";uses:="com.github.sftwnd.crayfish.common.expectation"
+Import-Package: com.github.sftwnd.crayfish.common.expectation;version="[1.4,2)"
+
+Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.service
+Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.1.0";uses:="com.github.sftwnd.crayfish.alarms.timerange"
+Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.1,2)"
+```
+
+The build checks the bundles in Apache Felix on Java 8 and Java 21: the framework resolves them with the bundle of
+`crayfish-common-expectation`, and a bundle that imports their packages fires an alarm.
+
 ## Building
 
 The project builds with the Maven Wrapper (Maven 3.10.0) on JDK 8 to 25:
