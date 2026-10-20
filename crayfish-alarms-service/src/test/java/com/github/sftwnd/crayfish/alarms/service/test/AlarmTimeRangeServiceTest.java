@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -45,7 +44,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class AlarmTimeRangeServiceTest {
 
     @Test
-    void startTwice() {
+    void startTwice() throws InterruptedException {
         IAlarmService<Instant, ?> alarmService = alarmService(timeRange(), null);
         CountDownLatch startCdl = new CountDownLatch(1);
         Thread processThread = new Thread(() -> {
@@ -66,15 +65,14 @@ class AlarmTimeRangeServiceTest {
         //
         try {
             processThread.start();
-            assertDoesNotThrow(() -> startCdl.await(1, TimeUnit.SECONDS), "process thread has to be started");
+            assertTrue(startCdl.await(1, TimeUnit.SECONDS), "process thread has to be started");
             assertDoesNotThrow(() -> alarmService.addElement(Instant.now()).toCompletableFuture().get(1, TimeUnit.SECONDS), "process thread has to be active");
             processThread1.start();
-            assertDoesNotThrow(() -> startCdl1.await(1, TimeUnit.SECONDS), "process thread 2 has to be started");
-            try {
-                assertThrows(ExecutionException.class, () -> completableFuture.get(1, TimeUnit.SECONDS), "process thread 2 has to throws exception in the case of active process presented");
-            } catch (CompletionException exception) {
-                assertEquals(IllegalStateException.class, exception.getCause().getClass(), "process thread 2 has to throws IllegalStateException in the case of active process presented");
-            }
+            assertTrue(startCdl1.await(1, TimeUnit.SECONDS), "process thread 2 has to be started");
+            ExecutionException exception = assertThrows(ExecutionException.class, () -> completableFuture.get(1, TimeUnit.SECONDS),
+                    "process thread 2 has to throws exception in the case of active process presented");
+            assertEquals(IllegalStateException.class, exception.getCause().getClass(),
+                    "process thread 2 has to throws IllegalStateException in the case of active process presented");
         } finally {
             processThread.interrupt();
             processThread1.interrupt();
@@ -162,7 +160,7 @@ class AlarmTimeRangeServiceTest {
     }
 
     @Test
-    void concurrentAddElement() {
+    void concurrentAddElement() throws InterruptedException {
         ITimeRange<Instant, Instant> timeRange = timeRange();
         IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
         Instant instant = timeRange.getStartInstant();
@@ -184,9 +182,9 @@ class AlarmTimeRangeServiceTest {
         })).collect(Collectors.toList());
         threads.forEach(Thread::start);
         try {
-            assertDoesNotThrow(() -> startedCdl.await(1, TimeUnit.SECONDS), "All add-tasks has to be started");
+            assertTrue(startedCdl.await(1, TimeUnit.SECONDS), "All add-tasks has to be started");
             addCdl.countDown();
-            assertDoesNotThrow(() -> firedCdl.await(1, TimeUnit.SECONDS), "All alarms has to be fired");
+            assertTrue(firedCdl.await(1, TimeUnit.SECONDS), "All alarms has to be fired");
         } finally {
             threads.forEach(Thread::interrupt);
             alarmServiceThread.interrupt();
