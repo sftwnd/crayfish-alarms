@@ -247,13 +247,10 @@ class TimeRangeTest {
     }
 
     @Test
-    void getIntervalTest() {
-        assertEquals(INTERVAL, Duration.ofSeconds(15),"TimeRange::getInterval - wrong result");
-    }
-
-    @Test
-    void getCompleteTimeoutTest() {
-        assertEquals(COMPLETE_TIMEOUT, this.completeTimeout, "TimeRange::getCompleteTimeout - wrong result");
+    void completeTimeoutTest() {
+        Instant expiration = timeRange.getLastInstant().plus(COMPLETE_TIMEOUT);
+        assertFalse(timeRange.isExpired(expiration.minusNanos(1)), "TimeRange hasn't got to be expired before the end of its completeTimeout");
+        assertTrue(timeRange.isExpired(expiration), "TimeRange has to be expired at the end of its completeTimeout");
     }
 
     @Test
