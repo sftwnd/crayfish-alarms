@@ -163,6 +163,9 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     public @NonNull Collection<M> addElements(@NonNull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
         List<M> excludes = new LinkedList<>();
+        // All the elements are transformed first: an element that cannot be transformed fails the call before any
+        // element of it is added
+        List<Entry<S>> entries = new ArrayList<>(elements.size());
         elements.stream()
                 .filter(Objects::nonNull) // If element is not null
                 .forEach(element -> {
@@ -170,11 +173,12 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
                     Instant instant = instant(storeElement); // The moment of the element is computed once
                     // Checking for range
                     if (checkRange(instant)) {
-                        addEntry(new Entry<>(instant, storeElement, this.comparator == null ? storeElement.hashCode() : 0));
+                        entries.add(new Entry<>(instant, storeElement, this.comparator == null ? storeElement.hashCode() : 0));
                     } else {
                         excludes.add(element);
                     }
                 });
+        entries.forEach(this::addEntry);
         return excludes;
     }
 

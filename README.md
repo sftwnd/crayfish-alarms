@@ -137,7 +137,7 @@ There are also three additional methods:
 
 #### Adding new elements to the holder
 
-To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L163-L179) method:
+To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L163-L183) method:
 
 ```java
     List<MyObject> elements=getElements();
@@ -148,7 +148,7 @@ If any elements do not fall within the specified region (excluding the right bor
 
 #### Getting triggered (fired) elements from a holder
 
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L214-L240) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L218-L244) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements in the order of their time markers (unique if the timestamp matches).
 
 ```java
