@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -42,7 +41,10 @@ public abstract class AbstractAlarmProcessor<R> implements IAlarmProcessor<R> {
      * @return timeOffset duration
      */
     protected final Duration getTimeOffset() {
-        return Optional.ofNullable(timeOffset).map(Supplier::get).orElse(Duration.ZERO);
+        // no supplier, or a supplier of null: no offset
+        Supplier<Duration> supplier = this.timeOffset;
+        Duration offset = supplier == null ? null : supplier.get();
+        return offset == null ? Duration.ZERO : offset;
     }
 
     /**
