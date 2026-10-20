@@ -375,6 +375,32 @@ class TimeRangeTest {
         assertEquals(alarms.size(), calls.get(), "TimeRange has to get no tick on an extraction");
     }
 
+    @Test
+    void intervalNormalizationTest() {
+        // not positive, below a millisecond and longer than the duration
+        for (Duration interval : Arrays.asList(Duration.ZERO, Duration.ofSeconds(-15), Duration.ofNanos(500_000), Duration.ofHours(10))) {
+            ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                    Duration.ofMinutes(1), interval, Duration.ZERO, null).timeRange(T0);
+            assertEquals(Collections.emptyList(), range.addElements(Arrays.asList(T0.plusSeconds(1), T0.plusSeconds(59))),
+                    () -> "TimeRange with the interval " + interval + " has to accept the elements of its range");
+            assertEquals(Collections.singletonList(T0.plusSeconds(1)), range.extractFiredElements(T0.plusSeconds(2)),
+                    () -> "TimeRange with the interval " + interval + " has to fire its first element");
+            assertEquals(Collections.singletonList(T0.plusSeconds(59)), range.extractFiredElements(T0.plusSeconds(60)),
+                    () -> "TimeRange with the interval " + interval + " has to fire its second element");
+        }
+    }
+
+    @Test
+    void cleanNearestTest() {
+        // a range of an hour, which starts an hour after T0
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofHours(1), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(T0.plusSeconds(3600));
+        range.addElement(T0.plusSeconds(5400));
+        assertEquals(Duration.ofMinutes(90), range.duration(T0), "TimeRange has to wait for its element");
+        range.clean();
+        assertEquals(Duration.ofHours(1), range.duration(T0), "TimeRange has to wait for its start after clean()");
+    }
+
     // the reminders of the test, extracted in the middle of their chunk and after it
     private static List<Reminder> extractInTheMiddleOfChunk(Comparator<? super Reminder> comparator) {
         ITimeRange<Reminder, Reminder> range = ITimeRangeFactory.<Reminder>expected(

@@ -91,7 +91,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      *
      * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param duration Duration of the period of the region (if negative, then to the left of instant, otherwise - to the right).
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param preserver Method for converting an input element into an internal element
      * @param expectation Getting timestamp from incoming element
@@ -111,7 +111,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     ) {
         Objects.requireNonNull(time, "TimeRange::new - time is null");
         this.duration = Objects.requireNonNull(duration, "TimeRange::new - duration is null");
-        this.interval = Objects.requireNonNull(interval, "TimeRange::new - interval is null");
+        this.interval = interval(Objects.requireNonNull(interval, "TimeRange::new - interval is null"), this.duration);
         this.preserver = Objects.requireNonNull(preserver, "TimeRange::new - preserver is null");
         this.expectation = Objects.requireNonNull(expectation, "TimeRange::new - expectation is null");
         this.reducer = Objects.requireNonNull(reducer, "TimeRange::new - reducer is null");
@@ -285,6 +285,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     @Override
     public void clean() {
         this.expectedMap.clear();
+        setNearestInstant(null);
     }
 
     // Time until the moment after lastInstant by completeTimeout duration. If after this point we are in COMPLETE,
@@ -321,6 +322,14 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
 
     private boolean checkRange(@NonNull Instant instant) {
         return !this.startInstant.isAfter(instant) && this.lastInstant.isAfter(instant);
+    }
+
+    // The interval of the javadoc: the absolute duration instead of an interval that is not positive or longer than the
+    // duration, and at least a millisecond, the unit of the keys of the chunks
+    private static @NonNull Duration interval(@NonNull Duration interval, @NonNull Duration duration) {
+        Duration range = duration.abs();
+        Duration chunk = interval.isNegative() || interval.isZero() || interval.compareTo(range) > 0 ? range : interval;
+        return chunk.toMillis() < 1 ? Duration.ofMillis(1) : chunk;
     }
 
     /**
