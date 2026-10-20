@@ -50,6 +50,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     /**
      * Add new elements to Service with rejects in CompletionStage result.
      * After the end of the process, until it is started again, all the elements are rejected at once.
+     * The stage completes in the thread of the process of the service, and so do its dependent actions that use no
+     * asynchronous method: an action that takes time delays the alarms, use the asynchronous methods of the stage for it.
      * @param elements not null collection of elements to add
      * @return CompletionStage with rejected elements on completion, or completed exceptionally with the exception of the
      * registration of the elements
