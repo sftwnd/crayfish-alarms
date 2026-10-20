@@ -49,7 +49,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
      * Add new elements to Service with rejects in CompletionStage result.
      * After the end of the process, until it is started again, all the elements are rejected at once.
      * @param elements not null collection of elements to add
-     * @return CompletionStage with rejected elements on completion
+     * @return CompletionStage with rejected elements on completion, or completed exceptionally with the exception of the
+     * registration of the elements
      */
     @Override
     public CompletionStage<Collection<M>> addElements(@NonNull Collection<M> elements) {
@@ -192,9 +193,16 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
             return completableFuture.thenApply(Function.identity());
         }
         private boolean apply() {
-            Collection<M> rejected = registerElements(elements);
-            completableFuture.complete(rejected);
-            return elements.size() - rejected.size() > 0;
+            try {
+                Collection<M> rejected = registerElements(elements);
+                completableFuture.complete(rejected);
+                return elements.size() - rejected.size() > 0;
+            } catch (RuntimeException exception) {
+                // the request gets the exception, and the process goes on; some of the elements may have been
+                // registered, so the process looks for its next alarm anew
+                completableFuture.completeExceptionally(exception);
+                return true;
+            }
         }
         private void reject() {
             completableFuture.complete(elements);
