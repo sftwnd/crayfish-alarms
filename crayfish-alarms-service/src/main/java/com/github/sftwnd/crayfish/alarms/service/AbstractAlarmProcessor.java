@@ -51,6 +51,9 @@ public abstract class AbstractAlarmProcessor<R> implements IAlarmProcessor<R> {
      * Get current timeOffset in nano of seconds
      * @return timeOffset in nano of seconds
      */
+    // getTimeOffset() is never null, Duration.ZERO without an offset; the flow of javabugs:S2259 assumes that
+    // Duration.ZERO, the time offset of process(consumer), is null: a false positive
+    @SuppressWarnings("javabugs:S2259")
     protected final long getTimeOffsetNanos() {
         return getTimeOffset().toNanos();
     }
