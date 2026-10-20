@@ -415,6 +415,19 @@ class TimeRangeTest {
     }
 
     @Test
+    void durationWithDelayTest() {
+        // an element 10 s from now
+        Instant instant = Instant.now().plusSeconds(10);
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofMinutes(1), Duration.ofSeconds(1), Duration.ZERO, null).timeRange(instant.minusSeconds(30));
+        range.addElement(instant);
+        Duration duration = range.duration(Duration.ofSeconds(4));
+        assertTrue(duration.compareTo(Duration.ofSeconds(5)) > 0 && duration.compareTo(Duration.ofSeconds(6)) <= 0,
+                () -> "TimeRange has to give the time from now plus the delay to its element, about 6 s: " + duration);
+        assertEquals(Duration.ZERO, range.duration(Duration.ofSeconds(11)), "TimeRange has to give zero for an element due within the delay");
+    }
+
+    @Test
     void cleanNearestTest() {
         // a range of an hour, which starts an hour after T0
         ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
