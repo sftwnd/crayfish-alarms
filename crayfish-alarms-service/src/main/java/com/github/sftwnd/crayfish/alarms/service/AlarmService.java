@@ -46,7 +46,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     }
 
     /**
-     * Add new elements to Service with rejects in CompletionStage result
+     * Add new elements to Service with rejects in CompletionStage result.
+     * After the end of the process, until it is started again, all the elements are rejected at once.
      * @param elements not null collection of elements to add
      * @return CompletionStage with rejected elements on completion
      */
@@ -57,7 +58,13 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
             // queued before the flag of the waiting process is read: a process that sets the flag later finds the
             // request when it polls the queue under the lock, and a process that waits already is notified under it
             registrationQueue.add(registrationRequest);
-            if (syncFlag.get()) {
+            if (stopped) {
+                // the process is over: the request is rejected, unless the process has been started again and has
+                // taken it; a process that ends after the read of the flag rejects the request itself
+                if (registrationQueue.remove(registrationRequest)) {
+                    registrationRequest.reject();
+                }
+            } else if (syncFlag.get()) {
                 synchronized (registrationQueue) {
                     registrationQueue.notifyAll();
                 }
@@ -69,7 +76,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     }
 
     /**
-     * The process of igniting alarm clocks at a given moment in time
+     * The process of igniting alarm clocks at a given moment in time.
+     * At its end, the requests that the process has not applied are rejected.
      * @param consumer Handler for a set of triggered alarms
      */
     @Override
@@ -77,6 +85,7 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
         if (!processFlag.compareAndSet(false, true)) {
             throw new IllegalStateException("AlarmTimeRangeService already in process");
         }
+        this.stopped = false;
         super.process(consumer, timeOffset);
         try {
             processLoop(consumer);
@@ -84,7 +93,11 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
             logger.log(Level.WARNING, "AlarmService::process is terminated by cause: {0}", Optional.ofNullable(itrex.getLocalizedMessage()).orElseGet(() -> String.valueOf(itrex)));
             Thread.currentThread().interrupt();
         } finally {
-            this.registrationQueue.forEach(RegistrationRequest::reject);
+            // set before the queue is polled: a request queued before it is rejected here, a later one at once
+            this.stopped = true;
+            for (RegistrationRequest request = this.registrationQueue.poll(); request != null; request = this.registrationQueue.poll()) {
+                request.reject();
+            }
             processFlag.set(false);
         }
     }
@@ -164,6 +177,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     }
 
     private final AtomicBoolean processFlag = new AtomicBoolean(false);
+    // The process is over, and has not been started again
+    private volatile boolean stopped;
 
     private class RegistrationRequest {
         private final CompletableFuture<Collection<M>> completableFuture;

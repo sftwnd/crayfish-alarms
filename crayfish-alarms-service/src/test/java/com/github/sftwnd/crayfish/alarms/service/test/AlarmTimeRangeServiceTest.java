@@ -27,6 +27,7 @@ import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -243,6 +244,60 @@ class AlarmTimeRangeServiceTest {
         assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS), "CompletionStage has to be done");
         assertEquals(secondInstant, future.get(), "Not registered before crush elements has to be rejected");
 
+    }
+
+    @Test
+    void addAfterTheEnd() throws InterruptedException {
+        // the process ends with its range, 200 ms from now
+        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofMillis(200), Duration.ofMillis(100), Duration.ZERO, null).timeRange(Instant.now());
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        Thread thread = new Thread(() -> alarmService.process(ignore -> {}));
+        thread.start();
+        thread.join(2000);
+        assertFalse(thread.isAlive(), "AlarmService has to end its process at the end of the range");
+        Instant instant = timeRange.getStartInstant();
+        CompletableFuture<Instant> completableFuture = alarmService.addElement(instant).toCompletableFuture();
+        assertEquals(instant, assertDoesNotThrow(() -> completableFuture.get(1, TimeUnit.SECONDS),
+                "AlarmService has to complete a request after the end of the process at once"),
+                "AlarmService has to reject the elements of a request after the end of the process");
+    }
+
+    @Test
+    void rejectedAtTheEndIsNotApplied() throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        Instant first = timeRange.getStartInstant();
+        Instant second = first.plusMillis(1);
+        AtomicReference<CompletableFuture<Instant>> secondFuture = new AtomicReference<>();
+        alarmService.addElement(first);
+        // the consumer of the first alarm adds the second one and ends the process
+        Thread thread = new Thread(() -> {
+            try {
+                alarmService.process(ignore -> {
+                    secondFuture.set(alarmService.addElement(second).toCompletableFuture());
+                    throw new IllegalStateException();
+                });
+            } catch (IllegalStateException ignore) {
+                // the end of the process
+            }
+        });
+        thread.start();
+        thread.join(2000);
+        assertNotNull(secondFuture.get(), "The consumer of the first alarm has to add the second one");
+        assertEquals(second, assertDoesNotThrow(() -> secondFuture.get().get(1, TimeUnit.SECONDS),
+                "AlarmService has to complete the request at the end of the process"),
+                "AlarmService has to reject the second alarm at the end of the process");
+        // the next process does not fire the rejected alarm, which is due
+        CompletableFuture<Collection<Instant>> fired = new CompletableFuture<>();
+        Thread next = new Thread(() -> alarmService.process(fired::complete));
+        next.start();
+        try {
+            assertThrows(TimeoutException.class, () -> fired.get(500, TimeUnit.MILLISECONDS),
+                    "AlarmService must not apply a request that it has rejected");
+        } finally {
+            next.interrupt();
+        }
     }
 
     @Test
