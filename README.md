@@ -1,11 +1,59 @@
+# Crayfish Alarms
+
+[![Maven Central](https://img.shields.io/maven-central/v/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service)](https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service)
+[![Java 8+](https://img.shields.io/badge/Java-8%2B-blue)](#java-modules)
+[![JPMS](https://img.shields.io/badge/JPMS-named%20modules-blue)](#java-modules)
+[![OSGi](https://img.shields.io/badge/OSGi-bundles-blue)](#osgi)
+[![javadoc](https://javadoc.io/badge2/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service/javadoc.svg)](https://javadoc.io/doc/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_alarms&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_alarms)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_alarms&metric=coverage)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_alarms)
 [![Build](https://github.com/sftwnd/crayfish-alarms/actions/workflows/build.yml/badge.svg)](https://github.com/sftwnd/crayfish-alarms/actions/workflows/build.yml)
-[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://github.com/sftwnd/crayfish-alarms/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/sftwnd/crayfish-alarms)](https://github.com/sftwnd/crayfish-alarms/blob/master/LICENSE)
 
-# CrayFish Alarms
+**Alarms for Java 8+: a time range that keeps elements until their moments and gives out those that have come, and
+a service that fires them in one thread.**
 
-The library contains primitives that allow you to control the installation of tasks for processing on a schedule
+A `TimeRange` holds the elements of a period of time: every element has a moment inside the range, and
+`extractFiredElements` takes out the elements whose moments have come, in the order of the moments. An
+`AlarmTimeRangeService` runs a range in one thread: it waits for the nearest moment without a busy loop, gives the
+fired elements to a consumer, and applies the elements that other threads add.
+
+## Features
+
+- **A bounded period of time** — a range accepts the elements of its period, from its start to its end, and returns
+  the others as rejected; it is split into chunks of an interval
+- **Fired elements in order** — the elements whose moments have come, each of them once, in the order of their moments
+- **Duplicates** — a comparator orders the elements of the same moment and finds their duplicates; without one, equal
+  elements of a moment are one
+- **Any time marker** — elements that are `Expected` or `TemporalAccessor`s, any element with a tick given by
+  a function (`packable`), or transformers of your own (`create`)
+- **One thread, any producer** — `AlarmTimeRangeService` waits for the nearest alarm, takes requests from any thread
+  and completes their stages with the rejected elements; a request after the end of the process is rejected at once
+- **Java 8+, JPMS, OSGi** — Java 8 bytecode, named modules on Java 9+ and OSGi bundles, see
+  [Java modules](#java-modules) and [OSGi](#osgi)
+- **One runtime dependency** — `crayfish-common-expectation`; the SpotBugs annotations of the API are optional
+
+## Installation
+
+Maven:
+
+```xml
+<dependency>
+    <groupId>com.github.sftwnd.crayfish.alarms</groupId>
+    <artifactId>crayfish-alarms-service</artifactId>
+    <version>1.0.5</version>
+</dependency>
+```
+
+Gradle:
+
+```groovy
+implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.0.5'
+```
+
+`crayfish-alarms-service` brings `crayfish-alarms-timerange` with it; a range without the service needs
+`crayfish-alarms-timerange` only. 1.0.4 requires Java 11; 1.0.5 runs on Java 8, and is the same named modules on
+Java 9+.
 
 ## TimeRange
 
@@ -229,4 +277,5 @@ Two builds of the same sources on the same JDK give the same jars byte for byte:
 their entries a fixed time, which `release:prepare` sets to the time of the release.
 
 ---
-Copyright © 2017-2022 Andrey D. Shindarev. All rights reserved.
+
+Copyright © 2017-2026 Andrey D. Shindarev. All rights reserved.
