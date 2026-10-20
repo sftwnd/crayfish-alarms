@@ -3,7 +3,7 @@ package com.github.sftwnd.crayfish.alarms.service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 
@@ -14,19 +14,22 @@ import java.util.concurrent.CompletionStage;
 public interface IAlarmConsumer<E> {
 
     /**
-     * Add new elements to Service with rejects in CompletionStage result
+     * Add new elements to Service with rejects in CompletionStage result.
+     * The stage completes in the thread of the process of the service, and so do its dependent actions that use no
+     * asynchronous method: an action that takes time delays the alarms, use the asynchronous methods of the stage for it.
      * @param elements not null collection of elements to add
      * @return CompletionStage with rejected elements on completion
      */
     CompletionStage<Collection<E>> addElements(@NonNull Collection<E> elements);
 
     /**
-     * Add single element to Service with reject in CompletionStage result
+     * Add single element to Service with reject in CompletionStage result.
+     * The stage completes in the thread of the process of the service, as that of {@link #addElements(Collection)}.
      * @param element not null element to add
      * @return CompletionStage with value in the case of rejection
      */
     default CompletionStage<E> addElement(@NonNull E element) {
-        return addElements(List.of(Objects.requireNonNull(element, "IAlarmConsumer::addElement - element is null")))
+        return addElements(Collections.singletonList(Objects.requireNonNull(element, "IAlarmConsumer::addElement - element is null")))
                 .thenApply(reject -> reject.stream().findFirst().orElse(null));
     }
 

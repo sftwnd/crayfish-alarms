@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -67,22 +67,24 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
     boolean isComplete(@Nullable Instant instant);
 
     /**
-     * Add the specified set of elements to the range map
-     * The attribute will also be set: nearestInstant
-     * Out-of-range data is ignored with a message
+     * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
+     * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
+     * fails the call before any element of it is added.
      * @param elements collection of added elements
-     * @return list of ignored elements
+     * @return the elements out of the range, which are not added
+     * @throws RuntimeException the exception of the transformation of an element, for example
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
      */
     @Override
     @NonNull Collection<M> addElements(@NonNull Collection<M> elements);
 
     /**
-     * Add just one element to the range map
+     * Add just one element to the range, as {@link #addElements(Collection)} does
      * @param element element to add
-     * @return list of ignored elements (just zero or one element)
+     * @return the element if it is out of the range, an empty collection otherwise
      */
     default @NonNull Collection<M> addElement(@NonNull M element) {
-        return addElements(List.of(element));
+        return addElements(Collections.singletonList(Objects.requireNonNull(element, "ITimeRange::addElement - element is null")));
     }
 
     /**
@@ -103,29 +105,28 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
     @NonNull Collection<R> extractFiredElements(@Nullable Instant instant);
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
-     * @return timeout to the nearest event, taking into account the delay from the current moment
+     * The time from the current moment to the next event of the range, as {@link #duration(Instant)} counts it
+     * @return the time to the next event, zero if it has come
      */
     default @NonNull Duration duration() {
         return duration( Duration.ZERO );
     }
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay from now, and if not, until the next
-     * time limit - either startInstant or lastInstant + completeDuration
-     * @param delay point in time with delay from now for which we calculate the value
-     * @return timeout to the nearest event, taking into account the delay from the current moment
+     * The time from the current moment plus the delay to the next event of the range, as {@link #duration(Instant)}
+     * counts it: the time that remains after the delay. It is no lower bound: an element due within the delay gives zero
+     * @param delay the delay after the current moment
+     * @return the time from the current moment plus the delay to the next event, zero if it has come by then
      */
     default @NonNull Duration duration(Duration delay) {
         return duration( Instant.now().plus(delay) );
     }
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
+     * The time from the moment to the next event of the range: with elements, the moment of the nearest of them;
+     * without elements, the start of the range before it, and the end of the range plus its completeTimeout after it
      * @param now point in time for which we calculate the value
-     * @return timeout to the nearest event, taking into account delay
+     * @return the time to the next event, zero if it has come
      */
     @NonNull Duration duration(@NonNull Instant now);
 

@@ -9,10 +9,15 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * The interface implements the firing of the alarms at their time
+ * @param <R> type of fired alarm
+ */
 public interface IAlarmProcessor<R> {
 
     /**
-     * The process of igniting alarm clocks at a given moment in time with defined offset
+     * The process of igniting alarm clocks at a given moment in time with defined offset.
+     * It runs in the calling thread, and the consumer gets the triggered alarms in that thread.
      * @param consumer Handler for a set of triggered alarms
      * @param timeOffset time offset supplier
      */

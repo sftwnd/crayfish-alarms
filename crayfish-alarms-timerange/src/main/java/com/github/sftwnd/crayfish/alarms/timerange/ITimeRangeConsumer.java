@@ -11,15 +11,15 @@ import java.util.Collection;
 
 /**
  *  Alarm consumer
+ * @param <M> type of the added elements
+ * @param <R> type of the result object constructed from the ignored elements
  */
 public interface ITimeRangeConsumer<M,R> {
 
     /**
-     * Add the specified set of elements to the range map
-     * The attribute will also be set: nearestInstant
-     * Out-of-range data is ignored with a message
+     * Add the elements to the range; the elements out of the range are not added
      * @param elements collection of added elements
-     * @return result object constructed from ignored elements
+     * @return result object constructed from the elements that are not added
      */
     @NonNull R addElements(@NonNull Collection<M> elements);
 

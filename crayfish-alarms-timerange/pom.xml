@@ -4,12 +4,17 @@
     <parent>
         <groupId>com.github.sftwnd.crayfish.alarms</groupId>
         <artifactId>crayfish-alarms</artifactId>
-        <version>1.0.4</version>
+        <version>1.0.5</version>
     </parent>
 
     <artifactId>crayfish-alarms-timerange</artifactId>
 
     <name>CrayFish :: ALARMS :: TimeRange</name>
+
+    <properties>
+        <javaModuleName>com.github.sftwnd.crayfish_alarms_timerange</javaModuleName>
+        <bundleSymbolicName>com.github.sftwnd.crayfish.alarms.timerange</bundleSymbolicName>
+    </properties>
 
     <dependencies>
         <dependency>

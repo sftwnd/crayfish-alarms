@@ -35,12 +35,12 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange ITimeRangeFactory as the Type of Registered Items
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param preserver Constructor for the internal storage object from the incoming element
      * @param expectation Getting timestamp from internal element
      * @param reducer Method for converting an internal element into a result element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      * @param <M> input element type
      * @param <S> internal element type
      * @param <R> the type of the returned element
@@ -73,10 +73,10 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange ITimeRangeFactory as the Type of Registered Items
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param expectation Getting timestamp from internal element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      * @return TimeRange.ITimeRangeFactory instance
      * @param <M> input element type
      */
@@ -95,10 +95,10 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange.ITimeRangeFactory with ExpectedPackage as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param timeExtractor Extractor of temporal accessor from input element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      * @param <E> input element type
      * @param <T> the type of temporal accessor value
      * @return TimeRange.ITimeRangeFactory instance
@@ -122,9 +122,9 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange.ITimeRangeFactory with Expected as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      * @param <M> input element type
      * @return TimeRange.ITimeRangeFactory instance
      */
@@ -134,16 +134,20 @@ public interface ITimeRangeFactory<M,R> {
             @Nullable Duration completeTimeout,
             @Nullable Comparator<? super M> comparator
     ) {
-        return create(duration, interval, completeTimeout, M::getTick, comparator);
+        // a lambda, not the method reference M::getTick: javac 8 rejects it with "bad return type in method reference",
+        // it does not convert the return type ? extends TemporalAccessor to TemporalAccessor
+        @SuppressWarnings("java:S1612")
+        TemporalExtractor<M, TemporalAccessor> expectation = element -> element.getTick();
+        return create(duration, interval, completeTimeout, expectation, comparator);
     }
 
     /**
      * Creating a TimeRange.ITimeRangeFactory with temporal as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      * @param <M> input element type
      * @return TimeRange.ITimeRangeFactory instance
      */

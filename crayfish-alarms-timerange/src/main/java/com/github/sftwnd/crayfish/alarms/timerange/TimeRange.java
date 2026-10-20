@@ -8,8 +8,6 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 import com.github.sftwnd.crayfish.common.expectation.TemporalExtractor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import lombok.AccessLevel;
-import lombok.Setter;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -17,17 +15,13 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -44,7 +38,6 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         Used sonar warnings:
             java:S107 Methods should not have too many params
             java:S3358 Ternary operators should not be nested
-            java:S3864 "Stream.peek" should be used with caution
      */
     Duration duration;
 
@@ -68,9 +61,14 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      */
     private final Transformer<S,R> reducer;
     /**
-     * Comparison of two internal elements objects
+     * Comparison of two internal elements objects of the same moment, null if there is none
      */
     private final Comparator<? super S> comparator;
+
+    /**
+     * The order of the elements of a chunk: by their moments, then by the comparator or, without one, by their hash codes
+     */
+    private final Comparator<Entry<S>> order;
 
     // Beginning of the region validity period
     private final Instant startInstant;
@@ -80,25 +78,25 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     private final Instant completeInstant;
 
     // The moment of the nearest element. In case of absence - null
-    @Setter(value = AccessLevel.PRIVATE)
     private Instant nearestInstant = null;
     // A set of elements distributed over ranges of size interval
     // TreeMap storage structure that guarantees ascending traversal order
-    // The internal elements are contained in a TreeSet, which also guarantees order.
+    // The internal elements, with their moments, are contained in a TreeMap, which also guarantees order. Without a
+    // comparator, the elements of a moment with the same hash code follow the first of them in the order of addition.
     // Here we specify not the interface, but the implementation deliberately!!!
-    private final TreeMap<Instant, TreeSet<S>> expectedMap = new TreeMap<>();
+    private final TreeMap<Instant, TreeMap<Entry<S>, Entry<S>>> expectedMap = new TreeMap<>();
 
     /**
      * An object containing objects marked with a time-marker for the range to search for triggered
      *
      * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param duration Duration of the period of the region (if negative, then to the left of instant, otherwise - to the right).
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param preserver Method for converting an input element into an internal element
      * @param expectation Getting timestamp from incoming element
      * @param reducer Method for converting an internal element into a result element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      */
     @SuppressWarnings("java:S107")
     TimeRange(
@@ -113,14 +111,18 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     ) {
         Objects.requireNonNull(time, "TimeRange::new - time is null");
         this.duration = Objects.requireNonNull(duration, "TimeRange::new - duration is null");
-        this.interval = Objects.requireNonNull(interval, "TimeRange::new - interval is null");
+        this.interval = interval(Objects.requireNonNull(interval, "TimeRange::new - interval is null"), this.duration);
         this.preserver = Objects.requireNonNull(preserver, "TimeRange::new - preserver is null");
         this.expectation = Objects.requireNonNull(expectation, "TimeRange::new - expectation is null");
         this.reducer = Objects.requireNonNull(reducer, "TimeRange::new - reducer is null");
         this.startInstant = Optional.of(this.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
-        this.lastInstant = Optional.of(this.duration).filter(Predicate.not(Duration::isNegative)).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
-        this.comparator = ofNullable(comparator).orElse(this::compareObjects);
-        this.completeInstant = this.lastInstant.plus(Optional.ofNullable(completeTimeout).filter(Predicate.not(Duration::isNegative)).orElse(Duration.ZERO));
+        this.lastInstant = Optional.of(this.duration).filter(value -> !value.isNegative()).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
+        this.comparator = comparator;
+        Comparator<Entry<S>> byInstant = Comparator.comparing(entry -> entry.instant);
+        this.order = comparator == null
+                ? byInstant.thenComparingInt(entry -> entry.hash)
+                : byInstant.thenComparing(entry -> entry.element, comparator);
+        this.completeInstant = this.lastInstant.plus(Optional.ofNullable(completeTimeout).filter(value -> !value.isNegative()).orElse(Duration.ZERO));
     }
 
     @NonNull public Instant getStartInstant() {
@@ -152,55 +154,61 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     }
 
     /**
-     * Add the specified set of elements to the range map
-     * The attribute will also be set: nearestInstant
-     * Out-of-range data is ignored with a message
+     * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
+     * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
+     * fails the call before any element of it is added.
      * @param elements collection of added elements
-     * @return list of ignored elements
+     * @return the elements out of the range, which are not added
+     * @throws RuntimeException the exception of the transformation of an element, for example
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
      */
     public @NonNull Collection<M> addElements(@NonNull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
         List<M> excludes = new LinkedList<>();
-        //noinspection ConstantConditions
-        addElements(
-                elements.stream()
-                // Checking for range
-                .map(element -> {
-                    if (element != null) { // If element is not null
-                        S storeElement = this.preserver.apply(element); // Transform element to internal store format
-                        if (checkRange(storeElement)) {
-                            return storeElement;
-                        } else {
-                            excludes.add(element);
-                        }
+        // All the elements are transformed first: an element that cannot be transformed fails the call before any
+        // element of it is added
+        List<Entry<S>> entries = new ArrayList<>(elements.size());
+        elements.stream()
+                .filter(Objects::nonNull) // If element is not null
+                .forEach(element -> {
+                    S storeElement = this.preserver.apply(element); // Transform element to internal store format
+                    Instant instant = instant(storeElement); // The moment of the element is computed once
+                    // Checking for range
+                    if (checkRange(instant)) {
+                        entries.add(new Entry<>(instant, storeElement, this.comparator == null ? storeElement.hashCode() : 0));
+                    } else {
+                        excludes.add(element);
                     }
-                    return null;
-                })
-                .filter(Objects::nonNull)
-        );
+                });
+        entries.forEach(this::addEntry);
         return excludes;
     }
 
-    // Add or return back elements in the internal format to the time range storage
-    private void addElements(@NonNull Stream<S> stream) {
-        // If the element is the earliest, then mark it with Instant
-        // P.S. Due to the presence of the terminal operator, peek will work for every element that has passed through it.
-        stream.peek(elm -> Optional.of(instant(elm)) //NOSONAR java:S3864 "Stream.peek" should be used with caution
-                        .filter(inst -> inst.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX)))
-                        .ifPresent(this::setNearestInstant))
-                // Grouping by instantKey ranges
-                .collect(
-                        Collectors.groupingBy(
-                                elm -> getTemporalKey(instant(elm)),
-                                Collectors.toCollection(() -> new TreeSet<>(this::compare))
-                        )
-                ).forEach((key,value) -> ofNullable(this.expectedMap.get(key))
-                        .ifPresentOrElse(
-                                // If present, expand
-                                set -> set.addAll(value)
-                                // If missing, add
-                                , () -> this.expectedMap.put(key, value))
-                );
+    // Add an element in the internal format to its chunk of the time range storage, unless it is a duplicate
+    private void addEntry(@NonNull Entry<S> entry) {
+        this.expectedMap.computeIfAbsent(getInstantKey(entry.instant), key -> new TreeMap<>(this.order))
+                .merge(entry, entry, this::join);
+        // If the element is the earliest, then mark it with Instant (a duplicate is not: its moment has an element already)
+        if (entry.instant.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX))) {
+            setNearestInstant(entry.instant);
+        }
+    }
+
+    // Without a comparator, an element with the moment and the hash code of the first one follows the elements of the first
+    // one, unless it equals one of them; with a comparator, an element of the moment of the first one that is equal to it
+    // by the comparator is a duplicate
+    private @NonNull Entry<S> join(@NonNull Entry<S> first, @NonNull Entry<S> entry) {
+        if (this.comparator == null) {
+            Entry<S> last = first;
+            while (!last.element.equals(entry.element)) {
+                if (last.next == null) {
+                    last.next = entry;
+                    break;
+                }
+                last = last.next;
+            }
+        }
+        return first;
     }
 
     /**
@@ -214,65 +222,53 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
         List<R> result = new ArrayList<>();
-        addCollectionOnProcess(
-                this.expectedMap
-                        .entrySet()
-                        .stream()
-                        // Since TreeMap, the order goes in ascending order of the instantKey key, and we process all records that have
-                        // instantKey < nextKey
-                        .takeWhile(entry -> !entry.getKey().isAfter(nowKey))
-                        // We collect all the keys in a set (so that you can modify the primary TreeMap
-                        .map(Map.Entry::getKey).collect(Collectors.toSet())
-                        // For all keys that may contain triggered elements
-                        .stream()
-                        // We call the processing of a set removed from the primary Map
-                        .flatMap(key -> processKey(this.expectedMap.remove(key), now, key.isBefore(nowKey), result))
-                        // We collect everything that the handlers returned in set and send it back to Map
-                        .collect(Collectors.toCollection(() -> new TreeSet<>(this.comparator))));
+        // Since TreeMap, the head map goes in ascending order of the instantKey key: the chunks before the chunk of the
+        // current moment have fired as a whole
+        Iterator<TreeMap<Entry<S>, Entry<S>>> chunks = this.expectedMap.headMap(nowKey, false).values().iterator();
+        while (chunks.hasNext()) {
+            chunks.next().values().forEach(first -> fire(first, result));
+            chunks.remove();
+        }
+        // The elements of the chunk of the current moment are in ascending order of their time: the first of them have
+        // fired, the others stay in the chunk
+        TreeMap<Entry<S>, Entry<S>> chunk = this.expectedMap.get(nowKey);
+        if (chunk != null) {
+            while (!chunk.isEmpty() && happened(chunk.firstKey(), now)) {
+                fire(chunk.pollFirstEntry().getValue(), result);
+            }
+            if (chunk.isEmpty()) {
+                this.expectedMap.remove(nowKey);
+            }
+        }
+        // Rows were deleted, and it is required to recalculate the time of the nearest element (if any)
+        setNearestInstant(findNearestInstant());
         return result;
     }
 
-    private void addCollectionOnProcess(@NonNull Collection<S> elements) {
-        // At the time of the call, rows were deleted, and it is required to recalculate the time of the nearest element (if any)
-        setNearestInstant(findNearestInstant());
-        addElements(elements.stream());
+    // The fired element and the elements that follow it
+    private void fire(@NonNull Entry<S> first, @NonNull List<R> result) {
+        for (Entry<S> entry = first; entry != null; entry = entry.next) {
+            result.add(this.reducer.apply(entry.element));
+        }
+    }
+
+    private void setNearestInstant(@Nullable Instant nearestInstant) {
+        this.nearestInstant = nearestInstant;
     }
 
     private Instant findNearestInstant() {
         return ofNullable(this.expectedMap.firstEntry())
                 .map(Map.Entry::getValue)
-                .map(TreeSet::first)
-                .map(this::instant)
+                .map(TreeMap::firstKey)
+                .map(entry -> entry.instant)
                 .orElse(null);
     }
 
-    private Stream<S> processKey(Set<S> elements, Instant now, boolean complete, List<R> result) {
-        return complete ? processComplete(elements, result) : processIncomplete(elements, now, result);
-    }
-
-    private Stream<S> processComplete(Set<S> elements, List<R> result) {
-        elements.stream().map(this.reducer).forEach(result::add);
-        return Stream.empty();
-    }
-
-    private Stream<S> processIncomplete(Set<S> elements, Instant now, List<R> result) {
-        return elements
-                .stream()
-                .collect(Collectors.partitioningBy(element -> happened(element,now), Collectors.toSet()))
-                .entrySet()
-                .stream()
-                .flatMap(entry -> Optional.of(entry)
-                        .filter(Map.Entry::getKey)
-                        .map(b -> processComplete(entry.getValue(), result))
-                        .orElseGet(entry.getValue()::stream)
-                );
-    }
-
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
+     * The time from the moment to the next event of the range: with elements, the moment of the nearest of them;
+     * without elements, the start of the range before it, and the end of the range plus its completeTimeout after it
      * @param now point in time for which we calculate the value
-     * @return timeout to the nearest event, taking into account delay
+     * @return the time to the next event, zero if it has come
      */
     public @NonNull Duration duration(@NonNull Instant now) {
         // If the time is before the start of the range
@@ -295,6 +291,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     @Override
     public void clean() {
         this.expectedMap.clear();
+        setNearestInstant(null);
     }
 
     // Time until the moment after lastInstant by completeTimeout duration. If after this point we are in COMPLETE,
@@ -329,12 +326,16 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
                 : Duration.ZERO;
     }
 
-    private boolean checkRange(@NonNull S element) {
-        return Optional.of(element)
-                .map(this::instant)
-                .filter(Predicate.not(this.startInstant::isAfter))
-                .filter(this.lastInstant::isAfter)
-                .isPresent();
+    private boolean checkRange(@NonNull Instant instant) {
+        return !this.startInstant.isAfter(instant) && this.lastInstant.isAfter(instant);
+    }
+
+    // The interval of the javadoc: the absolute duration instead of an interval that is not positive or longer than the
+    // duration, and at least a millisecond, the unit of the keys of the chunks
+    private static @NonNull Duration interval(@NonNull Duration interval, @NonNull Duration duration) {
+        Duration range = duration.abs();
+        Duration chunk = interval.isNegative() || interval.isZero() || interval.compareTo(range) > 0 ? range : interval;
+        return chunk.toMillis() < 1 ? Duration.ofMillis(1) : chunk;
     }
 
     /**
@@ -346,35 +347,33 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % this.interval.toMillis());
     }
 
-    private Instant getTemporalKey(@Nullable TemporalAccessor temporalAccessor) {
-        return getInstantKey(Instant.from(ofNullable(temporalAccessor).orElse(Instant.MIN)));
-    }
-
-    /**
-     * This function compares two existing internal objects. If their trigger times do not match, then the result of the comparison
-     * is the same as the result of comparing the trigger times of the objects.
-     * Otherwise, the order is taken according to the result of comparing both objects by the registered comparator
-     */
-    private int compare(@NonNull S first, @NonNull S second) {
-        return first == second ? 0
-             : Optional.of(instant(first).compareTo(instant(second)))
-                .filter(result -> result != 0)
-                .orElseGet(() -> comparator.compare(first, second));
-
-    }
-
-    private int compareObjects(@NonNull Object first, @NonNull Object second) {
-        return Integer.compare(first.hashCode(), second.hashCode());
-    }
-
     // Check that element event occurs for now
-    private boolean happened(@NonNull S element, @NonNull Instant now) {
-        return !instant(element).isAfter(now);
+    private boolean happened(@NonNull Entry<S> entry, @NonNull Instant now) {
+        return !entry.instant.isAfter(now);
     }
 
     // Extract instant from internal element
     private @NonNull Instant instant(@NonNull S element) {
         return Instant.from(this.expectation.apply(element));
     }
-    
+
+    /**
+     * An internal element with its moment, computed once, when the element is added
+     * @param <S> Element type of the internal storage
+     */
+    private static final class Entry<S> {
+        private final Instant instant;
+        private final S element;
+        // Without a comparator, the hash code of the element orders the elements of a moment
+        private final int hash;
+        // Without a comparator, the next element of the moment with the same hash code, in the order of addition
+        private Entry<S> next;
+
+        private Entry(@NonNull Instant instant, @NonNull S element, int hash) {
+            this.instant = instant;
+            this.element = element;
+            this.hash = hash;
+        }
+    }
+
 }
