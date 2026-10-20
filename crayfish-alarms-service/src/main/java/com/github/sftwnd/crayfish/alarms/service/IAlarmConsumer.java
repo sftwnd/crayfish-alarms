@@ -14,14 +14,17 @@ import java.util.concurrent.CompletionStage;
 public interface IAlarmConsumer<E> {
 
     /**
-     * Add new elements to Service with rejects in CompletionStage result
+     * Add new elements to Service with rejects in CompletionStage result.
+     * The stage completes in the thread of the process of the service, and so do its dependent actions that use no
+     * asynchronous method: an action that takes time delays the alarms, use the asynchronous methods of the stage for it.
      * @param elements not null collection of elements to add
      * @return CompletionStage with rejected elements on completion
      */
     CompletionStage<Collection<E>> addElements(@NonNull Collection<E> elements);
 
     /**
-     * Add single element to Service with reject in CompletionStage result
+     * Add single element to Service with reject in CompletionStage result.
+     * The stage completes in the thread of the process of the service, as that of {@link #addElements(Collection)}.
      * @param element not null element to add
      * @return CompletionStage with value in the case of rejection
      */

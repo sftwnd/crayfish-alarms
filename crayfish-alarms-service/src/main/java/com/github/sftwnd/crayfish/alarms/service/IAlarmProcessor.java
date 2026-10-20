@@ -16,7 +16,8 @@ import java.util.function.Supplier;
 public interface IAlarmProcessor<R> {
 
     /**
-     * The process of igniting alarm clocks at a given moment in time with defined offset
+     * The process of igniting alarm clocks at a given moment in time with defined offset.
+     * It runs in the calling thread, and the consumer gets the triggered alarms in that thread.
      * @param consumer Handler for a set of triggered alarms
      * @param timeOffset time offset supplier
      */

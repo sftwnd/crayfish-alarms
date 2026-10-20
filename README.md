@@ -149,6 +149,33 @@ All fired elements will be extracted from the holder and returned as a result as
     Collection<NewObject> firedSet = timeRange.extractFiredElements(Instant.now().plusMillis(250));
 ```
 
+## AlarmTimeRangeService
+
+[AlarmTimeRangeService](./crayfish-alarms-service/src/main/java/com/github/sftwnd/crayfish/alarms/service/AlarmTimeRangeService.java) fires the alarms of a time range: its process waits for the nearest alarm, extracts the fired elements and gives them to a consumer, and applies the requests that add elements to the range.
+
+```java
+    ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+            Duration.ofMinutes(10), Duration.ofSeconds(1), Duration.ofSeconds(10), null
+    ).timeRange(Instant.now());
+    AlarmTimeRangeService<Instant, Instant> service = new AlarmTimeRangeService<>(timeRange, null);
+    Thread process = new Thread(() -> service.process(fired -> fired.forEach(System.out::println)));
+    process.start();
+    // the stage completes when the process has applied the request, with the elements out of the range
+    service.addElements(Arrays.asList(Instant.now().plusSeconds(5), Instant.now().plusSeconds(15)))
+            .thenAcceptAsync(rejected -> System.out.println("rejected: " + rejected));
+```
+
+The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
+
+The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of `Object.wait`, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
+
+### Threads
+
+* A TimeRange is not thread-safe. Once it is given to the service, only the process uses it.
+* The process runs in the thread that calls `process`, and the consumer gets the fired elements in that thread: a consumer that takes time delays the next alarms.
+* `addElements` and `addElement` can be called from any thread. The stage that they return completes in the thread of the process, and so do the dependent actions of the stage that use no asynchronous method: an action of 2 s on the stage of a request makes an alarm due in 100 ms fire after 2 s. Use `thenApplyAsync`, `thenAcceptAsync`, `thenRunAsync` and the like for an action that takes time.
+* The process waits with `Object.wait` in `synchronized`. On JDK 21 to 23 a virtual thread that runs the process pins its carrier while it waits: with one carrier, another virtual thread got it after 2.7 s on JDK 21, and after 1 ms on JDK 25 (JEP 491 removed the pinning in JDK 24). Run the process in a platform thread there.
+
 ## Java modules
 
 The library runs on Java 8+: the classes are Java 8 bytecode. On Java 9+ its jars are named modules:
