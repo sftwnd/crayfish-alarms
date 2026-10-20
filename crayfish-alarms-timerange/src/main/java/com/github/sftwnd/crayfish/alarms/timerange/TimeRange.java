@@ -263,10 +263,10 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     }
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
+     * The time from the moment to the next event of the range: with elements, the moment of the nearest of them;
+     * without elements, the start of the range before it, and the end of the range plus its completeTimeout after it
      * @param now point in time for which we calculate the value
-     * @return timeout to the nearest event, taking into account delay
+     * @return the time to the next event, zero if it has come
      */
     public @NonNull Duration duration(@NonNull Instant now) {
         // If the time is before the start of the range

@@ -103,29 +103,28 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
     @NonNull Collection<R> extractFiredElements(@Nullable Instant instant);
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
-     * @return timeout to the nearest event, taking into account the delay from the current moment
+     * The time from the current moment to the next event of the range, as {@link #duration(Instant)} counts it
+     * @return the time to the next event, zero if it has come
      */
     default @NonNull Duration duration() {
         return duration( Duration.ZERO );
     }
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay from now, and if not, until the next
-     * time limit - either startInstant or lastInstant + completeDuration
-     * @param delay point in time with delay from now for which we calculate the value
-     * @return timeout to the nearest event, taking into account the delay from the current moment
+     * The time from the current moment plus the delay to the next event of the range, as {@link #duration(Instant)}
+     * counts it: the time that remains after the delay. It is no lower bound: an element due within the delay gives zero
+     * @param delay the delay after the current moment
+     * @return the time from the current moment plus the delay to the next event, zero if it has come by then
      */
     default @NonNull Duration duration(Duration delay) {
         return duration( Instant.now().plus(delay) );
     }
 
     /**
-     * Timeout until the nearest available Expected, but not less than delay, and if not, until the next time limit -
-     * either startInstant or lastInstant + completeDuration
+     * The time from the moment to the next event of the range: with elements, the moment of the nearest of them;
+     * without elements, the start of the range before it, and the end of the range plus its completeTimeout after it
      * @param now point in time for which we calculate the value
-     * @return timeout to the nearest event, taking into account delay
+     * @return the time to the next event, zero if it has come
      */
     @NonNull Duration duration(@NonNull Instant now);
 
