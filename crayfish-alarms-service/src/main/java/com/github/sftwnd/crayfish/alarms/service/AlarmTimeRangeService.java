@@ -26,7 +26,7 @@ public class AlarmTimeRangeService<M,R> extends AlarmService<M, R> {
     /**
      * Construct IAlarmService for just one ITimeRange
      * @param timeRange predefined ITimeRange
-     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait
+     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait; null for none
      */
     public AlarmTimeRangeService(
             @NonNull ITimeRange<M, R> timeRange,

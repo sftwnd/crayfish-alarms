@@ -35,7 +35,7 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange ITimeRangeFactory as the Type of Registered Items
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param preserver Constructor for the internal storage object from the incoming element
      * @param expectation Getting timestamp from internal element
@@ -73,7 +73,7 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange ITimeRangeFactory as the Type of Registered Items
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param expectation Getting timestamp from internal element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
@@ -95,7 +95,7 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange.ITimeRangeFactory with ExpectedPackage as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param timeExtractor Extractor of temporal accessor from input element
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
@@ -122,7 +122,7 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange.ITimeRangeFactory with Expected as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
      * @param <M> input element type
@@ -145,7 +145,7 @@ public interface ITimeRangeFactory<M,R> {
      * Creating a TimeRange.ITimeRangeFactory with temporal as the type of items being registered
      *
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
-     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs())
+     * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
      * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
      * @param <M> input element type

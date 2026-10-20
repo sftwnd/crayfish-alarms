@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -30,13 +31,14 @@ import java.util.logging.Logger;
 public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implements IAlarmService<M,R> {
 
     private static final Logger logger = Logger.getLogger(AlarmService.class.getName());
-    private static final long DEFAULT_MINIMAL_WAIT_NANOS = Duration.ofMillis(75).toNanos();
+    // no spin by default: the process waits for every alarm, unless a minimal wait is given
+    private static final long DEFAULT_MINIMAL_WAIT_NANOS = 0L;
     private final ConcurrentLinkedQueue<RegistrationRequest> registrationQueue = new ConcurrentLinkedQueue<>();
     private final long minimalWaitNanos;
 
     /**
      * Construct IAlarmService
-     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait
+     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait; null for none
      */
     protected AlarmService(@Nullable Duration minimalWait) {
         this.minimalWaitNanos = Optional.ofNullable(minimalWait)
@@ -83,6 +85,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
      */
     @Override
     public final void process(@NonNull Consumer<Collection<R>> consumer, @Nullable Supplier<Duration> timeOffset) {
+        // checked before the flag is set: a null consumer leaves the service usable
+        Objects.requireNonNull(consumer, "AlarmService::process - consumer is null");
         if (!processFlag.compareAndSet(false, true)) {
             throw new IllegalStateException("AlarmTimeRangeService already in process");
         }
@@ -211,7 +215,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     private RegistrationRequest registrationRequest(@NonNull Collection<M> elements) {
         return new RegistrationRequest(
                 new CompletableFuture<>(),
-                Objects.requireNonNull(elements, "RegistrationRequest::new - elements is null")
+                // a copy: the caller may change its collection before the process takes the request
+                new ArrayList<>(Objects.requireNonNull(elements, "RegistrationRequest::new - elements is null"))
         );
     }
 

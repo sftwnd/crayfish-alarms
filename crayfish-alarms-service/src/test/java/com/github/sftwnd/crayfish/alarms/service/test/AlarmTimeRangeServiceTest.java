@@ -7,14 +7,19 @@ import com.github.sftwnd.crayfish.alarms.timerange.ITimeRangeFactory;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -35,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class AlarmTimeRangeServiceTest {
 
@@ -321,6 +327,71 @@ class AlarmTimeRangeServiceTest {
                     "AlarmService has to complete a failed registration with its exception");
             assertEquals(DateTimeException.class, exception.getCause().getClass(), "AlarmService has to pass the exception of the registration");
             assertTrue(firedCdl.await(2, TimeUnit.SECONDS), "AlarmService has to go on after a failed registration and fire the alarm");
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
+    @SuppressWarnings("ConstantConditions")
+    void processNull() throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        assertThrows(NullPointerException.class, () -> alarmService.process(null), "process with a null consumer has to throw NPE");
+        CountDownLatch firedCdl = new CountDownLatch(1);
+        Thread thread = new Thread(() -> alarmService.singleProcess(ignore -> firedCdl.countDown()));
+        thread.start();
+        try {
+            alarmService.addElement(timeRange.getStartInstant());
+            assertTrue(firedCdl.await(1, TimeUnit.SECONDS), "AlarmService has to process after process(null)");
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
+    void elementsCopied() throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        List<Instant> buffer = new ArrayList<>(Arrays.asList(timeRange.getStartInstant(), timeRange.getStartInstant().plusMillis(1)));
+        CompletableFuture<Collection<Instant>> completableFuture = alarmService.addElements(buffer).toCompletableFuture();
+        // the caller uses its collection again before the process takes the request
+        buffer.clear();
+        CountDownLatch firedCdl = new CountDownLatch(2);
+        Thread thread = new Thread(() -> alarmService.singleProcess(ignore -> firedCdl.countDown()));
+        thread.start();
+        try {
+            assertEquals(Collections.emptyList(), assertDoesNotThrow(() -> completableFuture.get(1, TimeUnit.SECONDS),
+                    "AlarmService has to register the request"), "AlarmService has to accept both alarms");
+            assertTrue(firedCdl.await(1, TimeUnit.SECONDS), "AlarmService has to fire the alarms of a request whatever the caller does with its collection");
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
+    void waitByDefault() throws InterruptedException {
+        ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+        assumeTrue(threadMXBean.isCurrentThreadCpuTimeSupported(), "The test needs the CPU time of a thread");
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        // the default minimal wait; the alarms are 60 ms apart
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, null);
+        Instant start = Instant.now();
+        alarmService.addElements(IntStream.rangeClosed(1, 20).mapToObj(i -> start.plusMillis(60L * i)).collect(Collectors.toList()));
+        // the CPU time and the time of the thread of the process at every alarm
+        List<long[]> times = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch firedCdl = new CountDownLatch(20);
+        Thread thread = new Thread(() -> alarmService.singleProcess(ignore -> {
+            times.add(new long[] {threadMXBean.getCurrentThreadCpuTime(), System.nanoTime()});
+            firedCdl.countDown();
+        }));
+        thread.start();
+        try {
+            assertTrue(firedCdl.await(5, TimeUnit.SECONDS), "AlarmService has to fire the alarms");
+            long[] first = times.get(0);
+            long[] last = times.get(19);
+            long share = 100 * (last[0] - first[0]) / (last[1] - first[1]);
+            assertTrue(share < 50, () -> "AlarmService has to wait for its alarms by default, not spin: " + share + "% of a core");
         } finally {
             thread.interrupt();
         }

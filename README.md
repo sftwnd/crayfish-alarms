@@ -26,6 +26,7 @@ That is, the object will be present in memory and open to calls.
 
 The entire TimeRange is divided into sub-ranges with the duration specified by the interval parameter.
 For each subrange, a separate structure for storing elements marked with a time-marker is allocated, which just falls into the specified subrange.
+An interval that is not positive or longer than the duration is taken equal to the absolute duration, and an interval is at least a millisecond.
 
 #### delay
 
