@@ -399,8 +399,8 @@ class TimeRangeTest {
         ITimeRange<TemporalAccessor, TemporalAccessor> range = ITimeRangeFactory.<TemporalAccessor>temporal(
                 Duration.ofMinutes(1), Duration.ofSeconds(1), Duration.ZERO, null).timeRange(T0);
         // an element of the range, then a LocalDateTime, whose tick is no instant
-        List<TemporalAccessor> elements = Arrays.asList(T0.plusSeconds(1), LocalDateTime.of(2030, 1, 1, 0, 0, 2));
-        assertThrows(DateTimeException.class, () -> range.addElements(elements), "TimeRange has to fail on an element whose tick is no instant");
+        List<TemporalAccessor> batch = Arrays.asList(T0.plusSeconds(1), LocalDateTime.of(2030, 1, 1, 0, 0, 2));
+        assertThrows(DateTimeException.class, () -> range.addElements(batch), "TimeRange has to fail on an element whose tick is no instant");
         assertEquals(Collections.emptyList(), range.extractFiredElements(T0.plusSeconds(60)), "TimeRange has to add no element of a call that fails");
         assertTrue(range.isComplete(T0.plusSeconds(60)), "TimeRange has to stay empty after a call that fails");
     }
