@@ -67,19 +67,21 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
     boolean isComplete(@Nullable Instant instant);
 
     /**
-     * Add the specified set of elements to the range map
-     * The attribute will also be set: nearestInstant
-     * Out-of-range data is ignored with a message
+     * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
+     * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
+     * fails the call before any element of it is added.
      * @param elements collection of added elements
-     * @return list of ignored elements
+     * @return the elements out of the range, which are not added
+     * @throws RuntimeException the exception of the transformation of an element, for example
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
      */
     @Override
     @NonNull Collection<M> addElements(@NonNull Collection<M> elements);
 
     /**
-     * Add just one element to the range map
+     * Add just one element to the range, as {@link #addElements(Collection)} does
      * @param element element to add
-     * @return list of ignored elements (just zero or one element)
+     * @return the element if it is out of the range, an empty collection otherwise
      */
     default @NonNull Collection<M> addElement(@NonNull M element) {
         return addElements(Collections.singletonList(Objects.requireNonNull(element, "ITimeRange::addElement - element is null")));
