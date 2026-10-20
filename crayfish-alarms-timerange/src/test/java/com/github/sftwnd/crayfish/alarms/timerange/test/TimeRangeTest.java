@@ -287,15 +287,15 @@ class TimeRangeTest {
 
     @Test
     void extractSameHashCodeInstantsTest() {
-        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
                 Duration.ofMinutes(5), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(T0);
         // two instants of one chunk with the same hash code
         Instant first = T0.plusNanos(1);
         Instant second = T0.plusSeconds(51);
         assertEquals(first.hashCode(), second.hashCode(), "The instants of the test have to have the same hash code");
-        timeRange.addElements(Arrays.asList(first, second));
-        assertEquals(Collections.emptyList(), timeRange.extractFiredElements(T0), "TimeRange has nothing to fire at T0");
-        assertEquals(Arrays.asList(first, second), timeRange.extractFiredElements(T0.plusSeconds(120)),
+        range.addElements(Arrays.asList(first, second));
+        assertEquals(Collections.emptyList(), range.extractFiredElements(T0), "TimeRange has nothing to fire at T0");
+        assertEquals(Arrays.asList(first, second), range.extractFiredElements(T0.plusSeconds(120)),
                 "TimeRange has to keep the elements of different ticks with the same hash code");
     }
 
@@ -313,35 +313,35 @@ class TimeRangeTest {
 
     @Test
     void firedOrderTest() {
-        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
                 Duration.ofMinutes(10), Duration.ofSeconds(1), Duration.ZERO, null).timeRange(T0);
         // an alarm in the middle of every chunk of the first 300 seconds
         List<Instant> alarms = IntStream.range(0, 300).mapToObj(i -> T0.plusMillis(i * 1000L + 500)).collect(Collectors.toList());
-        timeRange.addElements(alarms);
-        assertEquals(alarms, new ArrayList<>(timeRange.extractFiredElements(T0.plusSeconds(600))),
+        range.addElements(alarms);
+        assertEquals(alarms, new ArrayList<>(range.extractFiredElements(T0.plusSeconds(600))),
                 "TimeRange has to fire the elements of its chunks in the order of their ticks");
     }
 
     @Test
     void firedOrderInChunkTest() {
-        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
                 Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ZERO, null).timeRange(T0);
         // 300 alarms of one chunk, 10 ms apart: the first 200 of them up to T0 + 2 s
         List<Instant> alarms = IntStream.range(0, 300).mapToObj(i -> T0.plusMillis(i * 10L + 1)).collect(Collectors.toList());
-        timeRange.addElements(alarms);
-        assertEquals(alarms.subList(0, 200), new ArrayList<>(timeRange.extractFiredElements(T0.plusSeconds(2))),
+        range.addElements(alarms);
+        assertEquals(alarms.subList(0, 200), new ArrayList<>(range.extractFiredElements(T0.plusSeconds(2))),
                 "TimeRange has to fire the elements of the chunk of the moment in the order of their ticks");
-        assertEquals(alarms.subList(200, 300), new ArrayList<>(timeRange.extractFiredElements(T0.plusSeconds(600))),
+        assertEquals(alarms.subList(200, 300), new ArrayList<>(range.extractFiredElements(T0.plusSeconds(600))),
                 "TimeRange has to keep the elements of the chunk of the moment that have not fired");
     }
 
     // the reminders of the test, extracted in the middle of their chunk and after it
     private static List<Reminder> extractInTheMiddleOfChunk(Comparator<? super Reminder> comparator) {
-        ITimeRange<Reminder, Reminder> timeRange = ITimeRangeFactory.<Reminder>expected(
+        ITimeRange<Reminder, Reminder> range = ITimeRangeFactory.<Reminder>expected(
                 Duration.ofMinutes(5), Duration.ofMinutes(1), Duration.ZERO, comparator).timeRange(T0);
-        timeRange.addElements(reminders());
-        List<Reminder> fired = new ArrayList<>(timeRange.extractFiredElements(T0.plusSeconds(15)));
-        fired.addAll(timeRange.extractFiredElements(T0.plusSeconds(120)));
+        range.addElements(reminders());
+        List<Reminder> fired = new ArrayList<>(range.extractFiredElements(T0.plusSeconds(15)));
+        fired.addAll(range.extractFiredElements(T0.plusSeconds(120)));
         return fired;
     }
 
