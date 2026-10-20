@@ -419,6 +419,10 @@ Export-Package: ${bundleSymbolicName};version="${version;===;${Bundle-Version}}"
                         <executions>
                             <execution>
                                 <id>compile-module-info</id>
+                                <!-- not in compile: up to compile or test, a module of the reactor is target/classes, where
+                                     the descriptor is in META-INF/versions/9 only, so javac would not find the module of
+                                     the time range; before package it is a multi-release jar -->
+                                <phase>prepare-package</phase>
                                 <goals>
                                     <goal>compile</goal>
                                 </goals>
