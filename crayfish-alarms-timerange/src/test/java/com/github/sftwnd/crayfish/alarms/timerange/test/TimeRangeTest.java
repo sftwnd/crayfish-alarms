@@ -406,6 +406,18 @@ class TimeRangeTest {
     }
 
     @Test
+    void zeroDurationTest() {
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ZERO, Duration.ofSeconds(1), Duration.ofSeconds(1), null).timeRange(T0);
+        assertEquals(range.getStartInstant(), range.getLastInstant(), "TimeRange of a zero duration has to start where it ends");
+        assertEquals(Collections.singletonList(T0), new ArrayList<>(range.addElements(Collections.singletonList(T0))),
+                "TimeRange of a zero duration has to reject every element");
+        assertEquals(Collections.emptyList(), range.extractFiredElements(T0.plusSeconds(1)), "TimeRange of a zero duration has nothing to fire");
+        assertFalse(range.isComplete(T0), "TimeRange of a zero duration hasn't got to be complete before its completeTimeout");
+        assertTrue(range.isComplete(T0.plusSeconds(1)), "TimeRange of a zero duration has to be complete after its completeTimeout");
+    }
+
+    @Test
     void cleanNearestTest() {
         // a range of an hour, which starts an hour after T0
         ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(

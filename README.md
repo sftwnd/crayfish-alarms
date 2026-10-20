@@ -15,7 +15,7 @@ The library contains primitives that allow you to control the installation of ta
 
 #### duration
 
-The main parameter of the time range is its duration. You cannot set the duration to zero. When a time range is built, two parameters are needed to determine its start and end: boundary and duration. If the duration is negative, then the time range is built to the left of the border, and if positive, then to the right.
+The main parameter of the time range is its duration. A duration of zero gives an empty time range: its start is its end, so it rejects every element, and it is complete after its completeTimeout. When a time range is built, two parameters are needed to determine its start and end: boundary and duration. If the duration is negative, then the time range is built to the left of the border, and if positive, then to the right.
 
 #### completeTimeout
 
