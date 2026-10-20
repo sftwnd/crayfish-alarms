@@ -15,12 +15,12 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -208,28 +208,27 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // The key corresponding to the current moment
         Instant nowKey = getInstantKey(now);
         List<R> result = new ArrayList<>();
-        addCollectionOnProcess(
-                this.expectedMap
-                        // Since TreeMap, the head map goes in ascending order of the instantKey key, and we process all records
-                        // that have instantKey <= nowKey
-                        .headMap(nowKey, true)
-                        .keySet()
-                        .stream()
-                        // We collect all the keys in a set (so that you can modify the primary TreeMap
-                        .collect(Collectors.toSet())
-                        // For all keys that may contain triggered elements
-                        .stream()
-                        // We call the processing of a set removed from the primary Map
-                        .flatMap(key -> processKey(this.expectedMap.remove(key), now, key.isBefore(nowKey), result))
-                        // We collect everything that the handlers returned in set and send it back to Map
-                        .collect(Collectors.toCollection(() -> new TreeSet<>(this.comparator))));
-        return result;
-    }
-
-    private void addCollectionOnProcess(@NonNull Collection<S> elements) {
-        // At the time of the call, rows were deleted, and it is required to recalculate the time of the nearest element (if any)
+        // Since TreeMap, the head map goes in ascending order of the instantKey key: the chunks before the chunk of the
+        // current moment have fired as a whole
+        Iterator<TreeSet<S>> chunks = this.expectedMap.headMap(nowKey, false).values().iterator();
+        while (chunks.hasNext()) {
+            chunks.next().stream().map(this.reducer).forEach(result::add);
+            chunks.remove();
+        }
+        // The elements of the chunk of the current moment are in ascending order of their time: the first of them have
+        // fired, the others stay in the chunk
+        TreeSet<S> chunk = this.expectedMap.get(nowKey);
+        if (chunk != null) {
+            while (!chunk.isEmpty() && happened(chunk.first(), now)) {
+                result.add(this.reducer.apply(chunk.pollFirst()));
+            }
+            if (chunk.isEmpty()) {
+                this.expectedMap.remove(nowKey);
+            }
+        }
+        // Rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
-        addElements(elements.stream());
+        return result;
     }
 
     private void setNearestInstant(@Nullable Instant nearestInstant) {
@@ -242,28 +241,6 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
                 .map(TreeSet::first)
                 .map(this::instant)
                 .orElse(null);
-    }
-
-    private Stream<S> processKey(Set<S> elements, Instant now, boolean complete, List<R> result) {
-        return complete ? processComplete(elements, result) : processIncomplete(elements, now, result);
-    }
-
-    private Stream<S> processComplete(Set<S> elements, List<R> result) {
-        elements.stream().map(this.reducer).forEach(result::add);
-        return Stream.empty();
-    }
-
-    private Stream<S> processIncomplete(Set<S> elements, Instant now, List<R> result) {
-        return elements
-                .stream()
-                .collect(Collectors.partitioningBy(element -> happened(element,now), Collectors.toSet()))
-                .entrySet()
-                .stream()
-                .flatMap(entry -> Optional.of(entry)
-                        .filter(Map.Entry::getKey)
-                        .map(b -> processComplete(entry.getValue(), result))
-                        .orElseGet(entry.getValue()::stream)
-                );
     }
 
     /**
