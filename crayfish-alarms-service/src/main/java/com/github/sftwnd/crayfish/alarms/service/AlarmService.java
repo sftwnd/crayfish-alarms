@@ -95,7 +95,8 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
         try {
             processLoop(consumer);
         } catch (InterruptedException itrex) {
-            logger.log(Level.WARNING, "AlarmService::process is terminated by cause: {0}", Optional.ofNullable(itrex.getLocalizedMessage()).orElseGet(() -> String.valueOf(itrex)));
+            // an interrupt is the normal stop of the process before the end of its range: no warning
+            logger.log(Level.FINE, "AlarmService::process is terminated by cause: {0}", Optional.ofNullable(itrex.getLocalizedMessage()).orElseGet(() -> String.valueOf(itrex)));
             Thread.currentThread().interrupt();
         } finally {
             // set before the queue is polled: a request queued before it is rejected here, a later one at once

@@ -27,7 +27,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -392,6 +394,42 @@ class AlarmTimeRangeServiceTest {
             assertTrue(share < 50, () -> "AlarmService has to wait for its alarms by default, not spin: " + share + "% of a core");
         } finally {
             thread.interrupt();
+        }
+    }
+
+    @Test
+    void interruptIsNoWarning() throws InterruptedException {
+        Logger logger = Logger.getLogger("com.github.sftwnd.crayfish.alarms.service.AlarmService");
+        Level level = logger.getLevel();
+        List<Level> levels = Collections.synchronizedList(new ArrayList<>());
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord logRecord) {
+                levels.add(logRecord.getLevel());
+            }
+            @Override
+            public void flush() {
+                // the records are kept in the list
+            }
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        };
+        logger.setLevel(Level.ALL);
+        logger.addHandler(handler);
+        try {
+            IAlarmService<Instant, Instant> alarmService = alarmService(timeRange(), Duration.ZERO);
+            // an interrupt is the normal stop of a process before the end of its range
+            Thread thread = new Thread(() -> alarmService.process(ignore -> {}));
+            thread.start();
+            thread.interrupt();
+            thread.join(1000);
+            assertFalse(thread.isAlive(), "AlarmService has to end its process on an interrupt");
+            assertEquals(Collections.singletonList(Level.FINE), levels, "AlarmService has to log the interrupt of its process at FINE");
+        } finally {
+            logger.removeHandler(handler);
+            logger.setLevel(level);
         }
     }
 
