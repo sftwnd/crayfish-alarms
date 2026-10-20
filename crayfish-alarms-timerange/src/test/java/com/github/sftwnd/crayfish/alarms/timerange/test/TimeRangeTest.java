@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +33,8 @@ class TimeRangeTest {
 
     private static final Duration INTERVAL = Duration.ofSeconds(15);
     private static final Duration COMPLETE_TIMEOUT = Duration.ofSeconds(10);
+    // the start of the chunks of a second, a minute and ten minutes
+    private static final Instant T0 = Instant.parse("2030-01-01T00:00:00Z");
 
     private Instant now;
     private Duration completeTimeout;
@@ -282,6 +285,66 @@ class TimeRangeTest {
         assertEquals(Collections.singletonList(strD), timeRange.extractFiredElements(now.plusMillis(1)), "constructPackable has to return one element");
     }
 
+    @Test
+    void extractSameHashCodeInstantsTest() {
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofMinutes(5), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(T0);
+        // two instants of one chunk with the same hash code
+        Instant first = T0.plusNanos(1);
+        Instant second = T0.plusSeconds(51);
+        assertEquals(first.hashCode(), second.hashCode(), "The instants of the test have to have the same hash code");
+        range.addElements(Arrays.asList(first, second));
+        assertEquals(Collections.emptyList(), range.extractFiredElements(T0), "TimeRange has nothing to fire at T0");
+        assertEquals(Arrays.asList(first, second), range.extractFiredElements(T0.plusSeconds(120)),
+                "TimeRange has to keep the elements of different ticks with the same hash code");
+    }
+
+    @Test
+    void extractInTheMiddleOfChunkTest() {
+        assertEquals(ticks(reminders()), ticks(extractInTheMiddleOfChunk(null)),
+                "TimeRange without a comparator has to fire the equal elements of different ticks");
+    }
+
+    @Test
+    void extractInTheMiddleOfChunkWithComparatorTest() {
+        assertEquals(ticks(reminders()), ticks(extractInTheMiddleOfChunk(Comparator.comparing(Reminder::getId))),
+                "TimeRange has to compare the elements by the comparator only on the same tick");
+    }
+
+    @Test
+    void firedOrderTest() {
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofMinutes(10), Duration.ofSeconds(1), Duration.ZERO, null).timeRange(T0);
+        // an alarm in the middle of every chunk of the first 300 seconds
+        List<Instant> alarms = IntStream.range(0, 300).mapToObj(i -> T0.plusMillis(i * 1000L + 500)).collect(Collectors.toList());
+        range.addElements(alarms);
+        assertEquals(alarms, new ArrayList<>(range.extractFiredElements(T0.plusSeconds(600))),
+                "TimeRange has to fire the elements of its chunks in the order of their ticks");
+    }
+
+    @Test
+    void firedOrderInChunkTest() {
+        ITimeRange<Instant, Instant> range = ITimeRangeFactory.<Instant>temporal(
+                Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ZERO, null).timeRange(T0);
+        // 300 alarms of one chunk, 10 ms apart: the first 200 of them up to T0 + 2 s
+        List<Instant> alarms = IntStream.range(0, 300).mapToObj(i -> T0.plusMillis(i * 10L + 1)).collect(Collectors.toList());
+        range.addElements(alarms);
+        assertEquals(alarms.subList(0, 200), new ArrayList<>(range.extractFiredElements(T0.plusSeconds(2))),
+                "TimeRange has to fire the elements of the chunk of the moment in the order of their ticks");
+        assertEquals(alarms.subList(200, 300), new ArrayList<>(range.extractFiredElements(T0.plusSeconds(600))),
+                "TimeRange has to keep the elements of the chunk of the moment that have not fired");
+    }
+
+    // the reminders of the test, extracted in the middle of their chunk and after it
+    private static List<Reminder> extractInTheMiddleOfChunk(Comparator<? super Reminder> comparator) {
+        ITimeRange<Reminder, Reminder> range = ITimeRangeFactory.<Reminder>expected(
+                Duration.ofMinutes(5), Duration.ofMinutes(1), Duration.ZERO, comparator).timeRange(T0);
+        range.addElements(reminders());
+        List<Reminder> fired = new ArrayList<>(range.extractFiredElements(T0.plusSeconds(15)));
+        fired.addAll(range.extractFiredElements(T0.plusSeconds(120)));
+        return fired;
+    }
+
     void addElements() {
         timeRange.addElements(elements);
     }
@@ -328,6 +391,46 @@ class TimeRangeTest {
 
     static ExpectedTest expected(Instant instant) {
         return new ExpectedTest(instant);
+    }
+
+    // an element that equals another one of the same id, whatever their ticks
+    static final class Reminder implements Expected<Instant> {
+        private final String id;
+        private final Instant tick;
+
+        Reminder(String id, Instant tick) {
+            this.id = id;
+            this.tick = tick;
+        }
+
+        @Override
+        public Instant getTick() {
+            return tick;
+        }
+
+        String getId() {
+            return id;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            return object instanceof Reminder && ((Reminder) object).id.equals(id);
+        }
+
+        @Override
+        public int hashCode() {
+            return id.hashCode();
+        }
+    }
+
+    // four reminders of one id in the first chunk of a minute from T0
+    static List<Reminder> reminders() {
+        return Arrays.asList(new Reminder("order-1", T0.plusSeconds(10)), new Reminder("order-1", T0.plusSeconds(12)),
+                new Reminder("order-1", T0.plusSeconds(20)), new Reminder("order-1", T0.plusSeconds(30)));
+    }
+
+    static List<Instant> ticks(Collection<? extends Expected<Instant>> elements) {
+        return elements.stream().map(Expected<Instant>::getTick).collect(Collectors.toList());
     }
 
     // records the arguments of duration(Instant), the other calls go to the range

@@ -146,8 +146,8 @@ If any elements do not fall within the specified region (excluding the right bor
 
 #### Getting triggered (fired) elements from a holder
 
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L206-L227) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
-All fired elements will be extracted from the holder and returned as a result as a Collection of elements (unique if the timestamp matches).
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L206-L232) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+All fired elements will be extracted from the holder and returned as a result as a Collection of elements in the order of their time markers (unique if the timestamp matches).
 
 ```java
     Collection<NewObject> firedSet=timeRange.extractFiredElements(Instant.now.plusMillis(250));
