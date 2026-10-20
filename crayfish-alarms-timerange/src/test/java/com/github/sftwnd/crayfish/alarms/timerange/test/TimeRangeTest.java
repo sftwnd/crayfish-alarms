@@ -340,11 +340,12 @@ class TimeRangeTest {
     void sameTickSameHashCodeTest() {
         ITimeRange<String, String> range = ITimeRangeFactory.<String, Instant>packable(
                 Duration.ofMinutes(1), Duration.ofSeconds(15), Duration.ZERO, element -> T0.plusSeconds(1), null).timeRange(T0);
-        // "Aa" and "BB" have the same hash code; the third element equals "Aa"
-        String equal = String.valueOf(new char[] {'A', 'a'});
-        assertEquals("Aa".hashCode(), "BB".hashCode(), "The strings of the test have to have the same hash code");
-        assertEquals(Collections.emptyList(), range.addElements(Arrays.asList("Aa", "BB", equal)), "TimeRange has to accept the elements of its range");
-        assertEquals(Arrays.asList("Aa", "BB"), range.extractFiredElements(T0.plusSeconds(2)),
+        // "AaAa", "AaBB" and "BBAa" have the same hash code; the fourth element equals "AaBB", the second of them
+        String equal = String.valueOf(new char[] {'A', 'a', 'B', 'B'});
+        assertEquals(1, Arrays.asList("AaAa", "AaBB", "BBAa").stream().mapToInt(String::hashCode).distinct().count(),
+                "The strings of the test have to have the same hash code");
+        assertEquals(Collections.emptyList(), range.addElements(Arrays.asList("AaAa", "AaBB", equal, "BBAa")), "TimeRange has to accept the elements of its range");
+        assertEquals(Arrays.asList("AaAa", "AaBB", "BBAa"), range.extractFiredElements(T0.plusSeconds(2)),
                 "TimeRange without a comparator has to keep the distinct elements of a tick with the same hash code and one of the equal ones");
     }
 
