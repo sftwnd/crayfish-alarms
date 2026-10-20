@@ -92,11 +92,11 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * @param time The moment limiting the region processing period (if duration is positive, then on the left, otherwise - on the right)
      * @param duration Duration of the period of the region (if negative, then to the left of instant, otherwise - to the right).
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
-     * @param completeTimeout At a specified interval after the end of the described range, if there are no processed objects, the actor stops
+     * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param preserver Method for converting an input element into an internal element
      * @param expectation Getting timestamp from incoming element
      * @param reducer Method for converting an internal element into a result element
-     * @param comparator Redefining a comparator to order Expected objects not only in temporal ascending order, but also in internal content
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
      */
     @SuppressWarnings("java:S107")
     TimeRange(
@@ -154,11 +154,13 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     }
 
     /**
-     * Add the specified set of elements to the range map
-     * The attribute will also be set: nearestInstant
-     * Out-of-range data is ignored with a message
+     * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
+     * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
+     * fails the call before any element of it is added.
      * @param elements collection of added elements
-     * @return list of ignored elements
+     * @return the elements out of the range, which are not added
+     * @throws RuntimeException the exception of the transformation of an element, for example
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
      */
     public @NonNull Collection<M> addElements(@NonNull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");

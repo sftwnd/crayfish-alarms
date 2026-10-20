@@ -33,7 +33,7 @@ An interval that is not positive or longer than the duration is taken equal to t
 The implemented library allows you to store elements that have a time marker inside the TimeRange and retrieve at each moment of time those objects that have a time marker earlier than the current moment. A temporary marker can be attached to an object in three ways:
 1) An implementation of the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.4.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, where the token is obtained by calling the getTick() method
 2) Packing the element into an object that implements the [ExpectedPackage&lt;M,T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.4.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/ExpectedPackage.java) interface, which also supports the [Expected&lt;T extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.4.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/Expected.java) interface, and the element itself is obtained by calling the getElement() method
-3) A description of two methods that implement the interfaces [TemporalExtractor&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.4.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/TemporalExtractor.java) to get the temporary marker from the object and [ITimeRange.Transformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRange.java#L136-L159) to get the resulting object from the original one.
+3) A description of two methods that implement the interfaces [TemporalExtractor&lt;M,? extends TemporalAccessor&gt;](https://github.com/sftwnd/crayfish-common-expectation/blob/crayfish-common-expectation-1.4.0/src/main/java/com/github/sftwnd/crayfish/common/expectation/TemporalExtractor.java) to get the temporary marker from the object and [ITimeRange.Transformer&lt;M,R&gt;](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/ITimeRange.java#L138-L161) to get the resulting object from the original one.
 
 ### Uniqueness Constraint
 
@@ -131,7 +131,7 @@ There are also three additional methods:
 
 #### Adding new elements to the holder
 
-To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L163-L183) method:
+To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L165-L185) method:
 
 ```java
     List<MyObject> elements = getElements();
@@ -142,7 +142,7 @@ If any elements do not fall within the specified region (excluding the right bor
 
 #### Getting triggered (fired) elements from a holder
 
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L218-L244) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L220-L246) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements in the order of their time markers (unique if the timestamp matches).
 
 ```java
