@@ -7,9 +7,12 @@ import com.github.sftwnd.crayfish.alarms.timerange.ITimeRangeFactory;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
@@ -297,6 +300,29 @@ class AlarmTimeRangeServiceTest {
                     "AlarmService must not apply a request that it has rejected");
         } finally {
             next.interrupt();
+        }
+    }
+
+    @Test
+    void failedRegistration() throws InterruptedException {
+        ITimeRange<TemporalAccessor, TemporalAccessor> timeRange = ITimeRangeFactory.<TemporalAccessor>temporal(
+                Duration.ofSeconds(5), Duration.ofMillis(100), Duration.ofMillis(250), null).timeRange(Instant.now());
+        IAlarmService<TemporalAccessor, TemporalAccessor> alarmService = new AlarmTimeRangeService<>(timeRange, Duration.ZERO);
+        CountDownLatch firedCdl = new CountDownLatch(1);
+        Thread thread = new Thread(() -> alarmService.singleProcess(ignore -> firedCdl.countDown()));
+        thread.start();
+        try {
+            CompletableFuture<TemporalAccessor> accepted = alarmService.addElement(Instant.now().plusMillis(300)).toCompletableFuture();
+            assertNull(assertDoesNotThrow(() -> accepted.get(1, TimeUnit.SECONDS), "AlarmService has to register the alarm"),
+                    "AlarmService has to accept the alarm");
+            // a LocalDateTime is no instant: its registration fails
+            CompletableFuture<TemporalAccessor> failed = alarmService.addElement(LocalDateTime.now()).toCompletableFuture();
+            ExecutionException exception = assertThrows(ExecutionException.class, () -> failed.get(1, TimeUnit.SECONDS),
+                    "AlarmService has to complete a failed registration with its exception");
+            assertEquals(DateTimeException.class, exception.getCause().getClass(), "AlarmService has to pass the exception of the registration");
+            assertTrue(firedCdl.await(2, TimeUnit.SECONDS), "AlarmService has to go on after a failed registration and fire the alarm");
+        } finally {
+            thread.interrupt();
         }
     }
 
