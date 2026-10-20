@@ -42,6 +42,7 @@ The implemented library allows you to store elements that have a time marker ins
 
 There is one TimeRange limitation: you cannot describe two objects at the same time that, when cast to the resulting object, will turn out to be equal.
 To implement this restriction, the Comparator&lt;&gt; of the resulting object is used, which is used exactly in case of a match in time markers and allows you to filter out duplicates (perform a distinct operation)
+Without a comparator, two objects with the same time marker are duplicates if they are equal (`equals`).
 
 ### Creation of ITimeRangeFactory&lt;M,R&gt;
 
@@ -135,7 +136,7 @@ There are also three additional methods:
 
 #### Adding new elements to the holder
 
-To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L157-L178) method:
+To add new elements, use the [addElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L163-L179) method:
 
 ```java
     List<MyObject> elements=getElements();
@@ -146,7 +147,7 @@ If any elements do not fall within the specified region (excluding the right bor
 
 #### Getting triggered (fired) elements from a holder
 
-To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L206-L232) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
+To get fired elements, you need to call the [extractFiredElements](./crayfish-alarms-timerange/src/main/java/com/github/sftwnd/crayfish/alarms/timerange/TimeRange.java#L214-L240) method specifying the point in time at which you want to search for elements. If no point in time is specified, then the current one is used.
 All fired elements will be extracted from the holder and returned as a result as a Collection of elements in the order of their time markers (unique if the timestamp matches).
 
 ```java

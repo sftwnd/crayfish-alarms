@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -333,6 +334,44 @@ class TimeRangeTest {
                 "TimeRange has to fire the elements of the chunk of the moment in the order of their ticks");
         assertEquals(alarms.subList(200, 300), new ArrayList<>(timeRange.extractFiredElements(T0.plusSeconds(600))),
                 "TimeRange has to keep the elements of the chunk of the moment that have not fired");
+    }
+
+    @Test
+    void sameTickSameHashCodeTest() {
+        ITimeRange<String, String> timeRange = ITimeRangeFactory.<String, Instant>packable(
+                Duration.ofMinutes(1), Duration.ofSeconds(15), Duration.ZERO, element -> T0.plusSeconds(1), null).timeRange(T0);
+        // "Aa" and "BB" have the same hash code; the third element equals "Aa"
+        String equal = String.valueOf(new char[] {'A', 'a'});
+        assertEquals("Aa".hashCode(), "BB".hashCode(), "The strings of the test have to have the same hash code");
+        assertEquals(Collections.emptyList(), timeRange.addElements(Arrays.asList("Aa", "BB", equal)), "TimeRange has to accept the elements of its range");
+        assertEquals(Arrays.asList("Aa", "BB"), timeRange.extractFiredElements(T0.plusSeconds(2)),
+                "TimeRange without a comparator has to keep the distinct elements of a tick with the same hash code and one of the equal ones");
+    }
+
+    @Test
+    void sameTickComparatorTest() {
+        ITimeRange<String, String> timeRange = ITimeRangeFactory.<String, Instant>packable(
+                Duration.ofMinutes(1), Duration.ofSeconds(15), Duration.ZERO, element -> T0.plusSeconds(1),
+                Comparator.comparing(String::length)).timeRange(T0);
+        timeRange.addElements(Arrays.asList("Aa", "BB", "C"));
+        assertEquals(Arrays.asList("C", "Aa"), timeRange.extractFiredElements(T0.plusSeconds(2)),
+                "TimeRange has to order the elements of a tick and find their duplicates by the comparator");
+    }
+
+    @Test
+    void expectationOnceTest() {
+        AtomicInteger calls = new AtomicInteger();
+        ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>create(
+                Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ZERO, element -> {
+                    calls.incrementAndGet();
+                    return element;
+                }, null).timeRange(T0);
+        List<Instant> alarms = IntStream.range(0, 1000).mapToObj(i -> T0.plusMillis(i + 1L)).collect(Collectors.toList());
+        timeRange.addElements(alarms);
+        assertEquals(alarms.size(), calls.get(), "TimeRange has to get the tick of an element once, when it is added");
+        assertEquals(alarms.subList(0, 500), timeRange.extractFiredElements(T0.plusMillis(500)), "TimeRange has to fire the first half of the elements");
+        assertEquals(alarms.subList(500, 1000), timeRange.extractFiredElements(T0.plusSeconds(1)), "TimeRange has to fire the second half of the elements");
+        assertEquals(alarms.size(), calls.get(), "TimeRange has to get no tick on an extraction");
     }
 
     // the reminders of the test, extracted in the middle of their chunk and after it
