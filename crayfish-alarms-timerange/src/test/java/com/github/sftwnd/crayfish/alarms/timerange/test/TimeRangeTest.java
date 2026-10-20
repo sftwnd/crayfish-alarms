@@ -7,9 +7,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,6 +31,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimeRangeTest {
@@ -388,6 +392,17 @@ class TimeRangeTest {
             assertEquals(Collections.singletonList(T0.plusSeconds(59)), range.extractFiredElements(T0.plusSeconds(60)),
                     () -> "TimeRange with the interval " + interval + " has to fire its second element");
         }
+    }
+
+    @Test
+    void addElementsFailureTest() {
+        ITimeRange<TemporalAccessor, TemporalAccessor> range = ITimeRangeFactory.<TemporalAccessor>temporal(
+                Duration.ofMinutes(1), Duration.ofSeconds(1), Duration.ZERO, null).timeRange(T0);
+        // an element of the range, then a LocalDateTime, whose tick is no instant
+        List<TemporalAccessor> elements = Arrays.asList(T0.plusSeconds(1), LocalDateTime.of(2030, 1, 1, 0, 0, 2));
+        assertThrows(DateTimeException.class, () -> range.addElements(elements), "TimeRange has to fail on an element whose tick is no instant");
+        assertEquals(Collections.emptyList(), range.extractFiredElements(T0.plusSeconds(60)), "TimeRange has to add no element of a call that fails");
+        assertTrue(range.isComplete(T0.plusSeconds(60)), "TimeRange has to stay empty after a call that fails");
     }
 
     @Test
