@@ -179,12 +179,12 @@ JavaSE 1.8):
 
 ```text
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.timerange
-Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.1.0";uses:="com.github.sftwnd.crayfish.common.expectation"
+Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.0.5";uses:="com.github.sftwnd.crayfish.common.expectation"
 Import-Package: com.github.sftwnd.crayfish.common.expectation;version="[1.4,2)"
 
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.service
-Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.1.0";uses:="com.github.sftwnd.crayfish.alarms.timerange"
-Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.1,2)"
+Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.0.5";uses:="com.github.sftwnd.crayfish.alarms.timerange"
+Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.0,2)"
 ```
 
 The build checks the bundles in Apache Felix on Java 8 and Java 21: the framework resolves them with the bundle of
