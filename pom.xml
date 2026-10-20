@@ -8,7 +8,7 @@
 
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms</artifactId>
-    <version>1.0.5</version>
+    <version>1.1.0-SNAPSHOT</version>
 
     <name>CrayFish :: ALARMS</name>
 
@@ -38,7 +38,7 @@
         <url>https://github.com/sftwnd/crayfish-alarms</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-alarms.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-alarms.git</developerConnection>
-        <tag>crayfish-alarms-1.0.5</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <modules>
@@ -50,7 +50,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- the time of the entries of the jars, for reproducible builds: maven-release-plugin sets the time of the
              release at release:prepare; without the property the super POM of Maven 3.10 sets 1980-02-01 -->
-        <project.build.outputTimestamp>2026-10-20T12:29:15Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-10-20T12:29:36Z</project.build.outputTimestamp>
         <maven.plugin.validation>BRIEF</maven.plugin.validation>
         <!-- the classes are compiled for Java 8, the module descriptors (src/main/java9) for Java 9+ -->
         <maven.compiler.source>1.8</maven.compiler.source>
