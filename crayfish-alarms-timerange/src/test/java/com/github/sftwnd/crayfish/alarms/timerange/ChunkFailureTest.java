@@ -73,8 +73,8 @@ class ChunkFailureTest {
                 String context = (withComparator ? "comparator" : "hash code") + ", failure on comparison " + failAt;
                 List<Integer> expected = new ArrayList<>(result.expected);
                 List<Integer> fired = new ArrayList<>(result.fired);
-                Collections.sort(expected);
-                Collections.sort(fired);
+                expected.sort(null);
+                fired.sort(null);
                 assertEquals(expected, fired, () -> context + ": every element added has to fire once");
             }
             assertEquals(total, failures, "Every run of the script has to fail once");
