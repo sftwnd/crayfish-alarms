@@ -128,13 +128,8 @@ final class Chunk<S> {
      */
     @SuppressWarnings("unchecked")
     void fire(long limit, @NonNull Consumer<? super S> consumer) {
-        if (!this.hot) {
-            if (this.minimum > limit) {
-                // nothing fires: the chunk stays cold, its new elements are appended
-                return;
-            }
-            compact();
-            this.hot = true;
+        if (!heat(limit)) {
+            return;
         }
         Fired fired = new Fired();
         boolean due = true;
@@ -149,8 +144,25 @@ final class Chunk<S> {
                 }
             }
         }
+        releaseFiredSorted();
+    }
+
+    // A cold chunk that has an element up to the limit becomes hot: its elements are sorted, the duplicates dropped.
+    // A cold chunk with nothing to fire stays cold, and its new elements are appended.
+    private boolean heat(long limit) {
+        if (!this.hot) {
+            if (this.minimum > limit) {
+                return false;
+            }
+            compact();
+            this.hot = true;
+        }
+        return true;
+    }
+
+    // The arrays of the sorted elements go when the sorted elements have all fired
+    private void releaseFiredSorted() {
         if (this.head == this.size) {
-            // the sorted elements have all fired: their arrays go
             this.moments = NO_MOMENTS;
             this.elements = NO_ELEMENTS;
             this.head = 0;
