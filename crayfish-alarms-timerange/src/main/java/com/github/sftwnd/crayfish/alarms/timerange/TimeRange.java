@@ -235,30 +235,14 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         long nowNumber = whole ? Long.MAX_VALUE : chunkNumber(now);
         // The elements that fire are found first, with the comparisons, then reduced, and only then taken out of the
         // chunks: an exception of the comparator or of the reducer leaves every element in the range
-        List<Chunk<S>.Firing> firings = new ArrayList<>();
+        List<Chunk<S>.Firing> firings = prepare(now, nowNumber, whole);
+        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
+        firings.forEach(firing -> firing.forEach(fired));
+        firings.forEach(Chunk<S>.Firing::commit);
         // Since TreeMap, the head map goes in ascending order of the numbers: the chunks before the chunk of the current
         // moment have fired as a whole
-        Map<Long, Chunk<S>> due = this.chunks.headMap(nowNumber, false);
-        for (Chunk<S> dueChunk : due.values()) {
-            firings.add(dueChunk.prepare(Long.MAX_VALUE));
-        }
-        // The elements of the chunk of the current moment up to the moment have fired, the others stay in the chunk
+        this.chunks.headMap(nowNumber, false).clear();
         Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
-        if (chunk != null) {
-            firings.add(chunk.prepare(chunkMoment(now, nowNumber)));
-        }
-        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
-        for (Chunk<S>.Firing firing : firings) {
-            if (firing != null) {
-                firing.forEach(fired);
-            }
-        }
-        for (Chunk<S>.Firing firing : firings) {
-            if (firing != null) {
-                firing.commit();
-            }
-        }
-        due.clear();
         if (chunk != null && chunk.isEmpty()) {
             this.chunks.remove(nowNumber);
         }
@@ -269,6 +253,27 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // Rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
         return result;
+    }
+
+    // The firings of the chunks before the chunk of the moment, as a whole, and of the chunk of the moment up to it: the
+    // chunks are not changed until the firings are committed
+    private @NonNull List<Chunk<S>.Firing> prepare(@NonNull Instant now, long nowNumber, boolean whole) {
+        List<Chunk<S>.Firing> firings = new ArrayList<>();
+        for (Chunk<S> due : this.chunks.headMap(nowNumber, false).values()) {
+            addFiring(firings, due.prepare(Long.MAX_VALUE));
+        }
+        // The elements of the chunk of the current moment up to the moment fire, the others stay in the chunk
+        Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
+        if (chunk != null) {
+            addFiring(firings, chunk.prepare(chunkMoment(now, nowNumber)));
+        }
+        return firings;
+    }
+
+    private void addFiring(@NonNull List<Chunk<S>.Firing> firings, @Nullable Chunk<S>.Firing firing) {
+        if (firing != null) {
+            firings.add(firing);
+        }
     }
 
     private void setNearestInstant(@Nullable Instant nearestInstant) {
