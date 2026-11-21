@@ -105,7 +105,7 @@ This is the most general method. When calling it, you must specify the **duratio
 * **preserver** - transforms an added element into the element that the range stores
 * **expectation** - gets the time marker of a stored element
 * **reducer** - transforms a fired stored element into the resulting one
-* **comparator** - compares the stored elements of the same time marker, or null (see the uniqueness constraint above)
+* **comparator** - compares the stored elements of the same time marker, or null (see the uniqueness constraint above). It must not throw, and neither must `hashCode` and `equals` without it: they are called when the elements of a chunk are sorted, in `addElements` and in `extractFiredElements`. An exception of them fails the call, and the range stays consistent: an extraction that fails takes nothing out of it. An element whose comparisons fail stays in the range and fails the sorts of its chunk again.
 
 ```java
     ITimeRangeFactory<SourceObject,FiredObject> timeRangeFactory = ITimeRangeFactory.create(
@@ -219,7 +219,7 @@ All fired elements will be extracted from the holder and returned as a result as
             .thenAcceptAsync(rejected -> System.out.println("rejected: " + rejected));
 ```
 
-The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
+The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer or of an extraction, for example of the comparator: the range keeps the alarms of the extraction. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
 
 The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of `Object.wait`, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
 

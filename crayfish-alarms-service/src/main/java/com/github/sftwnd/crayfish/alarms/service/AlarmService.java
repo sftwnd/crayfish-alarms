@@ -83,7 +83,11 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     /**
      * The process of igniting alarm clocks at a given moment in time.
      * At its end, the requests that the process has not applied are rejected.
+     * An exception of a registration completes its request exceptionally, and the process goes on. An exception of an
+     * extraction ends the process: an exception of the comparator of the time range, of {@code hashCode} or
+     * {@code equals} without one, or of its reducer; the time range keeps the alarms of the extraction.
      * @param consumer Handler for a set of triggered alarms
+     * @throws RuntimeException the exception of an extraction, or of the consumer
      */
     @Override
     public final void process(@NonNull Consumer<Collection<R>> consumer, @Nullable Supplier<Duration> timeOffset) {
