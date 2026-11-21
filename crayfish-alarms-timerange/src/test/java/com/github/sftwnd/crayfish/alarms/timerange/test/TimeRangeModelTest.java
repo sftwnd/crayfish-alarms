@@ -136,7 +136,7 @@ class TimeRangeModelTest {
 
         // a moment from a twentieth of the range before it to a twentieth after it
         private Instant tick() {
-            long value = (long) ((random.nextDouble() * 1.1 - 0.05) * this.span);
+            long value = Math.floorMod(random.nextLong(), this.span + this.span / 10) - this.span / 20;
             return this.nanos ? this.start.plusNanos(value) : this.start.plusSeconds(value).plusNanos(random.nextInt(1_000_000_000));
         }
 
@@ -171,7 +171,7 @@ class TimeRangeModelTest {
             } else if (choice == 1) {
                 return this.ticks.get(random.nextInt(this.ticks.size()));
             }
-            long step = (long) (random.nextDouble() * this.span / 300);
+            long step = Math.floorMod(random.nextLong(), this.span / 300 + 1);
             this.cursor = this.nanos ? this.cursor.plusNanos(step) : this.cursor.plusSeconds(step);
             return this.cursor;
         }
