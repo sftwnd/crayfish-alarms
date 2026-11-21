@@ -374,7 +374,8 @@ class AlarmTimeRangeServiceTest {
         Instant later = Instant.now().plusMillis(500);
         assertEquals(later, alarmService.addElement(later).toCompletableFuture().get(1, TimeUnit.SECONDS),
                 "AlarmService has to reject an alarm after the end of the process");
-        assertThrows(IllegalStateException.class, () -> timeRange.extractFiredElements(Instant.now()),
+        Instant now = Instant.now();
+        assertThrows(IllegalStateException.class, () -> timeRange.extractFiredElements(now),
                 "The time range has to keep the alarms of the extraction that failed");
     }
 
