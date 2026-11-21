@@ -136,33 +136,18 @@ final class Chunk<S> {
             compact();
             this.hot = true;
         }
-        // the fired elements of the moment and of the order of the last one: an element of the heap can be a duplicate
-        // of an earlier element of the heap
-        List<Object> group = new ArrayList<>();
-        long groupMoment = 0L;
-        while (this.head < this.size || this.lateSize > 0) {
-            boolean sortedFirst = this.lateSize == 0 || this.head < this.size
-                    && compare(this.moments[this.head], this.elements[this.head], this.lateMoments[0], this.lateElements[0]) <= 0;
-            long moment = sortedFirst ? this.moments[this.head] : this.lateMoments[0];
-            if (moment > limit) {
-                break;
+        Fired fired = new Fired();
+        boolean due = true;
+        while (due && !isEmpty()) {
+            boolean sortedNext = isSortedNext();
+            long moment = sortedNext ? this.moments[this.head] : this.lateMoments[0];
+            due = moment <= limit;
+            if (due) {
+                Object element = sortedNext ? pollSorted() : pollLate();
+                if (fired.isNew(moment, element)) {
+                    consumer.accept((S) element);
+                }
             }
-            Object element;
-            if (sortedFirst) {
-                element = this.elements[this.head];
-                this.elements[this.head++] = null;
-            } else {
-                element = this.lateElements[0];
-                pollLate();
-            }
-            if (group.isEmpty() || groupMoment != moment || tie(group.get(0), element) != 0) {
-                group.clear();
-                groupMoment = moment;
-            } else if (duplicate(group, element)) {
-                continue;
-            }
-            group.add(element);
-            consumer.accept((S) element);
         }
         if (this.head == this.size) {
             // the sorted elements have all fired: their arrays go
@@ -268,14 +253,27 @@ final class Chunk<S> {
         return false;
     }
 
-    private void pollLate() {
+    // The next element to fire is a sorted one: on a tie the sorted elements go first, they were added before the heap
+    private boolean isSortedNext() {
+        return this.lateSize == 0 || this.head < this.size
+                && compare(this.moments[this.head], this.elements[this.head], this.lateMoments[0], this.lateElements[0]) <= 0;
+    }
+
+    private Object pollSorted() {
+        Object first = this.elements[this.head];
+        this.elements[this.head++] = null;
+        return first;
+    }
+
+    private Object pollLate() {
+        Object first = this.lateElements[0];
         int last = --this.lateSize;
         long moment = this.lateMoments[last];
         Object element = this.lateElements[last];
         int number = this.lateNumbers[last];
         this.lateElements[last] = null;
         if (last == 0) {
-            return;
+            return first;
         }
         // sift down
         int index = 0;
@@ -294,6 +292,7 @@ final class Chunk<S> {
             index = child;
         }
         setLate(index, moment, element, number);
+        return first;
     }
 
     private boolean lateBefore(int first, int second) {
@@ -364,18 +363,6 @@ final class Chunk<S> {
         return false;
     }
 
-    // An element is a duplicate of a fired element of its moment and order
-    private boolean duplicate(List<Object> group, Object element) {
-        if (this.comparator != null) {
-            return true;
-        }
-        for (Object fired : group) {
-            if (fired.equals(element)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     // A stable merge sort of [from, to) of the arrays by the order of the elements, then of the numbers if there are
     @SuppressWarnings("java:S3776")
@@ -465,6 +452,27 @@ final class Chunk<S> {
         return this.comparator == null
                 ? Integer.compare(first.hashCode(), second.hashCode())
                 : this.comparator.compare((S) first, (S) second);
+    }
+
+    /**
+     * The fired elements of the moment and of the order of the last one: an element of the heap can be a duplicate of
+     * an earlier element of the heap, and they fire one after the other
+     */
+    private final class Fired {
+        private final List<Object> group = new ArrayList<>();
+        private long moment;
+
+        // false for a duplicate of a fired element of its moment and order
+        private boolean isNew(long elementMoment, Object element) {
+            if (this.group.isEmpty() || this.moment != elementMoment || tie(this.group.get(0), element) != 0) {
+                this.group.clear();
+                this.moment = elementMoment;
+            } else if (comparator != null || this.group.contains(element)) {
+                return false;
+            }
+            this.group.add(element);
+            return true;
+        }
     }
 
     /**
