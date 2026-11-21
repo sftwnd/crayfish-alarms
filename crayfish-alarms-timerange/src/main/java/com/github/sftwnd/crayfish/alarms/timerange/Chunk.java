@@ -8,9 +8,8 @@ package com.github.sftwnd.crayfish.alarms.timerange;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -26,6 +25,11 @@ import java.util.function.Consumer;
  * first time. A hot chunk, which has fired, keeps its sorted elements, finds the duplicates of a new element among them
  * by a binary search and keeps the new elements in a binary heap, which is merged into the sorted elements when it
  * reaches a quarter of them: an extraction from the chunk of the current moment costs no sort of the chunk.
+ * <p>
+ * An exception of the comparator, or of {@code hashCode} or {@code equals} without one, leaves the elements of the
+ * chunk as they were: the sorts and the merges work on copies, the heap is ordered by the moments and the numbers of
+ * the addition without comparisons, and an extraction finds the elements that fire, with their comparisons, before
+ * it takes them out (see {@link #prepare(long)}).
  * @param <S> Element type of the internal storage
  */
 final class Chunk<S> {
@@ -53,8 +57,8 @@ final class Chunk<S> {
     private long minimum = Long.MAX_VALUE;
     private boolean hot;
 
-    // The binary heap of the elements added to a hot chunk, with the numbers of their addition, which order the elements
-    // of a moment that are equal by the comparator or by the hash code
+    // The binary heap of the elements added to a hot chunk, with the numbers of their addition: it is ordered by the
+    // moments and the numbers only, without a comparison of the elements
     private long[] lateMoments;
     private Object[] lateElements;
     private int[] lateNumbers;
@@ -126,25 +130,67 @@ final class Chunk<S> {
      * @param limit the latest moment of the elements to take
      * @param consumer the consumer of the elements taken
      */
-    @SuppressWarnings("unchecked")
     void fire(long limit, @NonNull Consumer<? super S> consumer) {
+        Firing firing = prepare(limit);
+        if (firing != null) {
+            firing.forEach(consumer);
+            firing.commit();
+        }
+    }
+
+    /**
+     * Finds the elements with a moment up to the limit in their order, without taking them out of the chunk: an
+     * exception of the comparator leaves the elements of the chunk as they were. Nothing may change the chunk until the
+     * firing is committed.
+     * @param limit the latest moment of the elements to fire
+     * @return the elements to fire, null without any
+     */
+    @Nullable Firing prepare(long limit) {
         if (!heat(limit)) {
-            return;
+            return null;
         }
-        Fired fired = new Fired();
-        boolean due = true;
-        while (due && !isEmpty()) {
-            boolean sortedNext = isSortedNext();
-            long moment = sortedNext ? this.moments[this.head] : this.lateMoments[0];
-            due = moment <= limit;
-            if (due) {
-                Object element = sortedNext ? pollSorted() : pollLate();
-                if (fired.isNew(moment, element)) {
-                    consumer.accept((S) element);
-                }
-            }
+        int end = this.head;
+        while (end < this.size && this.moments[end] <= limit) {
+            end++;
         }
-        releaseFiredSorted();
+        int late = countLate(0, limit);
+        if (late == 0) {
+            // the sorted elements have no duplicates: they fire as they are
+            return end == this.head ? null : new Firing(end, 0, this.elements, this.head, end);
+        }
+        // the due elements of the heap in their order, merged with the due sorted elements without the duplicates
+        long[] dueMoments = new long[late];
+        Object[] dueElements = new Object[late];
+        int[] dueNumbers = new int[late];
+        collectLate(0, limit, new Run(dueMoments, dueElements, dueNumbers, 0), 0);
+        sort(dueMoments, dueElements, dueNumbers, 0, late);
+        int count = end - this.head + late;
+        long[] firedMoments = new long[count];
+        Object[] firedElements = new Object[count];
+        int fired = mergeDistinct(this.moments, this.elements, this.head, end,
+                dueMoments, dueElements, 0, late, firedMoments, firedElements);
+        return new Firing(end, late, firedElements, 0, fired);
+    }
+
+    // The number of the elements of the heap from the index on with a moment up to the limit: the moment of an element
+    // of the heap is never earlier than the one of its parent
+    private int countLate(int index, long limit) {
+        if (index >= this.lateSize || this.lateMoments[index] > limit) {
+            return 0;
+        }
+        return 1 + countLate((index << 1) + 1, limit) + countLate((index << 1) + 2, limit);
+    }
+
+    // Copies the elements of the heap from the index on with a moment up to the limit to the run from the position on
+    private int collectLate(int index, long limit, Run run, int position) {
+        if (index >= this.lateSize || this.lateMoments[index] > limit) {
+            return position;
+        }
+        run.moments[position] = this.lateMoments[index];
+        run.elements[position] = this.lateElements[index];
+        run.numbers[position] = this.lateNumbers[index];
+        int next = collectLate((index << 1) + 1, limit, run, position + 1);
+        return collectLate((index << 1) + 2, limit, run, next);
     }
 
     // A cold chunk that has an element up to the limit becomes hot: its elements are sorted, the duplicates dropped.
@@ -171,18 +217,31 @@ final class Chunk<S> {
         }
     }
 
-    // Sorts the appended elements of a cold chunk, merges them with the sorted ones and drops the duplicates
+    // Sorts the appended elements of a cold chunk, merges them with the sorted ones and drops the duplicates. The sort
+    // works on a copy of the appended elements, and the merge into the arrays of the chunk puts them back if it fails:
+    // an exception of the comparator leaves the chunk as it was.
     private void compact() {
         if (this.sorted < this.size) {
-            sort(this.moments, this.elements, null, this.sorted, this.size);
+            int appended = this.size - this.sorted;
+            long[] appendedMoments = Arrays.copyOfRange(this.moments, this.sorted, this.size);
+            Object[] appendedElements = Arrays.copyOfRange(this.elements, this.sorted, this.size);
+            sort(appendedMoments, appendedElements, null, 0, appended);
             // the sorted elements were added before the appended ones, and go first among the elements of their order
-            long[] prefixMoments = new long[this.sorted];
-            Object[] prefixElements = new Object[this.sorted];
-            System.arraycopy(this.moments, 0, prefixMoments, 0, this.sorted);
-            System.arraycopy(this.elements, 0, prefixElements, 0, this.sorted);
-            // in place: the merged elements never pass the next appended one to read
-            int count = mergeDistinct(prefixMoments, prefixElements, 0, this.sorted,
-                    this.moments, this.elements, this.sorted, this.size, this.moments, this.elements);
+            long[] prefixMoments = Arrays.copyOf(this.moments, this.sorted);
+            Object[] prefixElements = Arrays.copyOf(this.elements, this.sorted);
+            int count = -1;
+            try {
+                count = mergeDistinct(prefixMoments, prefixElements, 0, this.sorted,
+                        appendedMoments, appendedElements, 0, appended, this.moments, this.elements);
+            } finally {
+                if (count < 0) {
+                    // the sorted elements and the appended ones, now in their order, are put back
+                    System.arraycopy(prefixMoments, 0, this.moments, 0, this.sorted);
+                    System.arraycopy(prefixElements, 0, this.elements, 0, this.sorted);
+                    System.arraycopy(appendedMoments, 0, this.moments, this.sorted, appended);
+                    System.arraycopy(appendedElements, 0, this.elements, this.sorted, appended);
+                }
+            }
             for (int i = count; i < this.size; i++) {
                 this.elements[i] = null;
             }
@@ -230,12 +289,12 @@ final class Chunk<S> {
             this.lateElements = extendedElements;
             this.lateNumbers = extendedNumbers;
         }
-        // sift up: the new element has the greatest number, and goes after the elements of its order
+        // sift up: the new element has the greatest number, and goes after the elements of its moment
         int index = this.lateSize++;
         int number = this.lateNumber++;
         while (index > 0) {
             int parent = (index - 1) >>> 1;
-            if (compare(moment, element, this.lateMoments[parent], this.lateElements[parent]) >= 0) {
+            if (moment >= this.lateMoments[parent]) {
                 break;
             }
             setLate(index, this.lateMoments[parent], this.lateElements[parent], this.lateNumbers[parent]);
@@ -265,27 +324,15 @@ final class Chunk<S> {
         return false;
     }
 
-    // The next element to fire is a sorted one: on a tie the sorted elements go first, they were added before the heap
-    private boolean isSortedNext() {
-        return this.lateSize == 0 || this.head < this.size
-                && compare(this.moments[this.head], this.elements[this.head], this.lateMoments[0], this.lateElements[0]) <= 0;
-    }
-
-    private Object pollSorted() {
-        Object first = this.elements[this.head];
-        this.elements[this.head++] = null;
-        return first;
-    }
-
-    private Object pollLate() {
-        Object first = this.lateElements[0];
+    // Takes the first element out of the heap, by its moment and number: no comparison of the elements
+    private void pollLate() {
         int last = --this.lateSize;
         long moment = this.lateMoments[last];
         Object element = this.lateElements[last];
         int number = this.lateNumbers[last];
         this.lateElements[last] = null;
         if (last == 0) {
-            return first;
+            return;
         }
         // sift down
         int index = 0;
@@ -293,23 +340,21 @@ final class Chunk<S> {
         while (index < half) {
             int child = (index << 1) + 1;
             int right = child + 1;
-            if (right < last && lateBefore(right, child)) {
+            if (right < last && lateBefore(this.lateMoments[right], this.lateNumbers[right], this.lateMoments[child], this.lateNumbers[child])) {
                 child = right;
             }
-            int order = compare(moment, element, this.lateMoments[child], this.lateElements[child]);
-            if (order < 0 || order == 0 && number < this.lateNumbers[child]) {
+            if (lateBefore(moment, number, this.lateMoments[child], this.lateNumbers[child])) {
                 break;
             }
             setLate(index, this.lateMoments[child], this.lateElements[child], this.lateNumbers[child]);
             index = child;
         }
         setLate(index, moment, element, number);
-        return first;
     }
 
-    private boolean lateBefore(int first, int second) {
-        int order = compare(this.lateMoments[first], this.lateElements[first], this.lateMoments[second], this.lateElements[second]);
-        return order < 0 || order == 0 && this.lateNumbers[first] < this.lateNumbers[second];
+    // The order of the heap: the moment, then the number of the addition
+    private static boolean lateBefore(long firstMoment, int firstNumber, long secondMoment, int secondNumber) {
+        return firstMoment < secondMoment || firstMoment == secondMoment && firstNumber < secondNumber;
     }
 
     private void setLate(int index, long moment, Object element, int number) {
@@ -318,14 +363,19 @@ final class Chunk<S> {
         this.lateNumbers[index] = number;
     }
 
-    // The heap goes into the sorted elements: they were added before it, and go first among the elements of their order
+    // The heap goes into the sorted elements: they were added before it, and go first among the elements of their order.
+    // The sort and the merge work on copies, which the chunk takes at the end: an exception of the comparator leaves the
+    // chunk as it was.
     private void mergeLate() {
-        sort(this.lateMoments, this.lateElements, this.lateNumbers, 0, this.lateSize);
+        long[] sortedMoments = Arrays.copyOf(this.lateMoments, this.lateSize);
+        Object[] sortedElements = Arrays.copyOf(this.lateElements, this.lateSize);
+        int[] sortedNumbers = Arrays.copyOf(this.lateNumbers, this.lateSize);
+        sort(sortedMoments, sortedElements, sortedNumbers, 0, this.lateSize);
         int capacity = Math.max(this.size - this.head + this.lateSize, INITIAL_CAPACITY);
         long[] mergedMoments = new long[capacity];
         Object[] mergedElements = new Object[capacity];
         int count = mergeDistinct(this.moments, this.elements, this.head, this.size,
-                this.lateMoments, this.lateElements, 0, this.lateSize, mergedMoments, mergedElements);
+                sortedMoments, sortedElements, 0, this.lateSize, mergedMoments, mergedElements);
         this.moments = mergedMoments;
         this.elements = mergedElements;
         this.head = 0;
@@ -339,8 +389,7 @@ final class Chunk<S> {
     }
 
     // Merges two sorted runs into the target from its start without the duplicates: the first run goes first among the
-    // elements of its order. The target can be the arrays of the second run when the merged elements never pass the next
-    // element of the second run to read.
+    // elements of its order. The target is neither of the runs.
     @SuppressWarnings("java:S107")
     private int mergeDistinct(long[] firstMoments, Object[] firstElements, int first, int firstEnd,
                               long[] secondMoments, Object[] secondElements, int second, int secondEnd,
@@ -467,23 +516,50 @@ final class Chunk<S> {
     }
 
     /**
-     * The fired elements of the moment and of the order of the last one: an element of the heap can be a duplicate of
-     * an earlier element of the heap, and they fire one after the other
+     * The elements of a chunk that fire up to a moment, in their order: the chunk gives them away when the firing is
+     * committed. Nothing may change the chunk between the preparation and the commit.
      */
-    private final class Fired {
-        private final List<Object> group = new ArrayList<>();
-        private long moment;
+    final class Firing {
+        // the end of the sorted elements that fire, and the number of the elements of the heap that fire
+        private final int end;
+        private final int late;
+        // the elements that fire: [from, to) of the array
+        private final Object[] fired;
+        private final int from;
+        private final int to;
 
-        // false for a duplicate of a fired element of its moment and order
-        private boolean isNew(long elementMoment, Object element) {
-            if (this.group.isEmpty() || this.moment != elementMoment || tie(this.group.get(0), element) != 0) {
-                this.group.clear();
-                this.moment = elementMoment;
-            } else if (comparator != null || this.group.contains(element)) {
-                return false;
+        private Firing(int end, int late, Object[] fired, int from, int to) {
+            this.end = end;
+            this.late = late;
+            this.fired = fired;
+            this.from = from;
+            this.to = to;
+        }
+
+        /**
+         * Gives the elements that fire in their order, before the commit
+         * @param consumer the consumer of the elements
+         */
+        @SuppressWarnings("unchecked")
+        void forEach(@NonNull Consumer<? super S> consumer) {
+            for (int i = this.from; i < this.to; i++) {
+                consumer.accept((S) this.fired[i]);
             }
-            this.group.add(element);
-            return true;
+        }
+
+        /**
+         * Takes the elements that fire out of the chunk. No element is compared: the elements of the heap up to the
+         * moment are its first ones by their moments and numbers.
+         */
+        void commit() {
+            for (int i = head; i < this.end; i++) {
+                elements[i] = null;
+            }
+            head = this.end;
+            for (int i = 0; i < this.late; i++) {
+                pollLate();
+            }
+            releaseFiredSorted();
         }
     }
 
