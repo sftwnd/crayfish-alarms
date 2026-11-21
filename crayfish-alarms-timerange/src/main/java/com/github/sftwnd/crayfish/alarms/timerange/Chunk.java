@@ -451,11 +451,11 @@ final class Chunk<S> {
 
     private int compare(long firstMoment, Object firstElement, int firstNumber, long secondMoment, Object secondElement, int secondNumber) {
         int order = compare(firstMoment, firstElement, secondMoment, secondElement);
-        return order != 0 ? order : Integer.compare(firstNumber, secondNumber);
+        return order == 0 ? Integer.compare(firstNumber, secondNumber) : order;
     }
 
     private int compare(long firstMoment, Object firstElement, long secondMoment, Object secondElement) {
-        return firstMoment != secondMoment ? Long.compare(firstMoment, secondMoment) : tie(firstElement, secondElement);
+        return firstMoment == secondMoment ? tie(firstElement, secondElement) : Long.compare(firstMoment, secondMoment);
     }
 
     // The order of two elements of a moment
