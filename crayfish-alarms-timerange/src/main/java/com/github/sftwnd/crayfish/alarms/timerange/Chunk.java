@@ -81,7 +81,12 @@ final class Chunk<S> {
             return;
         }
         if (this.size == this.moments.length) {
-            compact(true);
+            compact();
+            // the arrays grow when they are still full, or when the duplicates have not freed a quarter of them
+            int capacity = this.moments.length;
+            if (this.size == capacity || this.size > capacity - (capacity >> 2)) {
+                grow(capacity + Math.max(capacity >> 1, INITIAL_CAPACITY));
+            }
         }
         this.moments[this.size] = moment;
         this.elements[this.size++] = element;
@@ -128,7 +133,7 @@ final class Chunk<S> {
                 // nothing fires: the chunk stays cold, its new elements are appended
                 return;
             }
-            compact(false);
+            compact();
             this.hot = true;
         }
         // the fired elements of the moment and of the order of the last one: an element of the heap can be a duplicate
@@ -169,9 +174,8 @@ final class Chunk<S> {
         }
     }
 
-    // Sorts the appended elements of a cold chunk, merges them with the sorted ones and drops the duplicates. On full
-    // arrays, they grow unless the duplicates have freed a quarter of them.
-    private void compact(boolean grow) {
+    // Sorts the appended elements of a cold chunk, merges them with the sorted ones and drops the duplicates
+    private void compact() {
         if (this.sorted < this.size) {
             sort(this.moments, this.elements, null, this.sorted, this.size);
             // the sorted elements were added before the appended ones, and go first among the elements of their order
@@ -188,16 +192,16 @@ final class Chunk<S> {
             this.size = count;
             this.sorted = count;
         }
-        int capacity = this.moments.length;
-        if (grow && this.size > capacity - (capacity >> 2)) {
-            int extended = capacity + Math.max(capacity >> 1, INITIAL_CAPACITY);
-            long[] extendedMoments = new long[extended];
-            Object[] extendedElements = new Object[extended];
-            System.arraycopy(this.moments, 0, extendedMoments, 0, this.size);
-            System.arraycopy(this.elements, 0, extendedElements, 0, this.size);
-            this.moments = extendedMoments;
-            this.elements = extendedElements;
-        }
+    }
+
+    // The arrays of a cold chunk with room for more elements
+    private void grow(int capacity) {
+        long[] extendedMoments = new long[capacity];
+        Object[] extendedElements = new Object[capacity];
+        System.arraycopy(this.moments, 0, extendedMoments, 0, this.size);
+        System.arraycopy(this.elements, 0, extendedElements, 0, this.size);
+        this.moments = extendedMoments;
+        this.elements = extendedElements;
     }
 
     // An element added to a hot chunk goes to the heap, unless it is a duplicate of a sorted element. A full heap is
