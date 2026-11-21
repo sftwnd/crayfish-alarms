@@ -1,5 +1,5 @@
 /*
- * Copyright © 2017-2023 Andrey D. Shindarev. All rights reserved.
+ * Copyright © 2017-2026 Andrey D. Shindarev. All rights reserved.
  * This program is made available under the terms of the BSD 3-Clause License.
  * Contacts: ashindarev@gmail.com
  */
@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import static java.util.Optional.ofNullable;
 
@@ -39,12 +40,19 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
             java:S107 Methods should not have too many params
             java:S3358 Ternary operators should not be nested
      */
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
+    // A range at least as long as this has no offset in a long of nanoseconds: its chunks are of whole seconds
+    private static final Duration NANOS_LIMIT = Duration.ofNanos(Long.MAX_VALUE);
+    // The longest chunk of a range of whole seconds: a moment in it fits in a long of nanoseconds
+    private static final Duration LONGEST_CHUNK = Duration.ofDays(36_500);
+
     Duration duration;
 
     /**
-     * The size of the internal chunk-a division of the interval
+     * The size of the internal chunk-a division of the interval: in whole seconds, or else in nanoseconds
      */
-    private final Duration interval;
+    private final long intervalSeconds;
+    private final long intervalNanos;
 
     /**
      * Constructor for the internal storage object from the incoming element
@@ -65,11 +73,6 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      */
     private final Comparator<? super S> comparator;
 
-    /**
-     * The order of the elements of a chunk: by their moments, then by the comparator or, without one, by their hash codes
-     */
-    private final Comparator<Entry<S>> order;
-
     // Beginning of the region validity period
     private final Instant startInstant;
     // Upper limit of the interval (exclude...)
@@ -79,12 +82,14 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
 
     // The moment of the nearest element. In case of absence - null
     private Instant nearestInstant = null;
-    // A set of elements distributed over ranges of size interval
-    // TreeMap storage structure that guarantees ascending traversal order
-    // The internal elements, with their moments, are contained in a TreeMap, which also guarantees order. Without a
-    // comparator, the elements of a moment with the same hash code follow the first of them in the order of addition.
+    // The chunks of the elements by their numbers from the start of the range: the chunk of a number takes the moments
+    // from the start of the range plus the number of intervals, up to the next one. A TreeMap goes in ascending order of
+    // the numbers; a chunk keeps the moments of its elements as nanoseconds from its start (see Chunk).
     // Here we specify not the interface, but the implementation deliberately!!!
-    private final TreeMap<Instant, TreeMap<Entry<S>, Entry<S>>> expectedMap = new TreeMap<>();
+    private final TreeMap<Long, Chunk<S>> chunks = new TreeMap<>();
+    // The chunk of the last element added, by its number: the elements of a call often go to one chunk
+    private long lastNumber;
+    private Chunk<S> lastChunk;
 
     /**
      * An object containing objects marked with a time-marker for the range to search for triggered
@@ -111,17 +116,15 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     ) {
         Objects.requireNonNull(time, "TimeRange::new - time is null");
         this.duration = Objects.requireNonNull(duration, "TimeRange::new - duration is null");
-        this.interval = interval(Objects.requireNonNull(interval, "TimeRange::new - interval is null"), this.duration);
+        Duration chunk = chunk(interval(Objects.requireNonNull(interval, "TimeRange::new - interval is null"), this.duration), this.duration);
+        this.intervalSeconds = chunk.getNano() == 0 ? chunk.getSeconds() : 0L;
+        this.intervalNanos = chunk.getNano() == 0 ? 0L : chunk.toNanos();
         this.preserver = Objects.requireNonNull(preserver, "TimeRange::new - preserver is null");
         this.expectation = Objects.requireNonNull(expectation, "TimeRange::new - expectation is null");
         this.reducer = Objects.requireNonNull(reducer, "TimeRange::new - reducer is null");
         this.startInstant = Optional.of(this.duration).filter(Duration::isNegative).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.lastInstant = Optional.of(this.duration).filter(value -> !value.isNegative()).map(Instant.from(time)::plus).orElseGet(() -> Instant.from(time));
         this.comparator = comparator;
-        Comparator<Entry<S>> byInstant = Comparator.comparing(entry -> entry.instant);
-        this.order = comparator == null
-                ? byInstant.thenComparingInt(entry -> entry.hash)
-                : byInstant.thenComparing(entry -> entry.element, comparator);
         this.completeInstant = this.lastInstant.plus(Optional.ofNullable(completeTimeout).filter(value -> !value.isNegative()).orElse(Duration.ZERO));
     }
 
@@ -150,7 +153,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * @return true if completed or false otherwise
      */
     public boolean isComplete(@Nullable Instant instant) {
-        return this.expectedMap.isEmpty() && isExpired(instant);
+        return this.chunks.isEmpty() && isExpired(instant);
     }
 
     /**
@@ -167,48 +170,41 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         List<M> excludes = new LinkedList<>();
         // All the elements are transformed first: an element that cannot be transformed fails the call before any
         // element of it is added
-        List<Entry<S>> entries = new ArrayList<>(elements.size());
-        elements.stream()
-                .filter(Objects::nonNull) // If element is not null
-                .forEach(element -> {
-                    S storeElement = this.preserver.apply(element); // Transform element to internal store format
-                    Instant instant = instant(storeElement); // The moment of the element is computed once
-                    // Checking for range
-                    if (checkRange(instant)) {
-                        entries.add(new Entry<>(instant, storeElement, this.comparator == null ? storeElement.hashCode() : 0));
-                    } else {
-                        excludes.add(element);
-                    }
-                });
-        entries.forEach(this::addEntry);
+        List<S> storeElements = new ArrayList<>(elements.size());
+        List<Instant> instants = new ArrayList<>(elements.size());
+        for (M element : elements) {
+            if (element != null) {
+                S storeElement = this.preserver.apply(element); // Transform element to internal store format
+                Instant instant = instant(storeElement); // The moment of the element is computed once
+                // Checking for range
+                if (checkRange(instant)) {
+                    storeElements.add(storeElement);
+                    instants.add(instant);
+                } else {
+                    excludes.add(element);
+                }
+            }
+        }
+        for (int i = 0; i < storeElements.size(); i++) {
+            addElement(instants.get(i), storeElements.get(i));
+        }
         return excludes;
     }
 
-    // Add an element in the internal format to its chunk of the time range storage, unless it is a duplicate
-    private void addEntry(@NonNull Entry<S> entry) {
-        this.expectedMap.computeIfAbsent(getInstantKey(entry.instant), key -> new TreeMap<>(this.order))
-                .merge(entry, entry, this::join);
+    // Add an element in the internal format to its chunk of the time range storage, unless it is a duplicate: an element
+    // of the moment of the element that is equal to it by the comparator or, without one, by the hash code and equals
+    private void addElement(@NonNull Instant instant, @NonNull S element) {
+        long number = chunkNumber(instant);
+        Chunk<S> chunk = this.lastChunk != null && this.lastNumber == number
+                ? this.lastChunk
+                : this.chunks.computeIfAbsent(number, key -> new Chunk<>(this.comparator));
+        this.lastNumber = number;
+        this.lastChunk = chunk;
+        chunk.add(chunkMoment(instant, number), element);
         // If the element is the earliest, then mark it with Instant (a duplicate is not: its moment has an element already)
-        if (entry.instant.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX))) {
-            setNearestInstant(entry.instant);
+        if (instant.isBefore(ofNullable(this.nearestInstant).orElse(Instant.MAX))) {
+            setNearestInstant(instant);
         }
-    }
-
-    // Without a comparator, an element with the moment and the hash code of the first one follows the elements of the first
-    // one, unless it equals one of them; with a comparator, an element of the moment of the first one that is equal to it
-    // by the comparator is a duplicate
-    private @NonNull Entry<S> join(@NonNull Entry<S> first, @NonNull Entry<S> entry) {
-        if (this.comparator == null) {
-            Entry<S> last = first;
-            while (!last.element.equals(entry.element)) {
-                if (last.next == null) {
-                    last.next = entry;
-                    break;
-                }
-                last = last.next;
-            }
-        }
-        return first;
     }
 
     /**
@@ -219,37 +215,38 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      */
     public @NonNull Collection<R> extractFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
-        // The key corresponding to the current moment
-        Instant nowKey = getInstantKey(now);
         List<R> result = new ArrayList<>();
-        // Since TreeMap, the head map goes in ascending order of the instantKey key: the chunks before the chunk of the
-        // current moment have fired as a whole
-        Iterator<TreeMap<Entry<S>, Entry<S>>> chunks = this.expectedMap.headMap(nowKey, false).values().iterator();
-        while (chunks.hasNext()) {
-            chunks.next().values().forEach(first -> fire(first, result));
-            chunks.remove();
+        // Before the start of the range nothing has fired
+        if (now.isBefore(this.startInstant) || this.chunks.isEmpty()) {
+            return result;
         }
-        // The elements of the chunk of the current moment are in ascending order of their time: the first of them have
-        // fired, the others stay in the chunk
-        TreeMap<Entry<S>, Entry<S>> chunk = this.expectedMap.get(nowKey);
+        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
+        // From the end of the range on, every chunk has fired as a whole: the moment is clamped to the range before it
+        // becomes the number of a chunk and a moment in it
+        boolean whole = !now.isBefore(this.lastInstant);
+        long nowNumber = whole ? Long.MAX_VALUE : chunkNumber(now);
+        // Since TreeMap, the head map goes in ascending order of the numbers: the chunks before the chunk of the current
+        // moment have fired as a whole
+        Iterator<Chunk<S>> due = this.chunks.headMap(nowNumber, false).values().iterator();
+        while (due.hasNext()) {
+            due.next().fire(Long.MAX_VALUE, fired);
+            due.remove();
+        }
+        // The elements of the chunk of the current moment up to the moment have fired, the others stay in the chunk
+        Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
         if (chunk != null) {
-            while (!chunk.isEmpty() && happened(chunk.firstKey(), now)) {
-                fire(chunk.pollFirstEntry().getValue(), result);
-            }
+            chunk.fire(chunkMoment(now, nowNumber), fired);
             if (chunk.isEmpty()) {
-                this.expectedMap.remove(nowKey);
+                this.chunks.remove(nowNumber);
             }
+        }
+        // A chunk that has fired as a whole is no longer in the map
+        if (this.lastChunk != null && this.lastChunk.isEmpty()) {
+            this.lastChunk = null;
         }
         // Rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
         return result;
-    }
-
-    // The fired element and the elements that follow it
-    private void fire(@NonNull Entry<S> first, @NonNull List<R> result) {
-        for (Entry<S> entry = first; entry != null; entry = entry.next) {
-            result.add(this.reducer.apply(entry.element));
-        }
     }
 
     private void setNearestInstant(@Nullable Instant nearestInstant) {
@@ -257,11 +254,8 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
     }
 
     private Instant findNearestInstant() {
-        return ofNullable(this.expectedMap.firstEntry())
-                .map(Map.Entry::getValue)
-                .map(TreeMap::firstKey)
-                .map(entry -> entry.instant)
-                .orElse(null);
+        Map.Entry<Long, Chunk<S>> first = this.chunks.firstEntry();
+        return first == null ? null : instant(first.getKey(), first.getValue().firstMoment());
     }
 
     /**
@@ -275,7 +269,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         if (now.isBefore(this.startInstant)) {
             return durationToStart(now);
         // If the start time of the range has passed and there are no elements
-        } else if (this.expectedMap.isEmpty()) {
+        } else if (this.chunks.isEmpty()) {
             return durationToStop(now);
         // If there are elements and the time falls within the range
         } else if (now.isBefore(this.lastInstant)) {
@@ -290,7 +284,8 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      */
     @Override
     public void clean() {
-        this.expectedMap.clear();
+        this.chunks.clear();
+        this.lastChunk = null;
         setNearestInstant(null);
     }
 
@@ -338,42 +333,61 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         return chunk.toMillis() < 1 ? Duration.ofMillis(1) : chunk;
     }
 
-    /**
-     * Rounds the given instant to the beginning of the interval
-     * @param instant The moment at which it is necessary to determine the key of the polling period
-     * @return moment describing the range of the polling period
-     */
-    private Instant getInstantKey(@NonNull Instant instant) {
-        return Instant.ofEpochMilli(instant.toEpochMilli() - instant.toEpochMilli() % this.interval.toMillis());
+    // The chunk of a range at least as long as a long of nanoseconds is of whole seconds and at most a century: a moment
+    // in it fits in a long of nanoseconds. The chunks are an internal division, which changes no result of the range.
+    private static @NonNull Duration chunk(@NonNull Duration interval, @NonNull Duration duration) {
+        if (duration.abs().compareTo(NANOS_LIMIT) < 0) {
+            return interval;
+        }
+        Duration chunk = interval.compareTo(LONGEST_CHUNK) > 0 ? LONGEST_CHUNK : interval;
+        return Duration.ofSeconds(Math.max(chunk.getSeconds(), 1L));
     }
 
-    // Check that element event occurs for now
-    private boolean happened(@NonNull Entry<S> entry, @NonNull Instant now) {
-        return !entry.instant.isAfter(now);
+    /**
+     * The number of the chunk of a moment of the range: the number of whole intervals from the start of the range
+     * @param instant a moment of the range
+     * @return the number of the chunk
+     */
+    private long chunkNumber(@NonNull Instant instant) {
+        long seconds = instant.getEpochSecond() - this.startInstant.getEpochSecond();
+        int nanos = instant.getNano() - this.startInstant.getNano();
+        if (nanos < 0) {
+            seconds--;
+            nanos += NANOS_PER_SECOND;
+        }
+        return this.intervalSeconds > 0
+                ? seconds / this.intervalSeconds
+                : (seconds * NANOS_PER_SECOND + nanos) / this.intervalNanos;
+    }
+
+    /**
+     * The moment in its chunk: the nanoseconds from the start of the chunk, never negative and less than the interval
+     * @param instant a moment of the range
+     * @param number the number of the chunk of the moment
+     * @return the nanoseconds from the start of the chunk
+     */
+    private long chunkMoment(@NonNull Instant instant, long number) {
+        long seconds = instant.getEpochSecond() - this.startInstant.getEpochSecond();
+        int nanos = instant.getNano() - this.startInstant.getNano();
+        if (nanos < 0) {
+            seconds--;
+            nanos += NANOS_PER_SECOND;
+        }
+        return this.intervalSeconds > 0
+                ? (seconds - number * this.intervalSeconds) * NANOS_PER_SECOND + nanos
+                : seconds * NANOS_PER_SECOND + nanos - number * this.intervalNanos;
+    }
+
+    // The moment of the nanoseconds from the start of a chunk
+    private @NonNull Instant instant(long number, long moment) {
+        return this.intervalSeconds > 0
+                ? this.startInstant.plusSeconds(number * this.intervalSeconds).plusNanos(moment)
+                : this.startInstant.plusNanos(number * this.intervalNanos + moment);
     }
 
     // Extract instant from internal element
     private @NonNull Instant instant(@NonNull S element) {
         return Instant.from(this.expectation.apply(element));
-    }
-
-    /**
-     * An internal element with its moment, computed once, when the element is added
-     * @param <S> Element type of the internal storage
-     */
-    private static final class Entry<S> {
-        private final Instant instant;
-        private final S element;
-        // Without a comparator, the hash code of the element orders the elements of a moment
-        private final int hash;
-        // Without a comparator, the next element of the moment with the same hash code, in the order of addition
-        private Entry<S> next;
-
-        private Entry(@NonNull Instant instant, @NonNull S element, int hash) {
-            this.instant = instant;
-            this.element = element;
-            this.hash = hash;
-        }
     }
 
 }

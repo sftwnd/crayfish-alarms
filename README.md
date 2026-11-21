@@ -76,6 +76,12 @@ The entire TimeRange is divided into sub-ranges with the duration specified by t
 For each subrange, a separate structure for storing elements marked with a time-marker is allocated, which just falls into the specified subrange.
 An interval that is not positive or longer than the duration is taken equal to the absolute duration, and an interval is at least a millisecond.
 
+The sub-ranges start at the start of the range. A sub-range keeps the moments of its elements as nanoseconds from its
+start in an array of `long`s, and the elements in an array of references: 12 bytes besides an element, plus the spare
+room of the arrays. A range of 4,000,000 `Instant`s takes 41 bytes of the heap per element, the `Instant` included
+(96 in 1.0.5, 64 in 1.0.4). The interval divides the storage only and changes no result of the range; a range of 292 years
+or longer, beyond a `long` of nanoseconds, takes sub-ranges of whole seconds up to a century.
+
 ### Supported items
 
 The implemented library allows you to store elements that have a time marker inside the TimeRange and retrieve at each moment of time those objects that have a time marker earlier than the current moment. A temporary marker can be attached to an object in three ways:
