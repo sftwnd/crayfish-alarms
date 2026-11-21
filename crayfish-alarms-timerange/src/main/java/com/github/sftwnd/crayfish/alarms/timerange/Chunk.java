@@ -206,17 +206,6 @@ final class Chunk<S> {
         return true;
     }
 
-    // The arrays of the sorted elements go when the sorted elements have all fired
-    private void releaseFiredSorted() {
-        if (this.head == this.size) {
-            this.moments = NO_MOMENTS;
-            this.elements = NO_ELEMENTS;
-            this.head = 0;
-            this.sorted = 0;
-            this.size = 0;
-        }
-    }
-
     // Sorts the appended elements of a cold chunk, merges them with the sorted ones and drops the duplicates. The sort
     // works on a copy of the appended elements, and the merge into the arrays of the chunk puts them back if it fails:
     // an exception of the comparator leaves the chunk as it was.
@@ -322,39 +311,6 @@ final class Chunk<S> {
             }
         }
         return false;
-    }
-
-    // Takes the first element out of the heap, by its moment and number: no comparison of the elements
-    private void pollLate() {
-        int last = --this.lateSize;
-        long moment = this.lateMoments[last];
-        Object element = this.lateElements[last];
-        int number = this.lateNumbers[last];
-        this.lateElements[last] = null;
-        if (last == 0) {
-            return;
-        }
-        // sift down
-        int index = 0;
-        int half = last >>> 1;
-        while (index < half) {
-            int child = (index << 1) + 1;
-            int right = child + 1;
-            if (right < last && lateBefore(this.lateMoments[right], this.lateNumbers[right], this.lateMoments[child], this.lateNumbers[child])) {
-                child = right;
-            }
-            if (lateBefore(moment, number, this.lateMoments[child], this.lateNumbers[child])) {
-                break;
-            }
-            setLate(index, this.lateMoments[child], this.lateElements[child], this.lateNumbers[child]);
-            index = child;
-        }
-        setLate(index, moment, element, number);
-    }
-
-    // The order of the heap: the moment, then the number of the addition
-    private static boolean lateBefore(long firstMoment, int firstNumber, long secondMoment, int secondNumber) {
-        return firstMoment < secondMoment || firstMoment == secondMoment && firstNumber < secondNumber;
     }
 
     private void setLate(int index, long moment, Object element, int number) {
@@ -560,6 +516,50 @@ final class Chunk<S> {
                 pollLate();
             }
             releaseFiredSorted();
+        }
+
+        // Takes the first element out of the heap, by its moment and number: no comparison of the elements
+        private void pollLate() {
+            int last = --lateSize;
+            long moment = lateMoments[last];
+            Object element = lateElements[last];
+            int number = lateNumbers[last];
+            lateElements[last] = null;
+            if (last == 0) {
+                return;
+            }
+            // sift down
+            int index = 0;
+            int half = last >>> 1;
+            while (index < half) {
+                int child = (index << 1) + 1;
+                int right = child + 1;
+                if (right < last && lateBefore(lateMoments[right], lateNumbers[right], lateMoments[child], lateNumbers[child])) {
+                    child = right;
+                }
+                if (lateBefore(moment, number, lateMoments[child], lateNumbers[child])) {
+                    break;
+                }
+                setLate(index, lateMoments[child], lateElements[child], lateNumbers[child]);
+                index = child;
+            }
+            setLate(index, moment, element, number);
+        }
+
+        // The order of the heap: the moment, then the number of the addition
+        private boolean lateBefore(long firstMoment, int firstNumber, long secondMoment, int secondNumber) {
+            return firstMoment < secondMoment || firstMoment == secondMoment && firstNumber < secondNumber;
+        }
+
+        // The arrays of the sorted elements go when the sorted elements have all fired
+        private void releaseFiredSorted() {
+            if (head == size) {
+                moments = NO_MOMENTS;
+                elements = NO_ELEMENTS;
+                head = 0;
+                sorted = 0;
+                size = 0;
+            }
         }
     }
 
