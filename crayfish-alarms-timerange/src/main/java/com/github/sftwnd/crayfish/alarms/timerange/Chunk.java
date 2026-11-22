@@ -47,7 +47,7 @@ final class Chunk<S> {
     // a chunk with this many elements is split into parts, when its arrays are full or its heap is due to be merged
     private static final int SPLIT_SIZE = 4096;
     // the number of the parts of a split chunk
-    private static final int PARTS = 16;
+    private static final int PART_COUNT = 16;
     private static final long[] NO_MOMENTS = new long[0];
     private static final Object[] NO_ELEMENTS = new Object[0];
 
@@ -160,7 +160,7 @@ final class Chunk<S> {
      * @return true if the chunk has no element
      */
     boolean isEmpty() {
-        return this.parts != null ? this.firstPart == PARTS : this.head == this.size && this.lateSize == 0;
+        return this.parts != null ? this.firstPart == PART_COUNT : this.head == this.size && this.lateSize == 0;
     }
 
     /**
@@ -190,7 +190,7 @@ final class Chunk<S> {
      */
     long firstMoment() {
         if (this.parts != null) {
-            return this.firstPart == PARTS
+            return this.firstPart == PART_COUNT
                     ? Long.MAX_VALUE
                     : this.firstPart * this.partLength + this.parts[this.firstPart].firstMoment();
         }
@@ -278,7 +278,7 @@ final class Chunk<S> {
     // committed
     @SuppressWarnings("unchecked")
     private @Nullable Firing prepareParts(long limit) {
-        int last = limit / this.partLength >= PARTS ? PARTS - 1 : (int) (limit / this.partLength);
+        int last = limit / this.partLength >= PART_COUNT ? PART_COUNT - 1 : (int) (limit / this.partLength);
         Firing[] firings = null;
         int[] indexes = null;
         int count = 0;
@@ -298,7 +298,7 @@ final class Chunk<S> {
     }
 
     private boolean canSplit() {
-        return this.span >= PARTS;
+        return this.span >= PART_COUNT;
     }
 
     // The element goes to the part of its moment, a new part if the part has no elements
@@ -325,9 +325,9 @@ final class Chunk<S> {
     // first of the duplicates. No element is compared: a split cannot fail. A part with many elements is split again.
     @SuppressWarnings("unchecked")
     private void split() {
-        long length = this.span / PARTS + (this.span % PARTS == 0L ? 0L : 1L);
+        long length = this.span / PART_COUNT + (this.span % PART_COUNT == 0L ? 0L : 1L);
         int[] lateOrder = lateOrder();
-        int[] counts = new int[PARTS];
+        int[] counts = new int[PART_COUNT];
         for (int i = this.head; i < this.size; i++) {
             counts[(int) (this.moments[i] / length)]++;
         }
@@ -335,9 +335,9 @@ final class Chunk<S> {
             counts[(int) (this.lateMoments[index] / length)]++;
         }
         this.partLength = length;
-        this.parts = (Chunk<S>[]) new Chunk<?>[PARTS];
-        this.firstPart = PARTS;
-        for (int index = PARTS - 1; index >= 0; index--) {
+        this.parts = (Chunk<S>[]) new Chunk<?>[PART_COUNT];
+        this.firstPart = PART_COUNT;
+        for (int index = PART_COUNT - 1; index >= 0; index--) {
             if (counts[index] > 0) {
                 this.parts[index] = new Chunk<>(this.comparator, partSpan(index), this.splitSize, counts[index]);
                 this.firstPart = index;
@@ -766,7 +766,7 @@ final class Chunk<S> {
                     parts[index] = null;
                 }
             }
-            while (firstPart < PARTS && parts[firstPart] == null) {
+            while (firstPart < PART_COUNT && parts[firstPart] == null) {
                 firstPart++;
             }
         }
