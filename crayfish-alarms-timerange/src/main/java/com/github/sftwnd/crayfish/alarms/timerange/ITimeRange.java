@@ -70,10 +70,18 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
      * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
      * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
      * fails the call before any element of it is added.
+     * <p>
+     * The comparator of the range, or {@code hashCode} and {@code equals} without one, must not throw. It is called
+     * when the elements of a chunk of the range are sorted: when its arrays are full, when it fires for the first time
+     * and when a new element of a chunk that has fired is checked for a duplicate. An exception of it fails the call or
+     * the extraction, and can come from an element added earlier, which stays in the range and fails the sorts of its
+     * chunk again. The range stays consistent: the elements of the call added before the exception stay in it, the
+     * others are not added, and an extraction that fails takes nothing out of the range.
      * @param elements collection of added elements
      * @return the elements out of the range, which are not added
      * @throws RuntimeException the exception of the transformation of an element, for example
-     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added; or
+     *         the exception of the comparator, of {@code hashCode} or of {@code equals}
      */
     @Override
     @NonNull Collection<M> addElements(@NonNull Collection<M> elements);
@@ -91,6 +99,8 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
      * Extracting from the saved elements those that, according to the temporary marker, are considered to have
      * worked at the current moment
      * @return List of triggered elements
+     * @throws RuntimeException the exception of the comparator, of {@code hashCode} or of {@code equals} (see
+     *         {@link #addElements(Collection)}), or of the reducer: no element is taken out of the range
      */
     default @NonNull Collection<R> extractFiredElements() {
         return extractFiredElements( Instant.now() );
@@ -101,6 +111,8 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
      * at the time passed by the parameter
      * @param instant point in time at which the check is made
      * @return List of triggered elements
+     * @throws RuntimeException the exception of the comparator, of {@code hashCode} or of {@code equals} (see
+     *         {@link #addElements(Collection)}), or of the reducer: no element is taken out of the range
      */
     @NonNull Collection<R> extractFiredElements(@Nullable Instant instant);
 

@@ -40,7 +40,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param preserver Constructor for the internal storage object from the incoming element
      * @param expectation Getting timestamp from internal element
      * @param reducer Method for converting an internal element into a result element
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      * @param <M> input element type
      * @param <S> internal element type
      * @param <R> the type of the returned element
@@ -76,7 +76,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param expectation Getting timestamp from internal element
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      * @return TimeRange.ITimeRangeFactory instance
      * @param <M> input element type
      */
@@ -98,7 +98,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
      * @param timeExtractor Extractor of temporal accessor from input element
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      * @param <E> input element type
      * @param <T> the type of temporal accessor value
      * @return TimeRange.ITimeRangeFactory instance
@@ -124,7 +124,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      * @param <M> input element type
      * @return TimeRange.ITimeRangeFactory instance
      */
@@ -147,7 +147,7 @@ public interface ITimeRangeFactory<M,R> {
      * @param duration Duration of the region period (if negative, then to the left of instant, otherwise - to the right)
      * @param interval The intervals at which duration beats (if &gt; duration or &lt;= ZERO, then it is taken equal to duration.abs(); at least a millisecond)
      * @param completeTimeout The time after the end of the range, from which on an empty range is complete (null or negative: none)
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      * @param <M> input element type
      * @return TimeRange.ITimeRangeFactory instance
      */

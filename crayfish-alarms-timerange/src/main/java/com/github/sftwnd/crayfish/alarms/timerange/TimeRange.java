@@ -14,8 +14,8 @@ import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +101,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * @param preserver Method for converting an input element into an internal element
      * @param expectation Getting timestamp from incoming element
      * @param reducer Method for converting an internal element into a result element
-     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates
+     * @param comparator The order of the elements of the same time marker, which also finds their duplicates; null: the elements of a time marker are ordered by their hash codes, and equal ones are duplicates. It is called, or the hash codes and equals are, when the elements of a chunk of the range are sorted, in addElements and in extractFiredElements, and must not throw (see {@link ITimeRange#addElements(java.util.Collection)})
      */
     @SuppressWarnings("java:S107")
     TimeRange(
@@ -160,10 +160,18 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * Add the elements to the range. An element out of the range is not added and is returned. A null element is skipped,
      * and a duplicate of an element of the range is not added; neither is returned. An element that cannot be transformed
      * fails the call before any element of it is added.
+     * <p>
+     * The comparator of the range, or {@code hashCode} and {@code equals} without one, must not throw. It is called
+     * when the elements of a chunk of the range are sorted: when its arrays are full, when it fires for the first time
+     * and when a new element of a chunk that has fired is checked for a duplicate. An exception of it fails the call or
+     * the extraction, and can come from an element added earlier, which stays in the range and fails the sorts of its
+     * chunk again. The range stays consistent: the elements of the call added before the exception stay in it, the
+     * others are not added, and an extraction that fails takes nothing out of the range.
      * @param elements collection of added elements
      * @return the elements out of the range, which are not added
      * @throws RuntimeException the exception of the transformation of an element, for example
-     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added
+     *         {@link java.time.DateTimeException} for a tick that is no instant: no element of the call is added; or
+     *         the exception of the comparator, of {@code hashCode} or of {@code equals}
      */
     public @NonNull Collection<M> addElements(@NonNull Collection<M> elements) {
         Objects.requireNonNull(elements, "TimeRange::addElement - elements is null");
@@ -212,6 +220,8 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * to have worked at the time passed by the parameter
      * @param instant point in time at which the check is made
      * @return List of triggered elements
+     * @throws RuntimeException the exception of the comparator, of {@code hashCode} or of {@code equals} (see
+     *         {@link #addElements(Collection)}), or of the reducer: no element is taken out of the range
      */
     public @NonNull Collection<R> extractFiredElements(@Nullable Instant instant) {
         Instant now = ofNullable(instant).orElseGet(Instant::now);
@@ -220,25 +230,25 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         if (now.isBefore(this.startInstant) || this.chunks.isEmpty()) {
             return result;
         }
-        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
         // From the end of the range on, every chunk has fired as a whole: the moment is clamped to the range before it
         // becomes the number of a chunk and a moment in it
         boolean whole = !now.isBefore(this.lastInstant);
         long nowNumber = whole ? Long.MAX_VALUE : chunkNumber(now);
         // Since TreeMap, the head map goes in ascending order of the numbers: the chunks before the chunk of the current
-        // moment have fired as a whole
-        Iterator<Chunk<S>> due = this.chunks.headMap(nowNumber, false).values().iterator();
-        while (due.hasNext()) {
-            due.next().fire(Long.MAX_VALUE, fired);
-            due.remove();
-        }
-        // The elements of the chunk of the current moment up to the moment have fired, the others stay in the chunk
+        // moment have fired as a whole. Usually there is none, and no head map is made.
+        Map<Long, Chunk<S>> due = this.chunks.firstKey() < nowNumber ? this.chunks.headMap(nowNumber, false) : null;
+        // The elements of the chunk of the current moment up to the moment fire, the others stay in the chunk
         Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
-        if (chunk != null) {
-            chunk.fire(chunkMoment(now, nowNumber), fired);
-            if (chunk.isEmpty()) {
-                this.chunks.remove(nowNumber);
-            }
+        // The elements that fire are found first, with the comparisons, then reduced, and only then taken out of the
+        // chunks: an exception of the comparator or of the reducer leaves every element in the range
+        List<Chunk<S>.Firing> firings = due == null ? Collections.emptyList() : prepareWhole(due);
+        Chunk<S>.Firing current = chunk == null ? null : chunk.prepare(chunkMoment(now, nowNumber));
+        fire(firings, current, result);
+        if (due != null) {
+            due.clear();
+        }
+        if (chunk != null && chunk.isEmpty()) {
+            this.chunks.remove(nowNumber);
         }
         // A chunk that has fired as a whole is no longer in the map
         if (this.lastChunk != null && this.lastChunk.isEmpty()) {
@@ -247,6 +257,31 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // Rows were deleted, and it is required to recalculate the time of the nearest element (if any)
         setNearestInstant(findNearestInstant());
         return result;
+    }
+
+    // The firings of the chunks that fire as a whole: the chunks are not changed until the firings are committed
+    private @NonNull List<Chunk<S>.Firing> prepareWhole(@NonNull Map<Long, Chunk<S>> due) {
+        List<Chunk<S>.Firing> firings = new ArrayList<>();
+        for (Chunk<S> dueChunk : due.values()) {
+            Chunk<S>.Firing firing = dueChunk.prepare(Long.MAX_VALUE);
+            if (firing != null) {
+                firings.add(firing);
+            }
+        }
+        return firings;
+    }
+
+    // The elements of the firings are reduced in their order, and then the firings are committed
+    private void fire(@NonNull List<Chunk<S>.Firing> firings, @Nullable Chunk<S>.Firing current, @NonNull List<R> result) {
+        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
+        firings.forEach(firing -> firing.forEach(fired));
+        if (current != null) {
+            current.forEach(fired);
+        }
+        firings.forEach(Chunk<S>.Firing::commit);
+        if (current != null) {
+            current.commit();
+        }
     }
 
     private void setNearestInstant(@Nullable Instant nearestInstant) {

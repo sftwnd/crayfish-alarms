@@ -343,6 +343,43 @@ class AlarmTimeRangeServiceTest {
     }
 
     @Test
+    void failedExtraction() throws InterruptedException, ExecutionException, TimeoutException {
+        // the comparator fails for the elements of a moment: it is called when the chunk fires, not when they are added
+        ITimeRange<TemporalAccessor, TemporalAccessor> timeRange = ITimeRangeFactory.<TemporalAccessor>temporal(
+                Duration.ofSeconds(5), Duration.ofMillis(100), Duration.ofMillis(250),
+                (first, second) -> {
+                    throw new IllegalStateException("comparator failure");
+                }).timeRange(Instant.now());
+        IAlarmService<TemporalAccessor, TemporalAccessor> alarmService = new AlarmTimeRangeService<>(timeRange, Duration.ZERO);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            try {
+                alarmService.process(ignore -> {});
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            }
+        });
+        thread.start();
+        try {
+            Instant moment = Instant.now().plusMillis(200);
+            assertEquals(Collections.emptyList(), alarmService.addElements(Arrays.asList(moment, moment)).toCompletableFuture().get(1, TimeUnit.SECONDS),
+                    "AlarmService has to register the alarms, whose comparison comes when they fire");
+            thread.join(2_000);
+            assertFalse(thread.isAlive(), "The process has to end on an exception of the extraction");
+        } finally {
+            thread.interrupt();
+        }
+        assertNotNull(failure.get(), "The process has to end with the exception of the extraction");
+        assertEquals("comparator failure", failure.get().getMessage(), "The process has to end with the exception of the comparator");
+        Instant later = Instant.now().plusMillis(500);
+        assertEquals(later, alarmService.addElement(later).toCompletableFuture().get(1, TimeUnit.SECONDS),
+                "AlarmService has to reject an alarm after the end of the process");
+        Instant now = Instant.now();
+        assertThrows(IllegalStateException.class, () -> timeRange.extractFiredElements(now),
+                "The time range has to keep the alarms of the extraction that failed");
+    }
+
+    @Test
     @SuppressWarnings("ConstantConditions")
     void processNull() throws InterruptedException {
         ITimeRange<Instant, Instant> timeRange = timeRange();
