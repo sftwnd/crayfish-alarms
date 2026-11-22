@@ -24,15 +24,35 @@ public class AlarmTimeRangeService<M,R> extends AlarmService<M, R> {
     private final ITimeRange<M,R> timeRange;
 
     /**
-     * Construct IAlarmService for just one ITimeRange
+     * Construct IAlarmService for just one ITimeRange, with the default step of a wake-up, a millisecond
      * @param timeRange predefined ITimeRange
-     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait; null for none
+     * @param minimalWait a wait shorter than minimalWait is a busy loop instead of a wait; null or zero, the default,
+     *                    for none
      */
     public AlarmTimeRangeService(
             @NonNull ITimeRange<M, R> timeRange,
             @Nullable Duration minimalWait
     ) {
-        super(minimalWait);
+        this(timeRange, minimalWait, null);
+    }
+
+    /**
+     * Construct IAlarmService for just one ITimeRange
+     * @param timeRange predefined ITimeRange
+     * @param minimalWait a wait shorter than minimalWait is a busy loop instead of a wait; null or zero, the default,
+     *                    for none
+     * @param wakeUpStep the step of a wake-up: the timeout of a wait for the next alarm is rounded up to a multiple of
+     *                   it. Null, the default, for a millisecond, the rounding of 1.0.5; zero for precise waits, which
+     *                   fire the alarms closer to their moments at the cost of more wake-ups of the process, up to twice
+     *                   its CPU; a coarser step leaves more alarms to an extraction. A negative step is zero
+     * @since 1.1.0
+     */
+    public AlarmTimeRangeService(
+            @NonNull ITimeRange<M, R> timeRange,
+            @Nullable Duration minimalWait,
+            @Nullable Duration wakeUpStep
+    ) {
+        super(minimalWait, wakeUpStep);
         this.timeRange = Objects.requireNonNull(timeRange, "AlarmTimeRangeService::new - timeRange is null");
     }
 
