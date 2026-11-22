@@ -158,17 +158,19 @@ final class Chunk<S> {
             // the sorted elements have no duplicates: they fire as they are
             return end == this.head ? null : new Firing(end, 0, this.elements, this.head, end);
         }
+        if (late == 1 && end == this.head) {
+            // the first element of the heap alone fires as it is
+            return new Firing(end, 1, this.lateElements, 0, 1);
+        }
         // the due elements of the heap in their order, merged with the due sorted elements without the duplicates
         long[] dueMoments = new long[late];
         Object[] dueElements = new Object[late];
         int[] dueNumbers = new int[late];
-        collectLate(0, limit, new Run(dueMoments, dueElements, dueNumbers, 0), 0);
+        collectLate(0, limit, dueMoments, dueElements, dueNumbers, 0);
         sort(dueMoments, dueElements, dueNumbers, 0, late);
-        int count = end - this.head + late;
-        long[] firedMoments = new long[count];
-        Object[] firedElements = new Object[count];
+        Object[] firedElements = new Object[end - this.head + late];
         int fired = mergeDistinct(this.moments, this.elements, this.head, end,
-                dueMoments, dueElements, 0, late, firedMoments, firedElements);
+                dueMoments, dueElements, 0, late, null, firedElements);
         return new Firing(end, late, firedElements, 0, fired);
     }
 
@@ -181,16 +183,16 @@ final class Chunk<S> {
         return 1 + countLate((index << 1) + 1, limit) + countLate((index << 1) + 2, limit);
     }
 
-    // Copies the elements of the heap from the index on with a moment up to the limit to the run from the position on
-    private int collectLate(int index, long limit, Run run, int position) {
+    // Copies the elements of the heap from the index on with a moment up to the limit to the arrays from the position on
+    private int collectLate(int index, long limit, long[] dueMoments, Object[] dueElements, int[] dueNumbers, int position) {
         if (index >= this.lateSize || this.lateMoments[index] > limit) {
             return position;
         }
-        run.moments[position] = this.lateMoments[index];
-        run.elements[position] = this.lateElements[index];
-        run.numbers[position] = this.lateNumbers[index];
-        int next = collectLate((index << 1) + 1, limit, run, position + 1);
-        return collectLate((index << 1) + 2, limit, run, next);
+        dueMoments[position] = this.lateMoments[index];
+        dueElements[position] = this.lateElements[index];
+        dueNumbers[position] = this.lateNumbers[index];
+        int next = collectLate((index << 1) + 1, limit, dueMoments, dueElements, dueNumbers, position + 1);
+        return collectLate((index << 1) + 2, limit, dueMoments, dueElements, dueNumbers, next);
     }
 
     // A cold chunk that has an element up to the limit becomes hot: its elements are sorted, the duplicates dropped.
@@ -345,12 +347,15 @@ final class Chunk<S> {
     }
 
     // Merges two sorted runs into the target from its start without the duplicates: the first run goes first among the
-    // elements of its order. The target is neither of the runs.
+    // elements of its order. The target is neither of the runs; without target moments only the elements are merged.
     @SuppressWarnings("java:S107")
     private int mergeDistinct(long[] firstMoments, Object[] firstElements, int first, int firstEnd,
                               long[] secondMoments, Object[] secondElements, int second, int secondEnd,
-                              long[] targetMoments, Object[] targetElements) {
+                              @Nullable long[] targetMoments, Object[] targetElements) {
         int target = 0;
+        // the merged elements of the moment of the last one start here: a duplicate is one of them
+        int group = 0;
+        long groupMoment = 0L;
         while (first < firstEnd || second < secondEnd) {
             long moment;
             Object element;
@@ -362,17 +367,23 @@ final class Chunk<S> {
                 moment = secondMoments[second];
                 element = secondElements[second++];
             }
-            if (!isMergedDuplicate(targetMoments, targetElements, target, moment, element)) {
-                targetMoments[target] = moment;
+            if (target == group || moment != groupMoment) {
+                group = target;
+                groupMoment = moment;
+            }
+            if (!isMergedDuplicate(targetElements, group, target, element)) {
+                if (targetMoments != null) {
+                    targetMoments[target] = moment;
+                }
                 targetElements[target++] = element;
             }
         }
         return target;
     }
 
-    // An element is a duplicate of a merged element of its order: they are the last ones merged
-    private boolean isMergedDuplicate(long[] targetMoments, Object[] targetElements, int target, long moment, Object element) {
-        for (int i = target - 1; i >= 0 && targetMoments[i] == moment && tie(targetElements[i], element) == 0; i--) {
+    // An element is a duplicate of a merged element of its moment and order: they are the last ones merged
+    private boolean isMergedDuplicate(Object[] targetElements, int group, int target, Object element) {
+        for (int i = target - 1; i >= group && tie(targetElements[i], element) == 0; i--) {
             if (this.comparator != null || targetElements[i].equals(element)) {
                 return true;
             }
