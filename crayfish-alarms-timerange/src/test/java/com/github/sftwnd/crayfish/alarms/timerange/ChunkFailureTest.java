@@ -16,12 +16,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * An exception of the comparator, or of {@code hashCode} and {@code equals} without one, leaves the chunk as it was: an
  * addition that fails adds nothing, an extraction that fails takes nothing out, and later extractions fire every
- * element added once, in order. Every script runs once for each of its comparisons, failing on that one.
+ * element added once, in order. Every script runs once for each of its comparisons, failing on that one, with a chunk
+ * that stays whole and with a chunk that is split from a few elements on.
  */
 class ChunkFailureTest {
 
     // the elements of a moment: the comparator, or the hash code, is called for the elements of a moment only
     private static final int PER_MOMENT = 10;
+    // the chunk that is split: the moments of the scripts are less than its span, and its parts are split again
+    private static final long SPLIT_SPAN = 48_000L;
+    private static final int SPLIT_SIZE = 16;
 
     @Test
     void coldChunkTest() {
@@ -59,31 +63,58 @@ class ChunkFailureTest {
         check(script);
     }
 
-    private static void check(List<Operation> script) {
-        for (boolean withComparator : new boolean[] {true, false}) {
-            Calls calls = new Calls();
-            int total = run(script, withComparator, calls).comparisons;
-            assertTrue(total > 0, "The script has to compare elements");
-            int failures = 0;
-            for (int failAt = 1; failAt <= total; failAt++) {
-                Calls failing = new Calls();
-                failing.failAt = failAt;
-                Result result = run(script, withComparator, failing);
-                failures += result.failures;
-                String context = (withComparator ? "comparator" : "hash code") + ", failure on comparison " + failAt;
-                List<Integer> expected = new ArrayList<>(result.expected);
-                List<Integer> fired = new ArrayList<>(result.fired);
-                expected.sort(null);
-                fired.sort(null);
-                assertEquals(expected, fired, () -> context + ": every element added has to fire once");
+    @Test
+    void hotSplitTest() {
+        // a chunk fires while it is small, then its heap grows: the chunk that is split is split hot, and fires with
+        // its parts
+        List<Operation> script = new ArrayList<>(additions(0, 10, 6));
+        script.add(Operation.fire(moment(0)));
+        List<Operation> late = additions(10, 300, 7);
+        for (int i = 0; i < late.size(); i++) {
+            script.add(late.get(i));
+            if (i % 60 == 59) {
+                script.add(Operation.fire(moment(10 + i / 2)));
             }
-            assertEquals(total, failures, "Every run of the script has to fail once");
+        }
+        script.add(Operation.fire(Long.MAX_VALUE));
+        check(script);
+    }
+
+    private static void check(List<Operation> script) {
+        for (boolean split : new boolean[] {false, true}) {
+            for (boolean withComparator : new boolean[] {true, false}) {
+                check(script, split, withComparator);
+            }
         }
     }
 
+    private static void check(List<Operation> script, boolean split, boolean withComparator) {
+        Calls calls = new Calls();
+        Result reference = run(script, split, withComparator, calls);
+        int total = reference.comparisons;
+        assertTrue(total > 0, "The script has to compare elements");
+        assertEquals(split, reference.split, "The chunk that is split has to be split by the script");
+        int failures = 0;
+        for (int failAt = 1; failAt <= total; failAt++) {
+            Calls failing = new Calls();
+            failing.failAt = failAt;
+            Result result = run(script, split, withComparator, failing);
+            failures += result.failures;
+            String context = (split ? "split, " : "") + (withComparator ? "comparator" : "hash code") + ", failure on comparison " + failAt;
+            List<Integer> expected = new ArrayList<>(result.expected);
+            List<Integer> fired = new ArrayList<>(result.fired);
+            expected.sort(null);
+            fired.sort(null);
+            assertEquals(expected, fired, () -> context + ": every element added has to fire once");
+        }
+        assertEquals(total, failures, "Every run of the script has to fail once");
+    }
+
     // the script with one failure at most; the chunk then fires what is left
-    private static Result run(List<Operation> script, boolean withComparator, Calls calls) {
-        Chunk<Item> chunk = new Chunk<>(withComparator ? calls.comparator() : null);
+    private static Result run(List<Operation> script, boolean split, boolean withComparator, Calls calls) {
+        Chunk<Item> chunk = split
+                ? new Chunk<>(withComparator ? calls.comparator() : null, SPLIT_SPAN, SPLIT_SIZE)
+                : new Chunk<>(withComparator ? calls.comparator() : null);
         Result result = new Result();
         for (Operation operation : script) {
             List<Item> fired = new ArrayList<>();
@@ -99,6 +130,7 @@ class ChunkFailureTest {
                 assertTrue(fired.isEmpty(), "An extraction that fails has to fire nothing");
             }
             result.take(fired);
+            result.split |= chunk.isSplit();
         }
         calls.failAt = 0;
         List<Item> rest = new ArrayList<>();
@@ -153,6 +185,7 @@ class ChunkFailureTest {
         private final List<Integer> fired = new ArrayList<>();
         private int failures;
         private int comparisons;
+        private boolean split;
 
         private void added(int id) {
             if (this.waiting.add(id)) {

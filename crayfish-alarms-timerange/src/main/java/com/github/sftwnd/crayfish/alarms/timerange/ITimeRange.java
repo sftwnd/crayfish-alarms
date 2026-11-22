@@ -72,8 +72,9 @@ public interface ITimeRange<M,R> extends ITimeRangeConsumer<M,Collection<M>> {
      * fails the call before any element of it is added.
      * <p>
      * The comparator of the range, or {@code hashCode} and {@code equals} without one, must not throw. It is called
-     * when the elements of a chunk of the range are sorted: when its arrays are full, when it fires for the first time
-     * and when a new element of a chunk that has fired is checked for a duplicate. An exception of it fails the call or
+     * when the elements of a chunk of the range, or of a part of a chunk with many elements, are sorted: when its arrays
+     * are full, when it fires for the first time, and when a new element of a chunk that has fired is checked for a
+     * duplicate or merged into its sorted elements. An exception of it fails the call or
      * the extraction, and can come from an element added earlier, which stays in the range and fails the sorts of its
      * chunk again. The range stays consistent: the elements of the call added before the exception stay in it, the
      * others are not added, and an extraction that fails takes nothing out of the range.

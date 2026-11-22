@@ -162,8 +162,9 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
      * fails the call before any element of it is added.
      * <p>
      * The comparator of the range, or {@code hashCode} and {@code equals} without one, must not throw. It is called
-     * when the elements of a chunk of the range are sorted: when its arrays are full, when it fires for the first time
-     * and when a new element of a chunk that has fired is checked for a duplicate. An exception of it fails the call or
+     * when the elements of a chunk of the range, or of a part of a chunk with many elements, are sorted: when its arrays
+     * are full, when it fires for the first time, and when a new element of a chunk that has fired is checked for a
+     * duplicate or merged into its sorted elements. An exception of it fails the call or
      * the extraction, and can come from an element added earlier, which stays in the range and fails the sorts of its
      * chunk again. The range stays consistent: the elements of the call added before the exception stay in it, the
      * others are not added, and an extraction that fails takes nothing out of the range.
@@ -205,7 +206,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         long number = chunkNumber(instant);
         Chunk<S> chunk = this.lastChunk != null && this.lastNumber == number
                 ? this.lastChunk
-                : this.chunks.computeIfAbsent(number, key -> new Chunk<>(this.comparator));
+                : this.chunks.computeIfAbsent(number, key -> new Chunk<>(this.comparator, chunkSpan()));
         this.lastNumber = number;
         this.lastChunk = chunk;
         chunk.add(chunkMoment(instant, number), element);
@@ -411,6 +412,11 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         return this.intervalSeconds > 0
                 ? (seconds - number * this.intervalSeconds) * NANOS_PER_SECOND + nanos
                 : seconds * NANOS_PER_SECOND + nanos - number * this.intervalNanos;
+    }
+
+    // The nanoseconds of a chunk: the moments in it are less than it
+    private long chunkSpan() {
+        return this.intervalSeconds > 0 ? this.intervalSeconds * NANOS_PER_SECOND : this.intervalNanos;
     }
 
     // The moment of the nanoseconds from the start of a chunk
