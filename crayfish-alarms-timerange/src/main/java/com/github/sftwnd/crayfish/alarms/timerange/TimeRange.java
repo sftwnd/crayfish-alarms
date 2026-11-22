@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -233,16 +234,19 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         // becomes the number of a chunk and a moment in it
         boolean whole = !now.isBefore(this.lastInstant);
         long nowNumber = whole ? Long.MAX_VALUE : chunkNumber(now);
+        // Since TreeMap, the head map goes in ascending order of the numbers: the chunks before the chunk of the current
+        // moment have fired as a whole. Usually there is none, and no head map is made.
+        Map<Long, Chunk<S>> due = this.chunks.firstKey() < nowNumber ? this.chunks.headMap(nowNumber, false) : null;
+        // The elements of the chunk of the current moment up to the moment fire, the others stay in the chunk
+        Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
         // The elements that fire are found first, with the comparisons, then reduced, and only then taken out of the
         // chunks: an exception of the comparator or of the reducer leaves every element in the range
-        List<Chunk<S>.Firing> firings = prepare(now, nowNumber, whole);
-        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
-        firings.forEach(firing -> firing.forEach(fired));
-        firings.forEach(Chunk<S>.Firing::commit);
-        // Since TreeMap, the head map goes in ascending order of the numbers: the chunks before the chunk of the current
-        // moment have fired as a whole
-        this.chunks.headMap(nowNumber, false).clear();
-        Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
+        List<Chunk<S>.Firing> firings = due == null ? Collections.emptyList() : prepareWhole(due);
+        Chunk<S>.Firing current = chunk == null ? null : chunk.prepare(chunkMoment(now, nowNumber));
+        fire(firings, current, result);
+        if (due != null) {
+            due.clear();
+        }
         if (chunk != null && chunk.isEmpty()) {
             this.chunks.remove(nowNumber);
         }
@@ -255,24 +259,28 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         return result;
     }
 
-    // The firings of the chunks before the chunk of the moment, as a whole, and of the chunk of the moment up to it: the
-    // chunks are not changed until the firings are committed
-    private @NonNull List<Chunk<S>.Firing> prepare(@NonNull Instant now, long nowNumber, boolean whole) {
+    // The firings of the chunks that fire as a whole: the chunks are not changed until the firings are committed
+    private @NonNull List<Chunk<S>.Firing> prepareWhole(@NonNull Map<Long, Chunk<S>> due) {
         List<Chunk<S>.Firing> firings = new ArrayList<>();
-        for (Chunk<S> due : this.chunks.headMap(nowNumber, false).values()) {
-            addFiring(firings, due.prepare(Long.MAX_VALUE));
-        }
-        // The elements of the chunk of the current moment up to the moment fire, the others stay in the chunk
-        Chunk<S> chunk = whole ? null : this.chunks.get(nowNumber);
-        if (chunk != null) {
-            addFiring(firings, chunk.prepare(chunkMoment(now, nowNumber)));
+        for (Chunk<S> dueChunk : due.values()) {
+            Chunk<S>.Firing firing = dueChunk.prepare(Long.MAX_VALUE);
+            if (firing != null) {
+                firings.add(firing);
+            }
         }
         return firings;
     }
 
-    private void addFiring(@NonNull List<Chunk<S>.Firing> firings, @Nullable Chunk<S>.Firing firing) {
-        if (firing != null) {
-            firings.add(firing);
+    // The elements of the firings are reduced in their order, and then the firings are committed
+    private void fire(@NonNull List<Chunk<S>.Firing> firings, @Nullable Chunk<S>.Firing current, @NonNull List<R> result) {
+        Consumer<S> fired = element -> result.add(this.reducer.apply(element));
+        firings.forEach(firing -> firing.forEach(fired));
+        if (current != null) {
+            current.forEach(fired);
+        }
+        firings.forEach(Chunk<S>.Firing::commit);
+        if (current != null) {
+            current.commit();
         }
     }
 
