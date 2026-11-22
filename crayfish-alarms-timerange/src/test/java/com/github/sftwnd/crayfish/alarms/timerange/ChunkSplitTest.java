@@ -33,7 +33,7 @@ class ChunkSplitTest {
             Model model = new Model(comparator, SECOND);
             Random random = new Random(1);
             for (int id = 0; id < ELEMENTS; id++) {
-                model.add(id, (long) (random.nextDouble() * SECOND));
+                model.add(id, below(random, SECOND));
             }
             assertTrue(model.chunk.isSplit(), "A cold chunk with many elements has to be split");
             model.fireSteps();
@@ -51,7 +51,7 @@ class ChunkSplitTest {
             Random random = new Random(2);
             long limit = 0L;
             for (int id = 1; id < ELEMENTS; id++) {
-                model.add(id, id % 50 == 0 ? (long) (random.nextDouble() * limit) : limit + (long) (random.nextDouble() * (SECOND - limit)));
+                model.add(id, id % 50 == 0 ? below(random, limit) : limit + below(random, SECOND - limit));
                 if (id % 1_000 == 0) {
                     limit += MILLISECOND;
                     model.fire(limit);
@@ -70,7 +70,7 @@ class ChunkSplitTest {
             Random random = new Random(3);
             long from = 500 * MILLISECOND;
             for (int id = 0; id < ELEMENTS; id++) {
-                model.add(id, from + (long) (random.nextDouble() * MILLISECOND));
+                model.add(id, from + below(random, MILLISECOND));
             }
             assertTrue(model.chunk.isSplit(), "A chunk with many elements has to be split");
             for (long limit = from; limit < from + MILLISECOND; limit += 10_000L) {
@@ -93,6 +93,11 @@ class ChunkSplitTest {
             model.fire(123_456_789L);
             assertTrue(model.chunk.isEmpty(), "A chunk that has fired every element has to be empty");
         }
+    }
+
+    // a random long from zero up to the bound, zero for a bound of zero: Java 8 has no nextLong(bound)
+    private static long below(Random random, long bound) {
+        return bound == 0L ? 0L : Math.floorMod(random.nextLong(), bound);
     }
 
     // the elements are ordered by themselves: by their hash codes without a comparator, by the comparator with it
@@ -149,7 +154,7 @@ class ChunkSplitTest {
             }
             while (limit < this.span) {
                 fire(limit);
-                limit += (long) (this.random.nextDouble() * 100 * MILLISECOND);
+                limit += below(this.random, 100 * MILLISECOND);
             }
             fire(Long.MAX_VALUE);
             assertTrue(this.chunk.isEmpty(), "A chunk that has fired every element has to be empty");
