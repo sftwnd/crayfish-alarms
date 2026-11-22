@@ -186,7 +186,9 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
 
     private final AtomicBoolean syncFlag = new AtomicBoolean(false);
 
-    @SuppressWarnings("java:S2274")
+    // java:S2274 and java:S899: one wait, whose time left is not needed; whatever ends it, a registration, the timeout
+    // or a spurious wake-up, the loop of register reads the clock again and waits again before the moment
+    @SuppressWarnings({"java:S2274", "java:S899"})
     private @Nullable RegistrationRequest syncNext(Instant until) throws InterruptedException {
         RegistrationRequest next = this.registrationQueue.poll();
         if (next == null) {
@@ -199,7 +201,6 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
                     if (next == null) {
                         long waitNanos = Duration.between(Instant.now(), until).toNanos();
                         if (waitNanos > this.minimalWaitNanos) {
-                            // java:S2274: the loop of register waits again after a wake-up before the moment
                             this.registration.awaitNanos(wakeUpTimeout(waitNanos, epochNanos(until), this.wakeUpStepNanos));
                         }
                         needNext = waitNanos > 0;
