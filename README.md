@@ -1,6 +1,7 @@
 # Crayfish Alarms
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service)](https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service)
+[![Site](https://img.shields.io/badge/site-sftwnd.github.io%2Fcrayfish--alarms-ff6a45)](https://sftwnd.github.io/crayfish-alarms/)
 [![Java 8+](https://img.shields.io/badge/Java-8%2B-blue)](#java-modules)
 [![JPMS](https://img.shields.io/badge/JPMS-named%20modules-blue)](#java-modules)
 [![OSGi](https://img.shields.io/badge/OSGi-bundles-blue)](#osgi)
@@ -17,6 +18,9 @@ A `TimeRange` holds the elements of a period of time: every element has a moment
 `extractFiredElements` takes out the elements whose moments have come, in the order of the moments. An
 `AlarmTimeRangeService` runs a range in one thread: it waits for the nearest moment without a busy loop, gives the
 fired elements to a consumer, and applies the elements that other threads add.
+
+The [site of the project](https://sftwnd.github.io/crayfish-alarms/) shows the quick start, the examples, how the
+service works, a simulation of a time range in the browser and the performance.
 
 ## Features
 
