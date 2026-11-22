@@ -223,9 +223,9 @@ The process ends when the range is empty from its end plus its completeTimeout o
 
 The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of a wait, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
 
-The third parameter, wakeUpStep (since 1.1.0): the timeout of a wait for the next alarm is rounded up to a multiple of it.
+The third parameter, wakeUpStep (since 1.1.0): the process wakes up for the next alarm at the next multiple of the step on the clock, counted from the epoch, and never before the moment of the alarm. The wake-ups keep to the grid of the clock, so the time of a wake-up and of an extraction does not add to the step.
 
-* null, the default: a millisecond, as `Object.wait(ms, nanos)` of 1.0.5 rounded it, so the alarms fire at the moments of 1.0.5;
+* null, the default: a millisecond. An alarm fires about 0.1 to 0.15 ms earlier than with 1.0.5, whose `Object.wait(ms, nanos)` rounded the timeout of every wait up to a millisecond, at the same CPU;
 * zero: precise waits, which fire the alarms closer to their moments, at the cost of more wake-ups of the process and up to twice its CPU;
 * a coarser step: fewer wake-ups, which leave more alarms to an extraction, and later alarms.
 

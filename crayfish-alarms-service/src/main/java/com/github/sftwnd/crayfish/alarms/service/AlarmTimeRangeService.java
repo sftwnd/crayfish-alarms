@@ -41,10 +41,11 @@ public class AlarmTimeRangeService<M,R> extends AlarmService<M, R> {
      * @param timeRange predefined ITimeRange
      * @param minimalWait a wait shorter than minimalWait is a busy loop instead of a wait; null or zero, the default,
      *                    for none
-     * @param wakeUpStep the step of a wake-up: the timeout of a wait for the next alarm is rounded up to a multiple of
-     *                   it. Null, the default, for a millisecond, the rounding of 1.0.5; zero for precise waits, which
-     *                   fire the alarms closer to their moments at the cost of more wake-ups of the process, up to twice
-     *                   its CPU; a coarser step leaves more alarms to an extraction. A negative step is zero
+     * @param wakeUpStep the step of a wake-up: the process wakes up for the next alarm at the next multiple of the step
+     *                   on the clock, counted from the epoch, and never before the moment of the alarm. Null, the
+     *                   default, for a millisecond; zero for precise waits, which fire the alarms closer to
+     *                   their moments at the cost of more wake-ups of the process, up to twice its CPU; a coarser step
+     *                   leaves more alarms to an extraction. A negative step is zero
      * @since 1.1.0
      */
     public AlarmTimeRangeService(
