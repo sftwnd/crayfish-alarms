@@ -196,10 +196,20 @@ class AlarmTimeRangeServiceTest {
 
     @Test
     void wakeUpOnEveryRegistration() {
+        // the default step of a wake-up, a millisecond
+        assertWakesUpOnEveryRegistration(null);
+    }
+
+    @Test
+    void wakeUpOnEveryRegistrationWithoutStep() {
+        assertWakesUpOnEveryRegistration(Duration.ZERO);
+    }
+
+    private void assertWakesUpOnEveryRegistration(Duration wakeUpStep) {
         // without a registration the process waits for the end of the range, an hour
         ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
                 Duration.ofHours(1), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(Instant.now());
-        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        IAlarmService<Instant, Instant> alarmService = new AlarmTimeRangeService<>(timeRange, Duration.ZERO, wakeUpStep);
         Thread thread = new Thread(() -> alarmService.process(ignore -> {}));
         thread.start();
         // an element before the range is rejected when it is registered: the process waits again right after every
@@ -211,6 +221,43 @@ class AlarmTimeRangeServiceTest {
                 int number = request;
                 assertDoesNotThrow(() -> completableFuture.get(2, TimeUnit.SECONDS),
                         () -> "AlarmService has to register the request " + number + " at once");
+            }
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
+    void neverBeforeTheMoment() throws InterruptedException {
+        // the default step of a wake-up, no step, a coarser one, and a negative one, which is none
+        for (Duration wakeUpStep : Arrays.asList(null, Duration.ZERO, Duration.ofMillis(50), Duration.ofMillis(-1))) {
+            assertFiresNotBeforeTheMoment(wakeUpStep);
+        }
+    }
+
+    private void assertFiresNotBeforeTheMoment(Duration wakeUpStep) throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = new AlarmTimeRangeService<>(timeRange, null, wakeUpStep);
+        // moments with nanoseconds, from 20 to 400 ms from now, which the process waits for one by one
+        Instant start = Instant.now();
+        List<Instant> alarms = IntStream.range(0, 40)
+                .mapToObj(i -> start.plusMillis(20L + 19L * ((i * 7) % 20)).plusNanos(i * 12_345L))
+                .collect(Collectors.toList());
+        List<Instant[]> fired = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch firedCdl = new CountDownLatch(alarms.size());
+        Thread thread = new Thread(() -> alarmService.singleProcess(element -> {
+            fired.add(new Instant[] {element, Instant.now()});
+            firedCdl.countDown();
+        }));
+        thread.start();
+        try {
+            alarmService.addElements(alarms);
+            assertTrue(firedCdl.await(3, TimeUnit.SECONDS), () -> "AlarmService has to fire the alarms, step " + wakeUpStep);
+            synchronized (fired) {
+                for (Instant[] alarm : fired) {
+                    assertFalse(alarm[1].isBefore(alarm[0]),
+                            () -> "AlarmService must not fire an alarm before its moment, step " + wakeUpStep + ": " + alarm[0] + " at " + alarm[1]);
+                }
             }
         } finally {
             thread.interrupt();
