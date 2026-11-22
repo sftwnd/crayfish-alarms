@@ -205,7 +205,7 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         long number = chunkNumber(instant);
         Chunk<S> chunk = this.lastChunk != null && this.lastNumber == number
                 ? this.lastChunk
-                : this.chunks.computeIfAbsent(number, key -> new Chunk<>(this.comparator));
+                : this.chunks.computeIfAbsent(number, key -> new Chunk<>(this.comparator, chunkSpan()));
         this.lastNumber = number;
         this.lastChunk = chunk;
         chunk.add(chunkMoment(instant, number), element);
@@ -411,6 +411,11 @@ class TimeRange<M,S,R> implements ITimeRange<M,R> {
         return this.intervalSeconds > 0
                 ? (seconds - number * this.intervalSeconds) * NANOS_PER_SECOND + nanos
                 : seconds * NANOS_PER_SECOND + nanos - number * this.intervalNanos;
+    }
+
+    // The nanoseconds of a chunk: the moments in it are less than it
+    private long chunkSpan() {
+        return this.intervalSeconds > 0 ? this.intervalSeconds * NANOS_PER_SECOND : this.intervalNanos;
     }
 
     // The moment of the nanoseconds from the start of a chunk

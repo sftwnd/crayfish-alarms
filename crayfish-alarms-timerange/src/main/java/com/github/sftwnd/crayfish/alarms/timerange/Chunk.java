@@ -26,10 +26,15 @@ import java.util.function.Consumer;
  * by a binary search and keeps the new elements in a binary heap, which is merged into the sorted elements when it
  * reaches a quarter of them: an extraction from the chunk of the current moment costs no sort of the chunk.
  * <p>
+ * A chunk with many elements, a cold one whose arrays are full and a hot one whose heap is due to be merged, is split
+ * into parts of its interval, each a chunk of its own, which is split again when it has many elements: an extraction
+ * sorts the elements of the parts that fire, not the elements of the chunk, and a merge of the heap takes the elements
+ * of a part. The parts fire in the order of their moments, so their elements are not merged.
+ * <p>
  * An exception of the comparator, or of {@code hashCode} or {@code equals} without one, leaves the elements of the
  * chunk as they were: the sorts and the merges work on copies, the heap is ordered by the moments and the numbers of
- * the addition without comparisons, and an extraction finds the elements that fire, with their comparisons, before
- * it takes them out (see {@link #prepare(long)}).
+ * the addition without comparisons, a split compares no elements, and an extraction finds the elements that fire, with
+ * their comparisons, before it takes them out (see {@link #prepare(long)}).
  * @param <S> Element type of the internal storage
  */
 final class Chunk<S> {
@@ -39,6 +44,10 @@ final class Chunk<S> {
     private static final int INSERTION_SORT = 32;
     // the heap of the new elements of a hot chunk is merged into its sorted elements at a quarter of them, or at this size
     private static final int LATE_MINIMUM = 64;
+    // a chunk with this many elements is split into parts, when its arrays are full or its heap is due to be merged
+    private static final int SPLIT_SIZE = 4096;
+    // the number of the parts of a split chunk
+    private static final int PARTS = 16;
     private static final long[] NO_MOMENTS = new long[0];
     private static final Object[] NO_ELEMENTS = new Object[0];
 
@@ -46,10 +55,14 @@ final class Chunk<S> {
      * The order of the elements of a moment; without a comparator, the order of their hash codes
      */
     private final Comparator<? super S> comparator;
+    // The nanoseconds of the interval of the chunk: its moments are less than it
+    private final long span;
+    // The number of the elements from which the chunk is split
+    private final int splitSize;
 
     // The sorted elements [head, sorted) without duplicates, then the elements appended to a cold chunk [sorted, size)
-    private long[] moments = new long[INITIAL_CAPACITY];
-    private Object[] elements = new Object[INITIAL_CAPACITY];
+    private long[] moments;
+    private Object[] elements;
     private int head;
     private int sorted;
     private int size;
@@ -65,13 +78,48 @@ final class Chunk<S> {
     private int lateSize;
     private int lateNumber;
 
+    // The parts of a split chunk, of partLength nanoseconds each, the last one shorter maybe: a part without elements is
+    // null, and the parts before firstPart have none
+    private Chunk<S>[] parts;
+    private long partLength;
+    private int firstPart;
+
     /**
      * A chunk without elements
      * @param comparator The order of the elements of a moment, which also finds their duplicates; null: the elements of
      *                   a moment are ordered by their hash codes, and equal ones are duplicates
      */
     Chunk(@Nullable Comparator<? super S> comparator) {
+        this(comparator, Long.MAX_VALUE);
+    }
+
+    /**
+     * A chunk of an interval without elements
+     * @param comparator The order of the elements of a moment, which also finds their duplicates; null: the elements of
+     *                   a moment are ordered by their hash codes, and equal ones are duplicates
+     * @param span the nanoseconds of the interval of the chunk: the moments of its elements are less than it
+     */
+    Chunk(@Nullable Comparator<? super S> comparator, long span) {
+        this(comparator, span, SPLIT_SIZE, INITIAL_CAPACITY);
+    }
+
+    /**
+     * A chunk of an interval without elements, which is split from a number of elements on
+     * @param comparator The order of the elements of a moment, which also finds their duplicates; null: the elements of
+     *                   a moment are ordered by their hash codes, and equal ones are duplicates
+     * @param span the nanoseconds of the interval of the chunk: the moments of its elements are less than it
+     * @param splitSize the number of the elements from which the chunk is split into parts
+     */
+    Chunk(@Nullable Comparator<? super S> comparator, long span, int splitSize) {
+        this(comparator, span, splitSize, INITIAL_CAPACITY);
+    }
+
+    private Chunk(@Nullable Comparator<? super S> comparator, long span, int splitSize, int capacity) {
         this.comparator = comparator;
+        this.span = span;
+        this.splitSize = splitSize;
+        this.moments = new long[capacity];
+        this.elements = new Object[capacity];
     }
 
     /**
@@ -80,11 +128,20 @@ final class Chunk<S> {
      * @param element the element
      */
     void add(long moment, @NonNull S element) {
+        if (this.parts != null) {
+            addToPart(moment, element);
+            return;
+        }
         if (this.hot) {
             addLate(moment, element);
             return;
         }
         if (this.size == this.moments.length) {
+            if (this.size >= this.splitSize && canSplit()) {
+                split();
+                addToPart(moment, element);
+                return;
+            }
             compact();
             // the arrays grow when they are still full, or when the duplicates have not freed a quarter of them
             int capacity = this.moments.length;
@@ -103,7 +160,14 @@ final class Chunk<S> {
      * @return true if the chunk has no element
      */
     boolean isEmpty() {
-        return this.head == this.size && this.lateSize == 0;
+        return this.parts != null ? this.firstPart == PARTS : this.head == this.size && this.lateSize == 0;
+    }
+
+    /**
+     * @return true if the chunk is split into parts
+     */
+    boolean isSplit() {
+        return this.parts != null;
     }
 
     /**
@@ -111,6 +175,13 @@ final class Chunk<S> {
      *         duplicates that are not dropped yet
      */
     int size() {
+        if (this.parts != null) {
+            int count = 0;
+            for (Chunk<S> part : this.parts) {
+                count += part == null ? 0 : part.size();
+            }
+            return count;
+        }
         return this.size - this.head + this.lateSize;
     }
 
@@ -118,6 +189,11 @@ final class Chunk<S> {
      * @return the earliest moment of the elements, {@link Long#MAX_VALUE} without elements
      */
     long firstMoment() {
+        if (this.parts != null) {
+            return this.firstPart == PARTS
+                    ? Long.MAX_VALUE
+                    : this.firstPart * this.partLength + this.parts[this.firstPart].firstMoment();
+        }
         if (!this.hot) {
             return this.minimum;
         }
@@ -146,6 +222,9 @@ final class Chunk<S> {
      * @return the elements to fire, null without any
      */
     @Nullable Firing prepare(long limit) {
+        if (this.parts != null) {
+            return prepareParts(limit);
+        }
         if (!heat(limit)) {
             return null;
         }
@@ -193,6 +272,125 @@ final class Chunk<S> {
         dueNumbers[position] = this.lateNumbers[index];
         int next = collectLate((index << 1) + 1, limit, dueMoments, dueElements, dueNumbers, position + 1);
         return collectLate((index << 1) + 2, limit, dueMoments, dueElements, dueNumbers, next);
+    }
+
+    // The firings of the parts up to the limit, in the order of the parts: the parts are not changed until the firing is
+    // committed
+    @SuppressWarnings("unchecked")
+    private @Nullable Firing prepareParts(long limit) {
+        int last = limit / this.partLength >= PARTS ? PARTS - 1 : (int) (limit / this.partLength);
+        Firing[] firings = null;
+        int[] indexes = null;
+        int count = 0;
+        for (int index = this.firstPart; index <= last; index++) {
+            Chunk<S> part = this.parts[index];
+            Firing firing = part == null ? null : part.prepare(limit - index * this.partLength);
+            if (firing != null) {
+                if (firings == null) {
+                    firings = (Firing[]) new Chunk<?>.Firing[last - index + 1];
+                    indexes = new int[last - index + 1];
+                }
+                firings[count] = firing;
+                indexes[count++] = index;
+            }
+        }
+        return count == 0 ? null : new Firing(firings, indexes, count);
+    }
+
+    private boolean canSplit() {
+        return this.span >= PARTS;
+    }
+
+    // The element goes to the part of its moment, a new part if the part has no elements
+    private void addToPart(long moment, @NonNull S element) {
+        int index = (int) (moment / this.partLength);
+        Chunk<S> part = this.parts[index];
+        if (part == null) {
+            part = new Chunk<>(this.comparator, partSpan(index), this.splitSize, INITIAL_CAPACITY);
+            this.parts[index] = part;
+            if (index < this.firstPart) {
+                this.firstPart = index;
+            }
+        }
+        part.add(moment - index * this.partLength, element);
+    }
+
+    // The nanoseconds of the interval of a part: the last part ends with the chunk
+    private long partSpan(int index) {
+        return Math.min(this.partLength, this.span - index * this.partLength);
+    }
+
+    // Splits the chunk into parts of its interval: its elements go to the parts of their moments in the order of their
+    // addition, the sorted ones and then the heap by the numbers of the addition, so that a part keeps the element added
+    // first of the duplicates. No element is compared: a split cannot fail. A part with many elements is split again.
+    @SuppressWarnings("unchecked")
+    private void split() {
+        long length = this.span / PARTS + (this.span % PARTS == 0L ? 0L : 1L);
+        int[] lateOrder = lateOrder();
+        int[] counts = new int[PARTS];
+        for (int i = this.head; i < this.size; i++) {
+            counts[(int) (this.moments[i] / length)]++;
+        }
+        for (int index : lateOrder) {
+            counts[(int) (this.lateMoments[index] / length)]++;
+        }
+        this.partLength = length;
+        this.parts = (Chunk<S>[]) new Chunk<?>[PARTS];
+        this.firstPart = PARTS;
+        for (int index = PARTS - 1; index >= 0; index--) {
+            if (counts[index] > 0) {
+                this.parts[index] = new Chunk<>(this.comparator, partSpan(index), this.splitSize, counts[index]);
+                this.firstPart = index;
+            }
+        }
+        for (int i = this.head; i < this.size; i++) {
+            appendToPart(this.moments[i], this.elements[i]);
+        }
+        for (int index : lateOrder) {
+            appendToPart(this.lateMoments[index], this.lateElements[index]);
+        }
+        for (Chunk<S> part : this.parts) {
+            if (part != null && part.size >= this.splitSize && part.canSplit()) {
+                part.split();
+            }
+        }
+        this.moments = NO_MOMENTS;
+        this.elements = NO_ELEMENTS;
+        this.head = 0;
+        this.sorted = 0;
+        this.size = 0;
+        this.lateMoments = null;
+        this.lateElements = null;
+        this.lateNumbers = null;
+        this.lateSize = 0;
+        this.lateNumber = 0;
+        this.hot = false;
+    }
+
+    // The indexes of the heap in the order of the numbers of the addition
+    private int[] lateOrder() {
+        long[] keys = new long[this.lateSize];
+        for (int i = 0; i < this.lateSize; i++) {
+            keys[i] = ((long) this.lateNumbers[i] << 32) | i;
+        }
+        Arrays.sort(keys);
+        int[] order = new int[this.lateSize];
+        for (int i = 0; i < this.lateSize; i++) {
+            order[i] = (int) keys[i];
+        }
+        return order;
+    }
+
+    // Appends an element to the part of its moment, made with room for its elements
+    private void appendToPart(long moment, Object element) {
+        int index = (int) (moment / this.partLength);
+        Chunk<S> part = this.parts[index];
+        long partMoment = moment - index * this.partLength;
+        part.moments[part.size] = partMoment;
+        part.elements[part.size++] = element;
+        if (partMoment < part.minimum) {
+            part.minimum = partMoment;
+        }
     }
 
     // A cold chunk that has an element up to the limit becomes hot: its elements are sorted, the duplicates dropped.
@@ -259,6 +457,11 @@ final class Chunk<S> {
             this.lateNumber = 0;
         } else if (this.lateNumber == Integer.MAX_VALUE
                 || this.lateSize == this.lateMoments.length && this.lateSize >= Math.max(LATE_MINIMUM, (this.size - this.head) >> 2)) {
+            if (this.size - this.head + this.lateSize >= this.splitSize && canSplit()) {
+                split();
+                addToPart(moment, element);
+                return;
+            }
             mergeLate();
         }
         if (isSortedDuplicate(moment, element)) {
@@ -494,6 +697,9 @@ final class Chunk<S> {
         private final Object[] fired;
         private final int from;
         private final int to;
+        // the firings of the parts of a split chunk, and the indexes of their parts
+        private final Firing[] partFirings;
+        private final int[] partIndexes;
 
         private Firing(int end, int late, Object[] fired, int from, int to) {
             this.end = end;
@@ -501,6 +707,18 @@ final class Chunk<S> {
             this.fired = fired;
             this.from = from;
             this.to = to;
+            this.partFirings = null;
+            this.partIndexes = null;
+        }
+
+        private Firing(Firing[] partFirings, int[] partIndexes, int count) {
+            this.end = 0;
+            this.late = 0;
+            this.fired = null;
+            this.from = 0;
+            this.to = count;
+            this.partFirings = partFirings;
+            this.partIndexes = partIndexes;
         }
 
         /**
@@ -509,6 +727,12 @@ final class Chunk<S> {
          */
         @SuppressWarnings("unchecked")
         void forEach(@NonNull Consumer<? super S> consumer) {
+            if (this.partFirings != null) {
+                for (int i = 0; i < this.to; i++) {
+                    this.partFirings[i].forEach(consumer);
+                }
+                return;
+            }
             for (int i = this.from; i < this.to; i++) {
                 consumer.accept((S) this.fired[i]);
             }
@@ -519,6 +743,10 @@ final class Chunk<S> {
          * moment are its first ones by their moments and numbers.
          */
         void commit() {
+            if (this.partFirings != null) {
+                commitParts();
+                return;
+            }
             for (int i = head; i < this.end; i++) {
                 elements[i] = null;
             }
@@ -527,6 +755,20 @@ final class Chunk<S> {
                 pollLate();
             }
             releaseFiredSorted();
+        }
+
+        // The firings of the parts take their elements out, and a part without elements goes
+        private void commitParts() {
+            for (int i = 0; i < this.to; i++) {
+                this.partFirings[i].commit();
+                int index = this.partIndexes[i];
+                if (parts[index].isEmpty()) {
+                    parts[index] = null;
+                }
+            }
+            while (firstPart < PARTS && parts[firstPart] == null) {
+                firstPart++;
+            }
         }
 
         // Takes the first element out of the heap, by its moment and number: no comparison of the elements
