@@ -41,19 +41,19 @@ Maven:
 <dependency>
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms-service</artifactId>
-    <version>1.0.5</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.0.5'
+implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.1.0'
 ```
 
 `crayfish-alarms-service` brings `crayfish-alarms-timerange` with it; a range without the service needs
-`crayfish-alarms-timerange` only. 1.0.4 requires Java 11; 1.0.5 runs on Java 8, and is the same named modules on
-Java 9+.
+`crayfish-alarms-timerange` only. 1.0.4 requires Java 11; 1.0.5 and later run on Java 8, and are the same named modules
+on Java 9+.
 
 ## TimeRange
 
@@ -79,8 +79,10 @@ An interval that is not positive or longer than the duration is taken equal to t
 The sub-ranges start at the start of the range. A sub-range keeps the moments of its elements as nanoseconds from its
 start in an array of `long`s, and the elements in an array of references: 12 bytes besides an element, plus the spare
 room of the arrays. A range of 4,000,000 `Instant`s takes 41 bytes of the heap per element, the `Instant` included
-(96 in 1.0.5, 64 in 1.0.4). The interval divides the storage only and changes no result of the range; a range of 292 years
-or longer, beyond a `long` of nanoseconds, takes sub-ranges of whole seconds up to a century.
+(96 in 1.0.5, 64 in 1.0.4). A sub-range with 4,096 elements or more is divided into 16 parts of its interval, and so is
+a part with as many, so that an extraction sorts the elements of the parts that fire, not those of the sub-range. The
+interval divides the storage only and changes no result of the range; a range of 292 years or longer, beyond a `long` of
+nanoseconds, takes sub-ranges of whole seconds up to a century.
 
 ### Supported items
 
@@ -267,12 +269,12 @@ JavaSE 1.8):
 
 ```text
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.timerange
-Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.0.5";uses:="com.github.sftwnd.crayfish.common.expectation"
+Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.1.0";uses:="com.github.sftwnd.crayfish.common.expectation"
 Import-Package: com.github.sftwnd.crayfish.common.expectation;version="[1.4,2)"
 
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.service
-Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.0.5";uses:="com.github.sftwnd.crayfish.alarms.timerange"
-Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.0,2)"
+Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.1.0";uses:="com.github.sftwnd.crayfish.alarms.timerange"
+Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.1,2)"
 ```
 
 The build checks the bundles in Apache Felix on Java 8 and Java 21: the framework resolves them with the bundle of
