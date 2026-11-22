@@ -221,14 +221,25 @@ All fired elements will be extracted from the holder and returned as a result as
 
 The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer or of an extraction, for example of the comparator: the range keeps the alarms of the extraction. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
 
-The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of `Object.wait`, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
+The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of a wait, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
+
+The third parameter, wakeUpStep (since 1.1.0): the timeout of a wait for the next alarm is rounded up to a multiple of it.
+
+* null, the default: a millisecond, as `Object.wait(ms, nanos)` of 1.0.5 rounded it, so the alarms fire at the moments of 1.0.5;
+* zero: precise waits, which fire the alarms closer to their moments, at the cost of more wake-ups of the process and up to twice its CPU;
+* a coarser step: fewer wake-ups, which leave more alarms to an extraction, and later alarms.
+
+```java
+    // precise waits
+    AlarmTimeRangeService<Instant, Instant> precise = new AlarmTimeRangeService<>(timeRange, null, Duration.ZERO);
+```
 
 ### Threads
 
 * A TimeRange is not thread-safe. Once it is given to the service, only the process uses it.
 * The process runs in the thread that calls `process`, and the consumer gets the fired elements in that thread: a consumer that takes time delays the next alarms.
 * `addElements` and `addElement` can be called from any thread. The stage that they return completes in the thread of the process, and so do the dependent actions of the stage that use no asynchronous method: an action of 2 s on the stage of a request makes an alarm due in 100 ms fire after 2 s. Use `thenApplyAsync`, `thenAcceptAsync`, `thenRunAsync` and the like for an action that takes time.
-* The process waits with `Object.wait` in `synchronized`. On JDK 21 to 23 a virtual thread that runs the process pins its carrier while it waits: with one carrier, another virtual thread got it after 2.7 s on JDK 21, and after 1 ms on JDK 25 (JEP 491 removed the pinning in JDK 24). Run the process in a platform thread there.
+* The process waits on a `ReentrantLock` and its `Condition`: a virtual thread that runs the process leaves its carrier while it waits, on JDK 21 to 23 as well. Up to 1.0.5 the process waited with `Object.wait` in `synchronized`, which pinned the carrier on JDK 21 to 23 (JEP 491 removed the pinning in JDK 24): the scheduler gave the waiting process a carrier of its own, up to `jdk.virtualThreadScheduler.maxPoolSize`, and with `maxPoolSize=1` another virtual thread got the only carrier when the process no longer waited.
 
 ## Java modules
 
