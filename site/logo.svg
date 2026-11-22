@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Crayfish Alarms">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6a45"/>
+      <stop offset="1" stop-color="#d92d20"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
+  <g fill="#fff">
+    <path d="M9.500 19.500A10 10 0 0 1 22.500 9.200L9.500 19.500Z" transform="translate(1.500 1.500)"/>
+    <path d="M54.500 19.500A10 10 0 0 0 41.500 9.200L54.500 19.500Z" transform="translate(-1.500 1.500)"/>
+    <path d="M17.800 52.400l-3.800 4.600M46.200 52.400l3.800 4.600" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <circle cx="32" cy="34" r="19" fill="none" stroke="#fff" stroke-width="5"/>
+  <path d="M32 22.500V34l7.500 5" fill="none" stroke="#fff" stroke-width="4.500" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

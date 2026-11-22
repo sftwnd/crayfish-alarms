@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crayfish Alarms — alarms for Java 8+: a time range and a service that fires it</title>
+<meta name="description" content="Alarms for Java 8+: a time range that keeps elements until their moments and gives out those that have come, in order, and a service that fires them in one thread — 1,600,000 alarms per second, p99 under a millisecond.">
+<meta name="keywords" content="Java, alarms, scheduler, timer, time range, reminders, deadlines, timeouts, virtual threads, ReentrantLock, JPMS, OSGi">
+<meta name="author" content="Andrey D. Shindarev">
+<link rel="canonical" href="https://sftwnd.github.io/crayfish-alarms/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crayfish Alarms">
+<meta property="og:url" content="https://sftwnd.github.io/crayfish-alarms/">
+<meta property="og:title" content="Crayfish Alarms — alarms for Java 8+">
+<meta property="og:description" content="A time range that keeps elements until their moments and gives out those that have come, in order — and a service that fires them in one thread: 1,600,000 alarms per second, p99 under a millisecond at 400,000.">
+<meta property="og:image" content="https://sftwnd.github.io/crayfish-alarms/social-card.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crayfish Alarms: alarms for Java 8+. A time range and a service that fires it in one thread.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Crayfish Alarms — alarms for Java 8+">
+<meta name="twitter:description" content="A time range that gives out the elements whose moments have come, in order, and a service that fires them in one thread: 1,600,000 alarms per second.">
+<meta name="twitter:image" content="https://sftwnd.github.io/crayfish-alarms/social-card.png">
+<meta name="twitter:image:alt" content="Crayfish Alarms: alarms for Java 8+. A time range and a service that fires it in one thread.">
+
+<meta name="theme-color" content="#faf8f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<script>
+  // the theme chosen with the button, before the first paint
+  try {
+    var theme = localStorage.getItem('theme');
+    if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) { /* no storage: the theme of the system */ }
+  document.documentElement.classList.add('js');
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "Crayfish Alarms",
+  "description": "Alarms for Java 8+: a time range that keeps elements until their moments and gives out those that have come, in order, and a service that fires them in one thread.",
+  "url": "https://sftwnd.github.io/crayfish-alarms/",
+  "codeRepository": "https://github.com/sftwnd/crayfish-alarms",
+  "programmingLanguage": "Java",
+  "runtimePlatform": "Java 8+",
+  "license": "https://opensource.org/licenses/BSD-3-Clause",
+  "author": { "@type": "Person", "name": "Andrey D. Shindarev" }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="#top" aria-label="Crayfish Alarms, to the top">
+      <img src="logo.svg" width="32" height="32" alt="">
+      <span>Crayfish <b>Alarms</b></span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#install">Install</a>
+      <a href="#features">Features</a>
+      <a href="#examples">Examples</a>
+      <a href="#how">How it works</a>
+      <a href="#try">Try it</a>
+      <a href="#performance">Performance</a>
+    </nav>
+    <div class="top-actions">
+      <a class="icon-link" href="https://github.com/sftwnd/crayfish-alarms" aria-label="The project on GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
+      <button class="icon-link" id="theme-toggle" type="button" aria-label="Switch between the light and the dark theme" hidden>
+        <svg class="sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.200" fill="currentColor"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2.500v2.200M12 19.300v2.200M2.500 12h2.200M19.300 12h2.200M5.300 5.300l1.550 1.550M17.150 17.150l1.550 1.550M5.300 18.700l1.550-1.550M17.150 6.850l1.550-1.550"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.300 14.600A8.600 8.600 0 0 1 9.400 3.700a.700.700 0 0 0-.900-.850A9.600 9.600 0 1 0 21.150 15.500a.700.700 0 0 0-.850-.900Z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" id="top">
+  <div class="hero-texture" aria-hidden="true">09:00:00.375 09:00:00.625 09:00:01.125 09:00:01.250 09:00:01.375 09:00:02.125 09:00:02.250 09:00:02.625 09:00:03.375 09:00:03.500 09:00:04.250 09:00:04.500 09:00:04.625 09:00:04.750 09:00:05.250 09:00:05.750 09:00:05.875 09:00:06.125 09:00:06.250 09:00:07.000 09:00:07.500 09:00:07.625 09:00:08.375 09:00:08.500 09:00:08.750 09:00:09.500 09:00:09.625 09:00:10.375 09:00:11.125 09:00:11.625 09:00:11.750 09:00:12.000 09:00:12.125 09:00:12.875 09:00:13.125 09:00:13.500 09:00:14.000 09:00:14.250 09:00:15.000 09:00:15.125 09:00:15.875 09:00:16.250 09:00:17.000 09:00:17.250 09:00:17.375 09:00:18.125 09:00:18.875 09:00:19.125 09:00:19.500 09:00:19.625 09:00:20.375 09:00:20.500 09:00:21.250 09:00:21.375 09:00:22.125 09:00:22.375 09:00:22.875 09:00:23.625 09:00:24.125 09:00:24.500 09:00:25.000 09:00:25.750 09:00:26.250 09:00:26.625 09:00:27.000 09:00:27.250 09:00:27.500 09:00:27.750 09:00:27.875 09:00:28.625 09:00:29.000 09:00:29.750 09:00:30.250 09:00:30.625 09:00:31.125 09:00:31.500 09:00:32.250 09:00:32.375 09:00:32.500 09:00:33.250 09:00:33.750 09:00:34.000 09:00:34.375 09:00:34.625 09:00:35.125 09:00:35.625 09:00:35.750 09:00:35.875 09:00:36.625 09:00:37.375 09:00:37.750 09:00:38.125 09:00:38.500 09:00:39.250 09:00:39.750 09:00:40.500 09:00:41.000 09:00:41.125 09:00:41.250 09:00:41.625 09:00:42.125 09:00:42.250 09:00:42.375 09:00:42.750 09:00:43.500 09:00:44.000 09:00:44.375 09:00:44.875 09:00:45.250 09:00:45.375 09:00:45.875 09:00:46.250 09:00:46.500 09:00:47.250 09:00:47.375 09:00:47.875 09:00:48.000 09:00:48.250 09:00:48.625 09:00:48.875 09:00:49.125 09:00:49.625 09:00:50.125 09:00:50.625 09:00:50.750 09:00:51.000 09:00:51.500 09:00:52.000 09:00:52.750 09:00:53.125 09:00:53.375 09:00:53.875 09:00:54.625 09:00:55.000 09:00:55.500 09:00:55.875 09:00:56.375 09:00:56.625 09:00:56.875 09:00:57.000 09:00:57.250 09:00:57.500 09:00:57.750 09:00:58.000 09:00:58.125 09:00:58.625 09:00:59.375 09:00:59.625 09:01:00.000 09:01:00.375 09:01:00.500 09:01:00.750 09:01:01.250 09:01:02.000 09:01:02.375 09:01:03.125 09:01:03.875 09:01:04.250 09:01:04.500 09:01:05.250 09:01:06.000 09:01:06.125 09:01:06.625 09:01:07.375 09:01:07.875 09:01:08.375 09:01:08.875 09:01:09.375 09:01:09.500 09:01:10.000 09:01:10.500 09:01:10.625 09:01:10.875 09:01:11.000 09:01:11.250 09:01:11.750 09:01:12.000 09:01:12.125 09:01:12.500 09:01:13.250 09:01:13.375 09:01:13.500 09:01:13.625 09:01:14.375 09:01:14.625 09:01:15.375 09:01:15.500 09:01:15.875 09:01:16.625 09:01:16.750 09:01:16.875 09:01:17.125 09:01:17.875 09:01:18.375 09:01:18.625 09:01:19.000 09:01:19.375 09:01:20.125 09:01:20.500 09:01:21.000 09:01:21.125 09:01:21.250 09:01:21.750 09:01:22.250 09:01:22.750 09:01:23.250 09:01:23.625 09:01:23.750 09:01:24.000 09:01:24.125 09:01:24.500 09:01:24.875 09:01:25.375 09:01:25.625 09:01:26.375 09:01:26.500 09:01:26.750 09:01:27.500 09:01:27.875 09:01:28.125 09:01:28.875 09:01:29.000 09:01:29.750 09:01:30.125 09:01:30.250 09:01:30.625 09:01:31.375 09:01:31.750 09:01:32.000 09:01:32.375 09:01:32.625 09:01:33.375 09:01:34.125 09:01:34.875 09:01:35.250 09:01:35.500 09:01:36.250 09:01:36.500 09:01:36.750 09:01:37.250 09:01:37.500 09:01:37.750 09:01:38.500 09:01:39.000 09:01:39.375 09:01:39.500 09:01:39.625 09:01:40.000 09:01:40.500 09:01:40.875 09:01:41.125 09:01:41.875 09:01:42.250 09:01:42.750 09:01:43.125 09:01:43.500 09:01:43.625 09:01:43.875 09:01:44.000 09:01:44.250 09:01:44.750 09:01:45.000 09:01:45.375 09:01:45.625 09:01:46.125 09:01:46.875 09:01:47.625 09:01:47.750 09:01:48.250 09:01:48.625 09:01:48.750 09:01:48.875 09:01:49.375 09:01:49.625 09:01:50.125 09:01:50.375 09:01:50.875 09:01:51.250 09:01:51.375 09:01:51.875 09:01:52.375 09:01:52.875 09:01:53.000 09:01:53.250 09:01:53.500 09:01:53.750 09:01:53.875 09:01:54.125 09:01:54.875 09:01:55.375 09:01:55.625 09:01:56.375 09:01:57.125 09:01:57.625 09:01:58.000 09:01:58.250 09:01:59.000 09:01:59.750 09:02:00.000 09:02:00.125</div>
+  <div class="wrap hero-inner">
+    <p class="eyebrow"><a href="https://github.com/sftwnd/crayfish-alarms/releases">Release 1.1.0</a><span>Java 8+</span><span>BSD 3-Clause</span></p>
+    <h1>Alarms for Java, <span class="accent">on time</span> and in order</h1>
+    <p class="lead">A time range keeps elements until their moments and gives out those that have come, in the order of
+      their moments. A service fires them in one thread, waits for the nearest one without a busy loop, and takes new
+      ones from any thread — <span class="nw">1,600,000 alarms</span> per second in one process.</p>
+    <p class="cta">
+      <a class="button primary" href="#install">Get started</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-alarms">GitHub</a>
+      <a class="button" href="https://javadoc.io/doc/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service/latest/index.html">Javadoc</a>
+    </p>
+
+    <figure class="code-window hero-code">
+      <figcaption><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="file">QuickStart.java</span></figcaption>
+<pre><code class="language-java">ITimeRange&lt;Instant, Instant&gt; range = ITimeRangeFactory.&lt;Instant&gt;temporal(
+        Duration.ofMinutes(10), Duration.ofSeconds(1), Duration.ofSeconds(10), null
+).timeRange(Instant.now());
+AlarmTimeRangeService&lt;Instant, Instant&gt; service = new AlarmTimeRangeService&lt;&gt;(range, null);
+new Thread(() -&gt; service.process(fired -&gt; fired.forEach(System.out::println))).start();
+
+// from any thread: the stage completes when the process has applied the request
+Instant now = Instant.now();
+service.addElements(Arrays.asList(now.plusSeconds(5), now.plusSeconds(15)))
+       .thenAcceptAsync(rejected -&gt; System.out.println("rejected: " + rejected));</code></pre>
+    </figure>
+
+    <dl class="stats">
+      <div><dt>1.6M</dt><dd>alarms per second in one process</dd></div>
+      <div><dt>&lt; 1 ms</dt><dd>p99 delay at 400,000 alarms per second</dd></div>
+      <div><dt>36 B</dt><dd>of the heap per <code>Instant</code>, the <code>Instant</code> included</dd></div>
+      <div><dt>0</dt><dd>busy waits: the process sleeps until the next alarm</dd></div>
+      <div><dt>8…25</dt><dd>JDK versions built and tested</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="install" class="band">
+  <div class="wrap narrow">
+    <h2>Install</h2>
+    <p class="section-lead">The library is on <a href="https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service">Maven Central</a>. <code>crayfish-alarms-service</code> brings
+      <code>crayfish-alarms-timerange</code> with it; a range without the service needs the time range only.</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist" aria-label="Build tool">
+        <button role="tab" type="button" id="tab-maven" aria-controls="panel-maven" aria-selected="true">Maven</button>
+        <button role="tab" type="button" id="tab-gradle" aria-controls="panel-gradle" aria-selected="false">Gradle</button>
+        <button role="tab" type="button" id="tab-kotlin" aria-controls="panel-kotlin" aria-selected="false">Gradle (Kotlin)</button>
+      </div>
+      <div role="tabpanel" id="panel-maven" aria-labelledby="tab-maven">
+<pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;com.github.sftwnd.crayfish.alarms&lt;/groupId&gt;
+    &lt;artifactId&gt;crayfish-alarms-service&lt;/artifactId&gt;
+    &lt;version&gt;1.1.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+      </div>
+      <div role="tabpanel" id="panel-gradle" aria-labelledby="tab-gradle">
+<pre><code class="language-groovy">implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.1.0'</code></pre>
+      </div>
+      <div role="tabpanel" id="panel-kotlin" aria-labelledby="tab-kotlin">
+<pre><code class="language-kotlin">implementation("com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.1.0")</code></pre>
+      </div>
+    </div>
+    <p class="note">On Java 9+ the jars are the named modules <code>com.github.sftwnd.crayfish_alarms_timerange</code> and
+      <code>com.github.sftwnd.crayfish_alarms_service</code>; they are OSGi bundles too. Use the same version of both.
+      The only dependency is <a href="https://github.com/sftwnd/crayfish-common-expectation">crayfish-common-expectation</a>.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2>What it does</h2>
+    <p class="section-lead">Reminders, deadlines, timeouts, scheduled deliveries: many elements, each with a moment,
+      fired when the moment comes — without a timer task per element.</p>
+    <ul class="cards">
+      <li>
+        <h3>A bounded period of time</h3>
+        <p>A range accepts the elements of its period, from its start to its end, and returns the others as rejected.
+          It is complete once it is empty after its end and its <code>completeTimeout</code>.</p>
+      </li>
+      <li>
+        <h3>In order, each once</h3>
+        <p>An extraction gives out the elements whose moments have come, in the order of their moments, then of the
+          comparator. A duplicate of a waiting element of its moment is not added.</p>
+      </li>
+      <li>
+        <h3>Any time marker</h3>
+        <p>An <code>Instant</code> or any <code>TemporalAccessor</code>, an element that knows its moment
+          (<code>Expected</code>), any element with a function that gives its moment, or transformers of your own.</p>
+      </li>
+      <li>
+        <h3>One thread, any producer</h3>
+        <p>The service runs the range in the thread of <code>process</code>. <code>addElements</code> works from any
+          thread and returns a stage that completes with the rejected elements.</p>
+      </li>
+      <li>
+        <h3>Virtual threads</h3>
+        <p>The process waits on a <code>ReentrantLock</code> and its <code>Condition</code>: a virtual thread that runs
+          it leaves its carrier while it waits, on JDK 21 to 23 as well.</p>
+      </li>
+      <li>
+        <h3>Wake-ups on the grid</h3>
+        <p>The process wakes up on the grid of the clock: a millisecond by default, precise waits with a step of
+          zero, or a coarser step for fewer wake-ups and more alarms per extraction.</p>
+      </li>
+      <li>
+        <h3>Compact</h3>
+        <p>A chunk of the range keeps the moments in a <code>long[]</code> and the elements in an
+          <code>Object[]</code>: 36 bytes per <code>Instant</code>, the <code>Instant</code> included, against 92 in 1.0.5.</p>
+      </li>
+      <li>
+        <h3>No stop for a big chunk</h3>
+        <p>A chunk with 4,096 elements or more is split into parts of its interval, and an extraction sorts the parts
+          that fire: 0.08 ms for the first extraction of a chunk of 400,000 elements.</p>
+      </li>
+      <li>
+        <h3>Consistent on failure</h3>
+        <p>An exception of the comparator or of the reducer takes nothing out of the range. The process ends with it,
+          and the range keeps its alarms for the next one.</p>
+      </li>
+      <li>
+        <h3>Java 8+ and modular</h3>
+        <p>Java 8 bytecode; on Java 9+ named JPMS modules of multi-release jars, with OSGi bundle headers. Two builds
+          of the same sources give the same jars byte for byte.</p>
+      </li>
+    </ul>
+    <p class="verified"><strong>Tested.</strong> On JDK 8, 11, 17, 21 and 25: random operations against a model of the
+      contract, every comparison of a script failing in turn, splits against a model, a series of 10,000 registrations
+      for the lost wake-up, and a virtual thread that has to leave the only carrier.</p>
+  </div>
+</section>
+
+<section id="examples" class="band">
+  <div class="wrap">
+    <h2>In code</h2>
+    <p class="section-lead">A factory, a range and a service. The examples compile against 1.1.0; the
+      <a href="https://github.com/sftwnd/crayfish-alarms#readme">README</a> explains every parameter.</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist" aria-label="Examples">
+        <button role="tab" type="button" id="tab-range" aria-controls="panel-range" aria-selected="true">Time range</button>
+        <button role="tab" type="button" id="tab-service" aria-controls="panel-service" aria-selected="false">Service</button>
+        <button role="tab" type="button" id="tab-elements" aria-controls="panel-elements" aria-selected="false">Your elements</button>
+        <button role="tab" type="button" id="tab-wakeups" aria-controls="panel-wakeups" aria-selected="false">Wake-ups</button>
+        <button role="tab" type="button" id="tab-virtual" aria-controls="panel-virtual" aria-selected="false">Virtual threads</button>
+      </div>
+
+      <div role="tabpanel" id="panel-range" aria-labelledby="tab-range">
+        <p>A range of an hour in chunks of a second. It is not thread-safe: one thread adds and extracts, or the
+          service does. <a href="https://github.com/sftwnd/crayfish-alarms#timerange">More</a></p>
+<pre><code class="language-java">ITimeRange&lt;Reminder, Reminder&gt; range = ITimeRangeFactory.&lt;Reminder, Instant&gt;packable(
+        Duration.ofHours(1), Duration.ofSeconds(1), Duration.ofSeconds(30),
+        Reminder::getDue, Comparator.comparing(Reminder::getId)
+).timeRange(Instant.now());
+
+Collection&lt;Reminder&gt; rejected = range.addElements(reminders);           // out of the hour: returned
+Duration wait = range.duration(Instant.now());                          // until the nearest reminder
+Collection&lt;Reminder&gt; due = range.extractFiredElements(Instant.now());   // the ones that have come, in order
+boolean done = range.isComplete();                                      // past the end, and empty</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-service" aria-labelledby="tab-service">
+        <p>The consumer gets the fired elements in the thread of the process, and so does an action of the stage of a
+          request without an asynchronous method. <a href="https://github.com/sftwnd/crayfish-alarms#alarmtimerangeservice">More</a></p>
+<pre><code class="language-java">AlarmTimeRangeService&lt;Reminder, Reminder&gt; service = new AlarmTimeRangeService&lt;&gt;(range, null);
+Thread process = new Thread(() -&gt; service.process(fired -&gt; fired.forEach(this::notify)));
+process.start();
+
+// producers in any thread; an action that takes time goes to an asynchronous stage
+service.addElements(batch).thenAcceptAsync(rejected -&gt; rejected.forEach(this::tooLate));
+
+process.interrupt();   // stops the process; it also ends after the range and its completeTimeout</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-elements" aria-labelledby="tab-elements">
+        <p>An element that knows its moment, or any element with a function that gives it.
+          <a href="https://github.com/sftwnd/crayfish-alarms#supported-items">More</a></p>
+<pre><code class="language-java">class Alarm implements Expected&lt;Instant&gt; {   // getTick() is its moment
+    ...
+}
+ITimeRange&lt;Alarm, Alarm&gt; alarms = ITimeRangeFactory.&lt;Alarm&gt;expected(
+        Duration.ofMinutes(5), Duration.ofSeconds(1), Duration.ofSeconds(10),
+        Comparator.comparing(Alarm::getId)
+).timeRange(Instant.now());
+
+// any element with a function that gives its moment, here an ISO-8601 string
+ITimeRange&lt;String, String&gt; strings = ITimeRangeFactory.&lt;String, Instant&gt;packable(
+        Duration.ofSeconds(10), Duration.ofSeconds(1), Duration.ofSeconds(3),
+        Instant::parse, String::compareTo
+).timeRange(Instant.now());</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-wakeups" aria-labelledby="tab-wakeups">
+        <p>The step of a wake-up, the busy loop of <code>minimalWait</code>, and alarms fired ahead of their moments.
+          <a href="https://github.com/sftwnd/crayfish-alarms#alarmtimerangeservice">More</a></p>
+<pre><code class="language-java">// the default: wake-ups on the grid of a millisecond of the clock
+AlarmTimeRangeService&lt;Instant, Instant&gt; byDefault = new AlarmTimeRangeService&lt;&gt;(range, null);
+// precise waits: closer to the moments, at up to 2–3.5 times the CPU
+AlarmTimeRangeService&lt;Instant, Instant&gt; precise = new AlarmTimeRangeService&lt;&gt;(range, null, Duration.ZERO);
+// a wake-up every 10 ms at most: more alarms per extraction
+AlarmTimeRangeService&lt;Instant, Instant&gt; coarse = new AlarmTimeRangeService&lt;&gt;(range, null, Duration.ofMillis(10));
+// a busy loop for the last 200 µs of a wait, at the cost of a core
+AlarmTimeRangeService&lt;Instant, Instant&gt; spinning = new AlarmTimeRangeService&lt;&gt;(range, Duration.ofNanos(200_000), Duration.ZERO);
+
+// fire every alarm 50 ms ahead of its moment
+byDefault.process(fired -&gt; fired.forEach(System.out::println), Duration.ofMillis(50));</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-virtual" aria-labelledby="tab-virtual">
+        <p>On JDK 21+ the process can run in a virtual thread: it does not pin its carrier while it waits.
+          <a href="https://github.com/sftwnd/crayfish-alarms#threads">More</a></p>
+<pre><code class="language-java">// the process waits on a ReentrantLock: its carrier is free while it waits, on JDK 21 to 23 too
+Thread process = Thread.ofVirtual().name("alarms").start(
+        () -&gt; service.process(fired -&gt; fired.forEach(System.out::println)));</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How the service works</h2>
+    <p class="section-lead">One process thread owns the range; other threads only queue requests. The process sleeps
+      until the next alarm or the next request, never in a busy loop by default.</p>
+    <ol class="flow">
+      <li>
+        <h3>Register</h3>
+        <p><code>addElements</code> queues a copy of the elements and wakes the process if it waits. The stage of the
+          request completes with the elements out of the range.</p>
+        <span class="thread">any thread</span>
+      </li>
+      <li>
+        <h3>Wait</h3>
+        <p>The process waits for the nearest moment, rounded to the grid of the step of a wake-up, or for a request.
+          A virtual thread leaves its carrier.</p>
+        <span class="thread">the process</span>
+      </li>
+      <li>
+        <h3>Extract</h3>
+        <p>The range gives out the elements whose moments have come, in order. Only the parts of a chunk that fire are
+          sorted; nothing is taken out if a comparison fails.</p>
+        <span class="thread">the process</span>
+      </li>
+      <li>
+        <h3>Consume</h3>
+        <p>The consumer gets the fired elements in the thread of the process. A long action delays the next alarms:
+          hand it to an executor.</p>
+        <span class="thread">the process</span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="try" class="band js-only">
+  <div class="wrap">
+    <h2>Try a time range</h2>
+    <p class="section-lead">A simulation of a range of 10 seconds in chunks of a second, in your browser. Click the line to
+      add an alarm at its moment — also in the past, which fires at once — and press Play.</p>
+    <div class="sim" id="sim">
+      <div class="sim-controls">
+        <button class="button primary" type="button" id="sim-play">Play</button>
+        <button class="button" type="button" id="sim-speed" aria-label="The speed of the simulation">×1</button>
+        <button class="button" type="button" id="sim-add">Add 5 alarms</button>
+        <button class="button" type="button" id="sim-duplicate">Add a duplicate</button>
+        <button class="button" type="button" id="sim-late">Add one after the end</button>
+        <span class="spacer"></span>
+        <span class="sim-clock" id="sim-clock" aria-live="off"></span>
+        <button class="button" type="button" id="sim-reset">Reset</button>
+      </div>
+      <div class="timeline" role="img" aria-label="The time range of 10 seconds with its alarms">
+        <div class="past"></div>
+        <div class="playhead"></div>
+      </div>
+      <div class="sim-axis"><span>start</span><span>seconds of the range</span><span>end</span></div>
+      <div class="sim-log">
+        <section>
+          <h3>Fired by <code>extractFiredElements</code></h3>
+          <ol id="sim-fired" aria-live="polite" data-empty="Nothing has fired yet."></ol>
+        </section>
+        <section>
+          <h3>Not added</h3>
+          <ol id="sim-other" aria-live="polite" data-empty="Rejected elements and duplicates appear here."></ol>
+        </section>
+      </div>
+    </div>
+    <p class="note">The service does the same in its own thread: it waits for the nearest moment, extracts and gives the
+      elements to the consumer.</p>
+  </div>
+</section>
+
+<section id="performance">
+  <div class="wrap">
+    <h2>Performance</h2>
+    <p class="section-lead">Measured with the performance example of
+      <a href="https://github.com/sftwnd/crayfish-examples">crayfish-examples</a>: four threads register alarms in calls of
+      100, each due 0.5 to 1.5 s later, and the service fires them.</p>
+    <ul class="figures">
+      <li><b>≥ 4×</b><span>the rate one process keeps up with: 1,600,000 alarms per second and more, against 400,000 with 1.0.5</span></li>
+      <li><b>0.97 ms</b><span>p99 of the delays at 400,000 alarms per second, at a fifth of a core</span></li>
+      <li><b>2.6×</b><span>less heap per element: 36 bytes per <code>Instant</code> against 92</span></li>
+    </ul>
+    <div class="table-scroll">
+      <table>
+        <caption><code>AlarmTimeRangeService</code>, 1.0.5 → 1.1.0: delays p50 / p99 and the CPU of the process
+          (JDK 21, Intel Core i9-9980HK, the medians of 4 rounds)</caption>
+        <thead>
+          <tr><th scope="col">Alarms per second</th><th scope="col">p50</th><th scope="col">p99</th><th scope="col">CPU</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">6,250</th><td>0.61 → 0.49 ms</td><td>1.31 → 1.17 ms</td><td>4.5 → 4.3%</td></tr>
+          <tr><th scope="row">100,000</th><td>0.51 → 0.38 ms</td><td>1.35 → 1.10 ms</td><td>19.8 → 9.3%</td></tr>
+          <tr><th scope="row">400,000</th><td>0.16 → 0.15 ms</td><td>1.44 → 0.97 ms</td><td>63.6 → 19.2%</td></tr>
+          <tr><th scope="row">800,000, beyond 1.0.5</th><td>0.12 → 0.09 ms</td><td>176 → 1.07 ms</td><td>84.7 → 36.2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The full tables, with one thread, the costs of a range and the precise waits, are in the notes of the
+      <a href="https://github.com/sftwnd/crayfish-alarms/releases">release 1.1.0</a>.</p>
+  </div>
+</section>
+
+<section class="closing band">
+  <div class="wrap narrow">
+    <h2>Add it to your build</h2>
+<pre><code>com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.1.0</code></pre>
+    <p class="cta">
+      <a class="button primary" href="https://javadoc.io/doc/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service/latest/index.html">Read the documentation</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-alarms#readme">README</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-alarms/issues">Report an issue</a>
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <p><img src="logo.svg" width="20" height="20" alt=""> Crayfish Alarms · <a href="https://github.com/sftwnd/crayfish-alarms/blob/master/LICENSE">BSD 3-Clause</a> · © Andrey D. Shindarev</p>
+    <ul>
+      <li><a href="https://github.com/sftwnd/crayfish-alarms">GitHub</a></li>
+      <li><a href="https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service">Maven Central</a></li>
+      <li><a href="https://javadoc.io/doc/com.github.sftwnd.crayfish.alarms/crayfish-alarms-service/latest/index.html">Javadoc: service</a></li>
+      <li><a href="https://javadoc.io/doc/com.github.sftwnd.crayfish.alarms/crayfish-alarms-timerange/latest/index.html">Javadoc: time range</a></li>
+      <li><a href="https://github.com/sftwnd/crayfish-alarms/releases">Releases</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>

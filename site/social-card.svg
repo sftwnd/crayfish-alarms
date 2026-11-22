@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="g1" cx="0.08" cy="0" r="0.7"><stop offset="0" stop-color="#ff6a45" stop-opacity="0.32"/><stop offset="1" stop-color="#ff6a45" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g2" cx="1" cy="1" r="0.6"><stop offset="0" stop-color="#3b82f6" stop-opacity="0.22"/><stop offset="1" stop-color="#3b82f6" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0b1020"/>
+  <rect width="1200" height="630" fill="url(#g1)"/>
+  <rect width="1200" height="630" fill="url(#g2)"/>
+  <svg x="80" y="78" width="96" height="96" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ltile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6a45"/>
+      <stop offset="1" stop-color="#d92d20"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#ltile)"/>
+  <g fill="#fff">
+    <path d="M9.500 19.500A10 10 0 0 1 22.500 9.200L9.500 19.500Z" transform="translate(1.500 1.500)"/>
+    <path d="M54.500 19.500A10 10 0 0 0 41.500 9.200L54.500 19.500Z" transform="translate(-1.500 1.500)"/>
+    <path d="M17.800 52.400l-3.800 4.600M46.200 52.400l3.800 4.600" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <circle cx="32" cy="34" r="19" fill="none" stroke="#fff" stroke-width="5"/>
+  <path d="M32 22.500V34l7.500 5" fill="none" stroke="#fff" stroke-width="4.500" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+  <text x="200" y="145" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#e8ecf6" letter-spacing="-1.5">Crayfish <tspan fill="#ff6a45">Alarms</tspan></text>
+  <text x="80" y="262" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="46" font-weight="600" fill="#e8ecf6" letter-spacing="-1">Alarms for Java 8+, on time and in order</text>
+  <text x="80" y="318" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="27" fill="#9aa6c0">A time range that gives out the elements whose moments have come,</text>
+  <text x="80" y="354" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="27" fill="#9aa6c0">and a service that fires them in one thread.</text>
+  <rect x="80" y="404" width="1040" height="64" rx="12" fill="#0f1730" stroke="#26325a"/>
+  <text x="108" y="445" font-family="Menlo, Monaco, monospace" font-size="24" fill="#dfe6f5"><tspan fill="#8cc8ff">service</tspan>.process(fired -&gt; fired.forEach(<tspan fill="#8cc8ff">System</tspan>.out::println));</text>
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <text x="80" y="548" font-size="40" font-weight="700" fill="#ff6a45">1.6M/s</text>
+    <text x="80" y="580" font-size="20" fill="#9aa6c0">alarms in one process</text>
+    <text x="360" y="548" font-size="40" font-weight="700" fill="#ff6a45">&lt; 1 ms</text>
+    <text x="360" y="580" font-size="20" fill="#9aa6c0">p99 at 400,000 per second</text>
+    <text x="640" y="548" font-size="40" font-weight="700" fill="#ff6a45">36 B</text>
+    <text x="640" y="580" font-size="20" fill="#9aa6c0">of the heap per Instant</text>
+    <text x="890" y="548" font-size="40" font-weight="700" fill="#ff6a45">Java 8+</text>
+    <text x="890" y="580" font-size="20" fill="#9aa6c0">JPMS, OSGi, virtual threads</text>
+  </g>
+</svg>
