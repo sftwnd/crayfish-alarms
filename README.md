@@ -41,19 +41,19 @@ Maven:
 <dependency>
     <groupId>com.github.sftwnd.crayfish.alarms</groupId>
     <artifactId>crayfish-alarms-service</artifactId>
-    <version>1.0.5</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.0.5'
+implementation 'com.github.sftwnd.crayfish.alarms:crayfish-alarms-service:1.1.0'
 ```
 
 `crayfish-alarms-service` brings `crayfish-alarms-timerange` with it; a range without the service needs
-`crayfish-alarms-timerange` only. 1.0.4 requires Java 11; 1.0.5 runs on Java 8, and is the same named modules on
-Java 9+.
+`crayfish-alarms-timerange` only. 1.0.4 requires Java 11; 1.0.5 and later run on Java 8, and are the same named modules
+on Java 9+.
 
 ## TimeRange
 
@@ -75,6 +75,14 @@ That is, the object will be present in memory and open to calls.
 The entire TimeRange is divided into sub-ranges with the duration specified by the interval parameter.
 For each subrange, a separate structure for storing elements marked with a time-marker is allocated, which just falls into the specified subrange.
 An interval that is not positive or longer than the duration is taken equal to the absolute duration, and an interval is at least a millisecond.
+
+The sub-ranges start at the start of the range. A sub-range keeps the moments of its elements as nanoseconds from its
+start in an array of `long`s, and the elements in an array of references: 12 bytes besides an element, plus the spare
+room of the arrays. A range of 4,000,000 `Instant`s takes 41 bytes of the heap per element, the `Instant` included
+(96 in 1.0.5, 64 in 1.0.4). A sub-range with 4,096 elements or more is divided into 16 parts of its interval, and so is
+a part with as many, so that an extraction sorts the elements of the parts that fire, not those of the sub-range. The
+interval divides the storage only and changes no result of the range; a range of 292 years or longer, beyond a `long` of
+nanoseconds, takes sub-ranges of whole seconds up to a century.
 
 ### Supported items
 
@@ -99,7 +107,7 @@ This is the most general method. When calling it, you must specify the **duratio
 * **preserver** - transforms an added element into the element that the range stores
 * **expectation** - gets the time marker of a stored element
 * **reducer** - transforms a fired stored element into the resulting one
-* **comparator** - compares the stored elements of the same time marker, or null (see the uniqueness constraint above)
+* **comparator** - compares the stored elements of the same time marker, or null (see the uniqueness constraint above). It must not throw, and neither must `hashCode` and `equals` without it: they are called when the elements of a chunk are sorted, in `addElements` and in `extractFiredElements`. An exception of them fails the call, and the range stays consistent: an extraction that fails takes nothing out of it. An element whose comparisons fail stays in the range and fails the sorts of its chunk again.
 
 ```java
     ITimeRangeFactory<SourceObject,FiredObject> timeRangeFactory = ITimeRangeFactory.create(
@@ -213,16 +221,27 @@ All fired elements will be extracted from the holder and returned as a result as
             .thenAcceptAsync(rejected -> System.out.println("rejected: " + rejected));
 ```
 
-The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
+The process ends when the range is empty from its end plus its completeTimeout on, when its thread is interrupted, or with an exception of the consumer or of an extraction, for example of the comparator: the range keeps the alarms of the extraction. At its end it rejects the requests that it has not applied, and a request after the end is rejected at once, until the process is started again. An exception of a registration, for example of an element whose tick is no instant, completes the stage of its request exceptionally, and the process goes on.
 
-The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of `Object.wait`, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
+The second parameter of the constructor, minimalWait: a wait shorter than it is a busy loop instead of a wait, for a precise moment of the alarms at the cost of a core; null or zero, the default, for none.
+
+The third parameter, wakeUpStep (since 1.1.0): the process wakes up for the next alarm at the next multiple of the step on the clock, counted from the epoch, and never before the moment of the alarm. The wake-ups keep to the grid of the clock, so the time of a wake-up and of an extraction does not add to the step.
+
+* null, the default: a millisecond. An alarm fires about 0.1 to 0.15 ms earlier than with 1.0.5, whose `Object.wait(ms, nanos)` rounded the timeout of every wait up to a millisecond, at the same CPU;
+* zero: precise waits, which fire the alarms closer to their moments, at the cost of more wake-ups of the process and up to twice its CPU;
+* a coarser step: fewer wake-ups, which leave more alarms to an extraction, and later alarms.
+
+```java
+    // precise waits
+    AlarmTimeRangeService<Instant, Instant> precise = new AlarmTimeRangeService<>(timeRange, null, Duration.ZERO);
+```
 
 ### Threads
 
 * A TimeRange is not thread-safe. Once it is given to the service, only the process uses it.
 * The process runs in the thread that calls `process`, and the consumer gets the fired elements in that thread: a consumer that takes time delays the next alarms.
 * `addElements` and `addElement` can be called from any thread. The stage that they return completes in the thread of the process, and so do the dependent actions of the stage that use no asynchronous method: an action of 2 s on the stage of a request makes an alarm due in 100 ms fire after 2 s. Use `thenApplyAsync`, `thenAcceptAsync`, `thenRunAsync` and the like for an action that takes time.
-* The process waits with `Object.wait` in `synchronized`. On JDK 21 to 23 a virtual thread that runs the process pins its carrier while it waits: with one carrier, another virtual thread got it after 2.7 s on JDK 21, and after 1 ms on JDK 25 (JEP 491 removed the pinning in JDK 24). Run the process in a platform thread there.
+* The process waits on a `ReentrantLock` and its `Condition`: a virtual thread that runs the process leaves its carrier while it waits, on JDK 21 to 23 as well. Up to 1.0.5 the process waited with `Object.wait` in `synchronized`, which pinned the carrier on JDK 21 to 23 (JEP 491 removed the pinning in JDK 24): the scheduler gave the waiting process a carrier of its own, up to `jdk.virtualThreadScheduler.maxPoolSize`, and with `maxPoolSize=1` another virtual thread got the only carrier when the process no longer waited.
 
 ## Java modules
 
@@ -250,12 +269,12 @@ JavaSE 1.8):
 
 ```text
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.timerange
-Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.0.5";uses:="com.github.sftwnd.crayfish.common.expectation"
+Export-Package: com.github.sftwnd.crayfish.alarms.timerange;version="1.1.0";uses:="com.github.sftwnd.crayfish.common.expectation"
 Import-Package: com.github.sftwnd.crayfish.common.expectation;version="[1.4,2)"
 
 Bundle-SymbolicName: com.github.sftwnd.crayfish.alarms.service
-Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.0.5";uses:="com.github.sftwnd.crayfish.alarms.timerange"
-Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.0,2)"
+Export-Package: com.github.sftwnd.crayfish.alarms.service;version="1.1.0";uses:="com.github.sftwnd.crayfish.alarms.timerange"
+Import-Package: com.github.sftwnd.crayfish.alarms.timerange;version="[1.1,2)"
 ```
 
 The build checks the bundles in Apache Felix on Java 8 and Java 21: the framework resolves them with the bundle of

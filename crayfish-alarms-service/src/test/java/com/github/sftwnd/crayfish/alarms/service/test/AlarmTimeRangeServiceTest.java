@@ -27,6 +27,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -147,15 +150,10 @@ class AlarmTimeRangeServiceTest {
         ITimeRange<Instant, Instant> timeRange = timeRange();
         IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
         CountDownLatch cdl = new CountDownLatch(1);
-        Thread thread = new Thread(() -> {
-            try {
-                alarmService.process(ignore -> {
-                    cdl.countDown();
-                    Thread.currentThread().interrupt();
-                });
-            } catch (Throwable ignore) {
-            }
-        });
+        Thread thread = new Thread(() -> alarmService.process(ignore -> {
+            cdl.countDown();
+            Thread.currentThread().interrupt();
+        }));
         thread.start();
         alarmService.addElement(Instant.now());
         assertTrue(cdl.await(1, TimeUnit.SECONDS), "Instant in TimeRange period has to be fired");
@@ -177,9 +175,12 @@ class AlarmTimeRangeServiceTest {
         Collection<Thread> threads = IntStream.range(0, degree).mapToObj(i -> new Thread(() -> {
             try {
                 startedCdl.countDown();
-                boolean ignore = addCdl.await(1, TimeUnit.SECONDS);
-                alarmService.addElement(instant.plusNanos(i));
-            } catch (InterruptedException ignore) {
+                // all the alarms are added at once; an alarm that is not added fails the test, which waits for all
+                if (addCdl.await(1, TimeUnit.SECONDS)) {
+                    alarmService.addElement(instant.plusNanos(i));
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
             }
         })).collect(Collectors.toList());
         threads.forEach(Thread::start);
@@ -195,10 +196,20 @@ class AlarmTimeRangeServiceTest {
 
     @Test
     void wakeUpOnEveryRegistration() {
+        // the default step of a wake-up, a millisecond
+        assertWakesUpOnEveryRegistration(null);
+    }
+
+    @Test
+    void wakeUpOnEveryRegistrationWithoutStep() {
+        assertWakesUpOnEveryRegistration(Duration.ZERO);
+    }
+
+    private void assertWakesUpOnEveryRegistration(Duration wakeUpStep) {
         // without a registration the process waits for the end of the range, an hour
         ITimeRange<Instant, Instant> timeRange = ITimeRangeFactory.<Instant>temporal(
                 Duration.ofHours(1), Duration.ofMinutes(1), Duration.ZERO, null).timeRange(Instant.now());
-        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        IAlarmService<Instant, Instant> alarmService = new AlarmTimeRangeService<>(timeRange, Duration.ZERO, wakeUpStep);
         Thread thread = new Thread(() -> alarmService.process(ignore -> {}));
         thread.start();
         // an element before the range is rejected when it is registered: the process waits again right after every
@@ -217,6 +228,43 @@ class AlarmTimeRangeServiceTest {
     }
 
     @Test
+    void neverBeforeTheMoment() throws InterruptedException {
+        // the default step of a wake-up, no step, a coarser one, and a negative one, which is none
+        for (Duration wakeUpStep : Arrays.asList(null, Duration.ZERO, Duration.ofMillis(50), Duration.ofMillis(-1))) {
+            assertFiresNotBeforeTheMoment(wakeUpStep);
+        }
+    }
+
+    private void assertFiresNotBeforeTheMoment(Duration wakeUpStep) throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = new AlarmTimeRangeService<>(timeRange, null, wakeUpStep);
+        // moments with nanoseconds, from 20 to 400 ms from now, which the process waits for one by one
+        Instant start = Instant.now();
+        List<Instant> alarms = IntStream.range(0, 40)
+                .mapToObj(i -> start.plusMillis(20L + 19L * ((i * 7) % 20)).plusNanos(i * 12_345L))
+                .collect(Collectors.toList());
+        List<Instant[]> fired = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch firedCdl = new CountDownLatch(alarms.size());
+        Thread thread = new Thread(() -> alarmService.singleProcess(element -> {
+            fired.add(new Instant[] {element, Instant.now()});
+            firedCdl.countDown();
+        }));
+        thread.start();
+        try {
+            alarmService.addElements(alarms);
+            assertTrue(firedCdl.await(3, TimeUnit.SECONDS), () -> "AlarmService has to fire the alarms, step " + wakeUpStep);
+            synchronized (fired) {
+                for (Instant[] alarm : fired) {
+                    assertFalse(alarm[1].isBefore(alarm[0]),
+                            () -> "AlarmService must not fire an alarm before its moment, step " + wakeUpStep + ": " + alarm[0] + " at " + alarm[1]);
+                }
+            }
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
     void rejectTest() throws InterruptedException, ExecutionException {
         ITimeRange<Instant, Instant> timeRange = timeRangeFactory
                 .timeRange(Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1));
@@ -227,7 +275,15 @@ class AlarmTimeRangeServiceTest {
         CountDownLatch sCdl = new CountDownLatch(1);
         CountDownLatch eCdl = new CountDownLatch(1);
         Thread thread = new Thread( () -> {
-            try { boolean ignore = sCdl.await(1, TimeUnit.SECONDS); } catch (InterruptedException ignore) { }
+            try {
+                // the process starts after the first element is added; without the signal the test fails on its end
+                if (!sCdl.await(1, TimeUnit.SECONDS)) {
+                    return;
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
             try {
                 alarmService.process(elements -> elements.stream()
                         .filter(firstInstant::equals)
@@ -239,7 +295,8 @@ class AlarmTimeRangeServiceTest {
                                 throw new IllegalStateException();
                             }
                         }));
-            } catch (IllegalStateException ignore) {
+            } catch (IllegalStateException expected) {
+                // the consumer of the first element ends the process with it
             } finally {
                 eCdl.countDown();
             }
@@ -247,7 +304,7 @@ class AlarmTimeRangeServiceTest {
         thread.start();
         alarmService.addElement(firstInstant);
         sCdl.countDown();
-        boolean ignore = eCdl.await(1, TimeUnit.SECONDS);
+        assertTrue(eCdl.await(1, TimeUnit.SECONDS), "The process has to end after the first element fires");
         assertNotNull(futureRef.get(), "CompletionStage after the first element fires has to be filled");
         CompletableFuture<Instant> future = futureRef.get().toCompletableFuture();
         assertDoesNotThrow(() -> future.get(1, TimeUnit.SECONDS), "CompletionStage has to be done");
@@ -330,6 +387,43 @@ class AlarmTimeRangeServiceTest {
         } finally {
             thread.interrupt();
         }
+    }
+
+    @Test
+    void failedExtraction() throws InterruptedException, ExecutionException, TimeoutException {
+        // the comparator fails for the elements of a moment: it is called when the chunk fires, not when they are added
+        ITimeRange<TemporalAccessor, TemporalAccessor> timeRange = ITimeRangeFactory.<TemporalAccessor>temporal(
+                Duration.ofSeconds(5), Duration.ofMillis(100), Duration.ofMillis(250),
+                (first, second) -> {
+                    throw new IllegalStateException("comparator failure");
+                }).timeRange(Instant.now());
+        IAlarmService<TemporalAccessor, TemporalAccessor> alarmService = new AlarmTimeRangeService<>(timeRange, Duration.ZERO);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread thread = new Thread(() -> {
+            try {
+                alarmService.process(ignore -> {});
+            } catch (Throwable throwable) {
+                failure.set(throwable);
+            }
+        });
+        thread.start();
+        try {
+            Instant moment = Instant.now().plusMillis(200);
+            assertEquals(Collections.emptyList(), alarmService.addElements(Arrays.asList(moment, moment)).toCompletableFuture().get(1, TimeUnit.SECONDS),
+                    "AlarmService has to register the alarms, whose comparison comes when they fire");
+            thread.join(2_000);
+            assertFalse(thread.isAlive(), "The process has to end on an exception of the extraction");
+        } finally {
+            thread.interrupt();
+        }
+        assertNotNull(failure.get(), "The process has to end with the exception of the extraction");
+        assertEquals("comparator failure", failure.get().getMessage(), "The process has to end with the exception of the comparator");
+        Instant later = Instant.now().plusMillis(500);
+        assertEquals(later, alarmService.addElement(later).toCompletableFuture().get(1, TimeUnit.SECONDS),
+                "AlarmService has to reject an alarm after the end of the process");
+        Instant now = Instant.now();
+        assertThrows(IllegalStateException.class, () -> timeRange.extractFiredElements(now),
+                "The time range has to keep the alarms of the extraction that failed");
     }
 
     @Test
@@ -434,6 +528,32 @@ class AlarmTimeRangeServiceTest {
     }
 
     @Test
+    void nullTimeOffset() throws InterruptedException {
+        // the supplier of the process gives null
+        assertFiresWithoutTimeOffset((alarmService, consumer) -> alarmService.process(consumer, (Duration) null));
+    }
+
+    @Test
+    void nullTimeOffsetSupplier() throws InterruptedException {
+        assertFiresWithoutTimeOffset((alarmService, consumer) -> alarmService.process(consumer, (Supplier<Duration>) null));
+    }
+
+    private void assertFiresWithoutTimeOffset(
+            BiConsumer<IAlarmService<Instant, Instant>, Consumer<Collection<Instant>>> process) throws InterruptedException {
+        ITimeRange<Instant, Instant> timeRange = timeRange();
+        IAlarmService<Instant, Instant> alarmService = alarmService(timeRange, Duration.ZERO);
+        CountDownLatch firedCdl = new CountDownLatch(1);
+        Thread thread = new Thread(() -> process.accept(alarmService, ignore -> firedCdl.countDown()));
+        thread.start();
+        try {
+            alarmService.addElement(timeRange.getStartInstant());
+            assertTrue(firedCdl.await(1, TimeUnit.SECONDS), "AlarmService has to fire the alarm without a time offset");
+        } finally {
+            thread.interrupt();
+        }
+    }
+
+    @Test
     void timeOffsetTest() throws InterruptedException, ExecutionException {
         ITimeRange<Instant, Instant> timeRange = timeRangeFactory
                 .timeRange(Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1));
@@ -443,13 +563,18 @@ class AlarmTimeRangeServiceTest {
         CountDownLatch processCdl = new CountDownLatch(1);
         Thread serviceThread = new Thread(() -> {
             try {
-                boolean ignore = serviceCdl.await(1, TimeUnit.SECONDS);
-                processCdl.countDown();
-                alarmService.process(elements -> elements.stream().findFirst().ifPresent(instant -> {
-                    firedFuture.complete(Instant.now());
-                    throw new RuntimeException();
-                }), Duration.ofSeconds(3));
-            } catch (Throwable ignore) {
+                // without the signal the process does not start, and the test fails on its start
+                if (serviceCdl.await(1, TimeUnit.SECONDS)) {
+                    processCdl.countDown();
+                    alarmService.process(elements -> elements.stream().findFirst().ifPresent(instant -> {
+                        firedFuture.complete(Instant.now());
+                        throw new IllegalStateException();
+                    }), Duration.ofSeconds(3));
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException expected) {
+                // the consumer of the alarm ends the process with it
             }
         });
         serviceThread.start();
@@ -476,7 +601,7 @@ class AlarmTimeRangeServiceTest {
     );
 
     @BeforeAll
-    public static void startUp() {
+    static void startUp() {
         Logger.getLogger("com.github.sftwnd.crayfish.alarms.service.AlarmService")
                 .setLevel(Level.OFF);
     }

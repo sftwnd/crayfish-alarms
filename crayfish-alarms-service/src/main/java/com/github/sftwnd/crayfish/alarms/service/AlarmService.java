@@ -14,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -33,18 +35,49 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     private static final Logger logger = Logger.getLogger(AlarmService.class.getName());
     // no spin by default: the process waits for every alarm, unless a minimal wait is given
     private static final long DEFAULT_MINIMAL_WAIT_NANOS = 0L;
+    // a millisecond by default, the step of the waits of Object.wait(ms, nanos) in 1.0.5
+    private static final long DEFAULT_WAKE_UP_STEP_NANOS = 1_000_000L;
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
+    // the seconds from the epoch whose nanoseconds fit a long: about 292 years
+    private static final long MAX_EPOCH_SECONDS = Long.MAX_VALUE / NANOS_PER_SECOND - 1L;
     private final ConcurrentLinkedQueue<RegistrationRequest> registrationQueue = new ConcurrentLinkedQueue<>();
+    // the process waits for the next alarm, or for a registration, on the condition of the lock: a virtual thread that
+    // waits on it does not pin its carrier, as it does in Object.wait in synchronized on JDK 21 to 23
+    private final ReentrantLock registrationLock = new ReentrantLock();
+    private final Condition registration = registrationLock.newCondition();
     private final long minimalWaitNanos;
+    private final long wakeUpStepNanos;
+
+    /**
+     * Construct IAlarmService with the default step of a wake-up, a millisecond
+     * @param minimalWait a wait shorter than minimalWait is a busy loop instead of a wait; null or zero, the default,
+     *                    for none
+     */
+    protected AlarmService(@Nullable Duration minimalWait) {
+        this(minimalWait, null);
+    }
 
     /**
      * Construct IAlarmService
-     * @param minimalWait on the timeout less than minimalWait spinCount will be used instead of wait; null for none
+     * @param minimalWait a wait shorter than minimalWait is a busy loop instead of a wait; null or zero, the default,
+     *                    for none
+     * @param wakeUpStep the step of a wake-up: the process wakes up for the next alarm at the next multiple of the step
+     *                   on the clock, counted from the epoch, and never before the moment of the alarm. Null, the
+     *                   default, for a millisecond; zero for precise waits, which fire the alarms closer to
+     *                   their moments at the cost of more wake-ups of the process, up to twice its CPU; a coarser step
+     *                   leaves more alarms to an extraction. A negative step is zero
+     * @since 1.1.0
      */
-    protected AlarmService(@Nullable Duration minimalWait) {
-        this.minimalWaitNanos = Optional.ofNullable(minimalWait)
+    protected AlarmService(@Nullable Duration minimalWait, @Nullable Duration wakeUpStep) {
+        this.minimalWaitNanos = nonNegativeNanos(minimalWait, DEFAULT_MINIMAL_WAIT_NANOS);
+        this.wakeUpStepNanos = nonNegativeNanos(wakeUpStep, DEFAULT_WAKE_UP_STEP_NANOS);
+    }
+
+    private static long nonNegativeNanos(@Nullable Duration duration, long defaultNanos) {
+        return Optional.ofNullable(duration)
                 .map(Duration::toNanos)
                 .map(nanos -> Math.max(0L, nanos))
-                .orElse(DEFAULT_MINIMAL_WAIT_NANOS);
+                .orElse(defaultNanos);
     }
 
     /**
@@ -70,8 +103,11 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
                     registrationRequest.reject();
                 }
             } else if (syncFlag.get()) {
-                synchronized (registrationQueue) {
-                    registrationQueue.notifyAll();
+                registrationLock.lock();
+                try {
+                    registration.signalAll();
+                } finally {
+                    registrationLock.unlock();
                 }
             }
             return registrationRequest.getCompletionStage();
@@ -83,7 +119,11 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
     /**
      * The process of igniting alarm clocks at a given moment in time.
      * At its end, the requests that the process has not applied are rejected.
+     * An exception of a registration completes its request exceptionally, and the process goes on. An exception of an
+     * extraction ends the process: an exception of the comparator of the time range, of {@code hashCode} or
+     * {@code equals} without one, or of its reducer; the time range keeps the alarms of the extraction.
      * @param consumer Handler for a set of triggered alarms
+     * @throws RuntimeException the exception of an extraction, or of the consumer
      */
     @Override
     public final void process(@NonNull Consumer<Collection<R>> consumer, @Nullable Supplier<Duration> timeOffset) {
@@ -146,32 +186,55 @@ public abstract class AlarmService<M,R> extends AbstractAlarmProcessor<R> implem
 
     private final AtomicBoolean syncFlag = new AtomicBoolean(false);
 
-    @SuppressWarnings("java:S2274")
+    // java:S2274 and java:S899: one wait, whose time left is not needed; whatever ends it, a registration, the timeout
+    // or a spurious wake-up, the loop of register reads the clock again and waits again before the moment
+    @SuppressWarnings({"java:S2274", "java:S899"})
     private @Nullable RegistrationRequest syncNext(Instant until) throws InterruptedException {
         RegistrationRequest next = this.registrationQueue.poll();
         if (next == null) {
             boolean needNext = false;
-            synchronized (this.registrationQueue) {
+            this.registrationLock.lock();
+            try {
                 syncFlag.compareAndSet(false, true);
                 try {
                     next = this.registrationQueue.poll();
                     if (next == null) {
                         long waitNanos = Duration.between(Instant.now(), until).toNanos();
                         if (waitNanos > this.minimalWaitNanos) {
-                            // java:S2274
-                            this.registrationQueue.wait(waitNanos / 1000000, (int) (waitNanos % 1000000));
+                            this.registration.awaitNanos(wakeUpTimeout(waitNanos, epochNanos(until), this.wakeUpStepNanos));
                         }
                         needNext = waitNanos > 0;
                     }
                 } finally {
                     syncFlag.set(false);
                 }
+            } finally {
+                this.registrationLock.unlock();
             }
             if (needNext) {
                 next = this.registrationQueue.poll();
             }
         }
         return next;
+    }
+
+    // the timeout of a positive wait for a moment, the nanoseconds of the clock untilNanos: up to the next multiple of
+    // the step of a wake-up on the clock. The wake-ups keep to the grid of the clock, so the time of a wake-up and of
+    // an extraction does not add to the step, as it does when the timeout is rounded up
+    static long wakeUpTimeout(long waitNanos, long untilNanos, long wakeUpStepNanos) {
+        long remainder = wakeUpStepNanos == 0L ? 0L : Math.floorMod(untilNanos, wakeUpStepNanos);
+        if (remainder == 0L) {
+            return waitNanos;
+        }
+        long timeout = waitNanos + (wakeUpStepNanos - remainder);
+        // a timeout past Long.MAX_VALUE nanoseconds is the longest wait
+        return timeout > 0L ? timeout : Long.MAX_VALUE;
+    }
+
+    // the nanoseconds of the moment from the epoch; zero, a moment of the grid, before 1678 and after 2262
+    static long epochNanos(Instant instant) {
+        long seconds = instant.getEpochSecond();
+        return Math.abs(seconds) <= MAX_EPOCH_SECONDS ? seconds * NANOS_PER_SECOND + instant.getNano() : 0L;
     }
 
     private void register(Instant until) throws InterruptedException {
