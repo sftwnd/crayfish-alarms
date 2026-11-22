@@ -85,10 +85,10 @@ class VirtualThreadTest {
             AlarmTimeRangeService<Instant, Instant> service = new AlarmTimeRangeService<>(timeRange, null);
             service.addElement(Instant.now().plusMillis(WAIT_MS));
             Thread processThread = startVirtualThread(() -> service.process(ignore -> {}));
-            // the process waits for its alarm
+            // the process waits for its alarm: no event tells it, the state of its thread is polled
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
             while (processThread.getState() != Thread.State.TIMED_WAITING && System.nanoTime() < deadline) {
-                Thread.sleep(1);
+                Thread.yield();
             }
             if (processThread.getState() != Thread.State.TIMED_WAITING) {
                 throw new IllegalStateException("The process does not wait: " + processThread.getState());
