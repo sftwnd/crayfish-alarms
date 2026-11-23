@@ -1,149 +1,142 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" font-family="-apple-system,Helvetica,Arial,sans-serif">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d1426"/><stop offset="1" stop-color="#141b33"/></linearGradient><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff8a3d"/></marker></defs>
-<rect width="1200" height="720" fill="url(#bg)"/>
-<text x="60" y="62" font-size="30" font-weight="700" fill="#fff">How Crayfish Alarms stores events</text>
-<text x="60" y="92" font-size="17" fill="#9fb0d0">time range  →  chunks  →  partitions   ·   no node object per event</text>
-<text x="60" y="136" font-size="15" fill="#9fb0d0">TimeRange: chunks ordered in a <tspan font-family="Menlo,Consolas,monospace" fill="#ffb27a">TreeMap</tspan></text>
-<rect x="60" y="150" width="1080" height="64" rx="10" fill="#17203b" stroke="#2c3a63"/>
-<line x1="195.0" y1="150" x2="195.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="330.0" y1="150" x2="330.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="465.0" y1="150" x2="465.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="600.0" y1="150" x2="600.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="735.0" y1="150" x2="735.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="870.0" y1="150" x2="870.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<line x1="1005.0" y1="150" x2="1005.0" y2="214" stroke="#2c3a63" stroke-width="2"/>
-<circle cx="179" cy="178" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="76" cy="195" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="81" cy="185" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="175" cy="171" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="80" cy="179" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="215" cy="179" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="300" cy="167" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="231" cy="187" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="314" cy="185" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="346" cy="171" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="404" cy="167" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="388" cy="184" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="406" cy="184" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="418" cy="166" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="406" cy="170" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="538" cy="165" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="482" cy="170" r="4.5" fill="none" stroke="#ff8a3d" stroke-width="1.6" opacity="0.45"/>
-<circle cx="553" cy="179" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="664" cy="199" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="652" cy="172" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="631" cy="193" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="619" cy="174" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="667" cy="176" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="778" cy="201" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="759" cy="179" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="832" cy="168" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="801" cy="164" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="822" cy="193" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="811" cy="197" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="919" cy="176" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="937" cy="194" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="888" cy="166" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="911" cy="190" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="887" cy="191" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="1089" cy="202" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="1110" cy="173" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="1059" cy="189" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="1018" cy="180" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<circle cx="1034" cy="167" r="4.5" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="1.6" opacity="1"/>
-<line x1="519.0" y1="142" x2="519.0" y2="222" stroke="#4fd1c5" stroke-width="3"/>
-<text x="519.0" y="242" font-size="14" fill="#4fd1c5" text-anchor="middle">now</text>
-<text x="60" y="242" font-size="14" fill="#6f80a8">start</text>
-<text x="1140" y="242" font-size="14" fill="#6f80a8" text-anchor="end">end</text>
-<rect x="735.0" y="150" width="135.0" height="64" rx="4" fill="none" stroke="#ff8a3d" stroke-width="3"/>
-<text x="802.5" y="242" font-size="14" fill="#ffb27a" text-anchor="middle">one chunk</text>
-<rect x="60" y="290" width="340" height="380" rx="14" fill="#111a30" stroke="#2c3a63" stroke-width="1.5"/>
-<text x="82" y="328" font-size="20" font-weight="700" fill="#fff">1 · Cold chunk</text>
-<text x="82" y="354" font-size="15" fill="#9fb0d0">append only, sorting deferred</text>
-<rect x="430" y="290" width="340" height="380" rx="14" fill="#111a30" stroke="#2c3a63" stroke-width="1.5"/>
-<text x="452" y="328" font-size="20" font-weight="700" fill="#fff">2 · After first firing</text>
-<text x="452" y="354" font-size="15" fill="#9fb0d0">sorted main array + heap</text>
-<rect x="800" y="290" width="340" height="380" rx="14" fill="#111a30" stroke="#2c3a63" stroke-width="1.5"/>
-<text x="822" y="328" font-size="20" font-weight="700" fill="#fff">3 · Chunk reaches 4,096</text>
-<text x="822" y="354" font-size="15" fill="#9fb0d0">splits into 16 time partitions</text>
-<line x1="404" y1="480.0" x2="426" y2="480.0" stroke="#ff8a3d" stroke-width="3" marker-end="url(#ar)"/>
-<line x1="774" y1="480.0" x2="796" y2="480.0" stroke="#ff8a3d" stroke-width="3" marker-end="url(#ar)"/>
-<text x="82" y="400" font-size="14" font-family="Menlo,Consolas,monospace" fill="#ffb27a">Object[]  (any order)</text>
-<rect x="82" y="418" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="115" y="444" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e7</text>
-<rect x="156" y="418" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="189" y="444" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e2</text>
-<rect x="230" y="418" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="263" y="444" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e9</text>
-<rect x="304" y="418" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="337" y="444" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e1</text>
-<rect x="82" y="470" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="115" y="496" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e5</text>
-<rect x="156" y="470" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="189" y="496" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e3</text>
-<rect x="230" y="470" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="263" y="496" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e8</text>
-<rect x="304" y="470" width="66" height="40" rx="6" fill="#1d2848" stroke="#3a4b7c"/>
-<text x="337" y="496" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e4</text>
-<text x="82" y="560" font-size="15" fill="#c6d3ee">new event → simply appended</text>
-<text x="82" y="586" font-size="15" fill="#c6d3ee">sort only when it first fires</text>
-<text x="452" y="394" font-size="14" font-family="Menlo,Consolas,monospace" fill="#ffb27a">long[]  offsets, ns, sorted</text>
-<rect x="452" y="404" width="54" height="34" rx="6" fill="#1d2848" stroke="#ff8a3d"/>
-<text x="479" y="427" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">12</text>
-<rect x="512" y="404" width="54" height="34" rx="6" fill="#1d2848" stroke="#ff8a3d"/>
-<text x="539" y="427" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">40</text>
-<rect x="572" y="404" width="54" height="34" rx="6" fill="#1d2848" stroke="#ff8a3d"/>
-<text x="599" y="427" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">95</text>
-<rect x="632" y="404" width="54" height="34" rx="6" fill="#1d2848" stroke="#ff8a3d"/>
-<text x="659" y="427" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">130</text>
-<rect x="692" y="404" width="54" height="34" rx="6" fill="#1d2848" stroke="#ff8a3d"/>
-<text x="719" y="427" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">204</text>
-<text x="452" y="462" font-size="14" font-family="Menlo,Consolas,monospace" fill="#7fd6cd">Object[]  same index</text>
-<rect x="452" y="472" width="54" height="34" rx="6" fill="#1d2848" stroke="#4fd1c5"/>
-<text x="479" y="495" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e1</text>
-<rect x="512" y="472" width="54" height="34" rx="6" fill="#1d2848" stroke="#4fd1c5"/>
-<text x="539" y="495" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e2</text>
-<rect x="572" y="472" width="54" height="34" rx="6" fill="#1d2848" stroke="#4fd1c5"/>
-<text x="599" y="495" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e3</text>
-<rect x="632" y="472" width="54" height="34" rx="6" fill="#1d2848" stroke="#4fd1c5"/>
-<text x="659" y="495" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e4</text>
-<rect x="692" y="472" width="54" height="34" rx="6" fill="#1d2848" stroke="#4fd1c5"/>
-<text x="719" y="495" font-size="15" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e5</text>
-<text x="452" y="546" font-size="14" font-family="Menlo,Consolas,monospace" fill="#ffb27a">binary heap  (new events)</text>
-<rect x="452" y="556" width="54" height="34" rx="17" fill="#2a1d1a" stroke="#ff8a3d"/>
-<text x="479" y="579" font-size="15" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e6</text>
-<rect x="512" y="556" width="54" height="34" rx="17" fill="#2a1d1a" stroke="#ff8a3d"/>
-<text x="539" y="579" font-size="15" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e8</text>
-<rect x="572" y="556" width="54" height="34" rx="17" fill="#2a1d1a" stroke="#ff8a3d"/>
-<text x="599" y="579" font-size="15" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e7</text>
-<line x1="652" y1="573" x2="742" y2="573" stroke="#ff8a3d" stroke-width="3" marker-end="url(#ar)"/>
-<text x="652" y="560" font-size="14" fill="#ffb27a">merge</text>
-<text x="452" y="628" font-size="15" fill="#c6d3ee">periodically merged into the main arrays</text>
-<rect x="822" y="394" width="296" height="38" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
-<text x="970" y="419" font-size="16" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">4,096 elements</text>
-<line x1="970" y1="436" x2="970" y2="458" stroke="#ff8a3d" stroke-width="3" marker-end="url(#ar)"/>
-<rect x="823.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="860.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="897.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="934.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="971.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1008.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1045.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1082.0" y="466" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="823.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="860.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="897.0" y="506" width="35.0" height="34" rx="5" fill="#3a2417" stroke="#ff8a3d" stroke-width="2"/>
-<rect x="934.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="971.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1008.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1045.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<rect x="1082.0" y="506" width="35.0" height="34" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1"/>
-<text x="970" y="556" font-size="14" fill="#9fb0d0" text-anchor="middle">16 partitions</text>
-<text x="822" y="582" font-size="14" fill="#ffb27a">a full partition splits again, recursively</text>
-<rect x="822" y="592" width="68" height="26" rx="5" fill="#3a2417" stroke="#ff8a3d"/>
-<rect x="896" y="592" width="68" height="26" rx="5" fill="#3a2417" stroke="#ff8a3d"/>
-<rect x="970" y="592" width="68" height="26" rx="5" fill="#3a2417" stroke="#ff8a3d"/>
-<rect x="1044" y="592" width="68" height="26" rx="5" fill="#3a2417" stroke="#ff8a3d"/>
-<text x="822" y="646" font-size="15" fill="#c6d3ee">extraction sorts only the partitions it needs</text>
-<text x="1140" y="706" font-size="13" fill="#6f80a8" text-anchor="end">github.com/sftwnd/crayfish-alarms</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1270" viewBox="0 0 1200 1270" font-family="-apple-system,Helvetica,Arial,sans-serif">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d1426"/><stop offset="1" stop-color="#141b33"/></linearGradient><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#ff8a3d"/></marker></defs>
+<rect width="1200" height="1270" fill="url(#bg)"/>
+<text x="50" y="74" font-size="46" font-weight="700" fill="#fff">How Crayfish Alarms stores events</text>
+<text x="50" y="116" font-size="26" fill="#9fb0d0">time range → chunks → partitions · no node object per event</text>
+<text x="50" y="180" font-size="25" fill="#c6d3ee">TimeRange: chunks ordered in a <tspan font-family="Menlo,Consolas,monospace" fill="#ffb27a">TreeMap</tspan></text>
+<rect x="50" y="196" width="1100" height="76" rx="12" fill="#17203b" stroke="#2c3a63" stroke-width="2"/>
+<line x1="187.5" y1="196" x2="187.5" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="325.0" y1="196" x2="325.0" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="462.5" y1="196" x2="462.5" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="600.0" y1="196" x2="600.0" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="737.5" y1="196" x2="737.5" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="875.0" y1="196" x2="875.0" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<line x1="1012.5" y1="196" x2="1012.5" y2="272" stroke="#2c3a63" stroke-width="2"/>
+<circle cx="168" cy="229" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="69" cy="248" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="74" cy="238" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="164" cy="221" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="249" cy="215" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="211" cy="231" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="292" cy="217" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="408" cy="238" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="346" cy="238" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="344" cy="222" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="571" cy="225" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="492" cy="217" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="510" cy="248" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="496" cy="238" r="6" fill="none" stroke="#ff8a3d" stroke-width="2" opacity="0.45"/>
+<circle cx="546" cy="228" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="692" cy="237" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="682" cy="234" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="672" cy="246" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="665" cy="253" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="654" cy="223" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="828" cy="223" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="814" cy="235" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="847" cy="244" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="956" cy="215" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="945" cy="219" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="926" cy="253" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="935" cy="254" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="1110" cy="237" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="1122" cy="226" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<circle cx="1103" cy="238" r="6" fill="#ff8a3d" stroke="#ff8a3d" stroke-width="2" opacity="1"/>
+<line x1="517.5" y1="188" x2="517.5" y2="280" stroke="#4fd1c5" stroke-width="4"/>
+<rect x="737.5" y="196" width="137.5" height="76" rx="4" fill="none" stroke="#ff8a3d" stroke-width="4"/>
+<text x="50" y="306" font-size="23" fill="#7f90b8">start</text>
+<text x="517.5" y="306" font-size="23" fill="#4fd1c5" text-anchor="middle">now</text>
+<text x="806.25" y="306" font-size="23" fill="#ffb27a" text-anchor="middle">one chunk</text>
+<text x="1150" y="306" font-size="23" fill="#7f90b8" text-anchor="end">end</text>
+<rect x="50" y="350" width="1100" height="270" rx="16" fill="#111a30" stroke="#2c3a63" stroke-width="2"/>
+<text x="80" y="400" font-size="32" font-weight="700" fill="#fff">1 · Cold chunk</text>
+<text x="80" y="440" font-size="25" fill="#9fb0d0">append only, sorting deferred</text>
+<text x="80" y="520" font-size="25" fill="#e3ebff">new event → just appended</text>
+<text x="80" y="556" font-size="25" fill="#e3ebff">sorted only on first firing</text>
+<path d="M96,623 L124,623 L110,642 z" fill="#ff8a3d"/>
+<rect x="50" y="644" width="1100" height="270" rx="16" fill="#111a30" stroke="#2c3a63" stroke-width="2"/>
+<text x="80" y="694" font-size="32" font-weight="700" fill="#fff">2 · After first firing</text>
+<text x="80" y="734" font-size="25" fill="#9fb0d0">sorted main array + heap</text>
+<text x="80" y="814" font-size="25" fill="#e3ebff">new events go to the heap</text>
+<text x="80" y="850" font-size="25" fill="#e3ebff">and are merged in later</text>
+<path d="M96,917 L124,917 L110,936 z" fill="#ff8a3d"/>
+<rect x="50" y="938" width="1100" height="270" rx="16" fill="#111a30" stroke="#2c3a63" stroke-width="2"/>
+<text x="80" y="988" font-size="32" font-weight="700" fill="#fff">3 · Chunk reaches 4,096</text>
+<text x="80" y="1028" font-size="25" fill="#9fb0d0">splits into 16 time partitions</text>
+<text x="80" y="1108" font-size="25" fill="#e3ebff">extraction sorts only the</text>
+<text x="80" y="1144" font-size="25" fill="#e3ebff">relevant partitions</text>
+<text x="490" y="400" font-size="23" font-family="Menlo,Consolas,monospace" fill="#ffb27a">Object[]  (any order)</text>
+<rect x="490" y="422" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="563" y="466" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e7</text>
+<rect x="646" y="422" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="719" y="466" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e2</text>
+<rect x="802" y="422" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="875" y="466" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e9</text>
+<rect x="958" y="422" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="1031" y="466" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e1</text>
+<rect x="490" y="502" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="563" y="546" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e5</text>
+<rect x="646" y="502" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="719" y="546" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e3</text>
+<rect x="802" y="502" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="875" y="546" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e8</text>
+<rect x="958" y="502" width="146" height="66" rx="8" fill="#1d2848" stroke="#3a4b7c" stroke-width="2"/>
+<text x="1031" y="546" font-size="28" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e4</text>
+<text x="490" y="682" font-size="23" font-family="Menlo,Consolas,monospace" fill="#ffb27a">long[]  offsets, ns, sorted</text>
+<rect x="490" y="694" width="96" height="48" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
+<text x="538" y="728" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">12</text>
+<rect x="594" y="694" width="96" height="48" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
+<text x="642" y="728" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">40</text>
+<rect x="698" y="694" width="96" height="48" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
+<text x="746" y="728" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">95</text>
+<rect x="802" y="694" width="96" height="48" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
+<text x="850" y="728" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">130</text>
+<rect x="906" y="694" width="96" height="48" rx="8" fill="#1d2848" stroke="#ff8a3d" stroke-width="2"/>
+<text x="954" y="728" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">204</text>
+<text x="490" y="774" font-size="23" font-family="Menlo,Consolas,monospace" fill="#7fd6cd">Object[]  same index</text>
+<rect x="490" y="786" width="96" height="48" rx="8" fill="#1d2848" stroke="#4fd1c5" stroke-width="2"/>
+<text x="538" y="820" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e1</text>
+<rect x="594" y="786" width="96" height="48" rx="8" fill="#1d2848" stroke="#4fd1c5" stroke-width="2"/>
+<text x="642" y="820" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e2</text>
+<rect x="698" y="786" width="96" height="48" rx="8" fill="#1d2848" stroke="#4fd1c5" stroke-width="2"/>
+<text x="746" y="820" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e3</text>
+<rect x="802" y="786" width="96" height="48" rx="8" fill="#1d2848" stroke="#4fd1c5" stroke-width="2"/>
+<text x="850" y="820" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e4</text>
+<rect x="906" y="786" width="96" height="48" rx="8" fill="#1d2848" stroke="#4fd1c5" stroke-width="2"/>
+<text x="954" y="820" font-size="25" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">e5</text>
+<text x="490" y="866" font-size="23" font-family="Menlo,Consolas,monospace" fill="#ffb27a">binary heap</text>
+<rect x="690" y="848" width="96" height="48" rx="24" fill="#2a1d1a" stroke="#ff8a3d" stroke-width="2"/>
+<text x="738" y="882" font-size="25" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e6</text>
+<rect x="794" y="848" width="96" height="48" rx="24" fill="#2a1d1a" stroke="#ff8a3d" stroke-width="2"/>
+<text x="842" y="882" font-size="25" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e8</text>
+<rect x="898" y="848" width="96" height="48" rx="24" fill="#2a1d1a" stroke="#ff8a3d" stroke-width="2"/>
+<text x="946" y="882" font-size="25" font-family="Menlo,Consolas,monospace" fill="#ffd2b0" text-anchor="middle">e7</text>
+<line x1="1050" y1="880" x2="1050" y2="790" stroke="#ff8a3d" stroke-width="4" marker-end="url(#ar)"/>
+<text x="1070" y="846" font-size="23" fill="#ffb27a">merge</text>
+<rect x="490" y="962" width="620" height="50" rx="10" fill="#1d2848" stroke="#ff8a3d" stroke-width="3"/>
+<text x="800" y="996" font-size="26" font-family="Menlo,Consolas,monospace" fill="#dbe6ff" text-anchor="middle">4,096 elements</text>
+<line x1="800" y1="1016" x2="800" y2="1044" stroke="#ff8a3d" stroke-width="4" marker-end="url(#ar)"/>
+<rect x="491.5" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="530.2" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="569.0" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="607.8" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="646.5" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="685.2" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="724.0" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="762.8" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="801.5" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="840.2" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="879.0" y="1050" width="35.8" height="50" rx="5" fill="#3a2417" stroke="#ff8a3d" stroke-width="3"/>
+<rect x="917.8" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="956.5" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="995.2" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="1034.0" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<rect x="1072.8" y="1050" width="35.8" height="50" rx="5" fill="#1d2848" stroke="#3a4b7c" stroke-width="1.5"/>
+<text x="800" y="1128" font-size="23" fill="#9fb0d0" text-anchor="middle">16 partitions</text>
+<rect x="490" y="1146" width="76" height="44" rx="6" fill="#3a2417" stroke="#ff8a3d" stroke-width="2"/>
+<rect x="574" y="1146" width="76" height="44" rx="6" fill="#3a2417" stroke="#ff8a3d" stroke-width="2"/>
+<rect x="658" y="1146" width="76" height="44" rx="6" fill="#3a2417" stroke="#ff8a3d" stroke-width="2"/>
+<rect x="742" y="1146" width="76" height="44" rx="6" fill="#3a2417" stroke="#ff8a3d" stroke-width="2"/>
+<text x="840" y="1176" font-size="23" fill="#ffb27a">splits again, recursively</text>
+<text x="1150" y="1252" font-size="21" fill="#6f80a8" text-anchor="end">github.com/sftwnd/crayfish-alarms</text>
 </svg>
